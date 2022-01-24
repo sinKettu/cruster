@@ -1,10 +1,7 @@
 use std::convert::Infallible;
-use futures::{AsyncReadExt, StreamExt, TryStreamExt, future};
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Request, Response, Server, Method, StatusCode};
-use hyper::body;
+use hyper::{Body, Request, Response, Server};
 use hyper::body::HttpBody;
-use std::io::{stdout, Write};
 
 async fn get_body(mut body: Body) -> String {
     let bytes = body.data().await.unwrap().unwrap();
@@ -12,7 +9,7 @@ async fn get_body(mut body: Body) -> String {
 }
 
 async fn hello(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    let (parts, mut body) = req.into_parts();
+    let (parts, body) = req.into_parts();
 
     println!("{} {} {:#?}", parts.method, parts.uri, parts.version);
     for (name, value) in parts.headers {
