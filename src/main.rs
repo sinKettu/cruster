@@ -1,45 +1,57 @@
-use std::convert::Infallible;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Request, Response, Server};
-use hyper::body::HttpBody;
+mod proxy;
+mod ui;
 
-async fn get_body(mut body: Body) -> String {
-    let bytes = body.data().await.unwrap().unwrap();
-    return String::from_utf8(bytes.to_vec()).unwrap();
-}
+use std::fmt::format;
+use rcgen;
+use std::path::Path;
+use std::fs;
+use shellexpand::tilde;
 
-async fn hello(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    let (parts, body) = req.into_parts();
-
-    println!("{} {} {:#?}", parts.method, parts.uri, parts.version);
-    for (name, value) in parts.headers {
-        match name {
-            Some(hname) => println!("{}: {}", hname, value.to_str().unwrap()),
-            None => {}
+fn handle_certificates(raw_path: &str) -> Result<(), String> {
+    let path = tilde(raw_path).to_string();
+    let cert_name = format!("{}/cruster.cer", &path);
+    let key_name = format!("{}/cruster.key", &path);
+    let generate = |cert, key| -> Result<(), String> {
+        match rcgen::generate_simple_self_signed(
+            vec![
+                String::from("cruster.intercepting.proxy"),
+                String::from("localhost"),
+                String::from("127.0.0.1")
+            ]
+        ) {
+            Ok(certificate) => {
+                fs::write(&cert_name, certificate.serialize_der().unwrap()).unwrap();
+                fs::write(&key_name, certificate.serialize_private_key_der()).unwrap();
+                Ok(())
+            },
+            Err(err) => Err(format!("Unable to generate certificates: {}", err))
         }
+    };
+
+    if !Path::new(&path).exists() {
+        if let Err(err) = fs::create_dir(&path) {
+            return Err(format!("Unable to generate certificates: {}", err));
+        }
+        return generate(&cert_name, &key_name);
+    }
+    else if !(
+        Path::new(&cert_name).exists()
+        && Path::new((&key_name)).exists()
+    ) {
+        return generate(&cert_name, &key_name);
     }
 
-    let bb = get_body(body).await;
-    println!("\n{}", bb);
-    println!("----------------------------------------------------------------");
-
-    Ok(Response::default())
+    Ok(())
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // For every connection, we must make a `Service` to handle all
-    // incoming HTTP requests on said connection.
-    let make_svc = make_service_fn(|_conn| {
-        // This is the `Service` that will handle the connection.
-        // `service_fn` is a helper to convert a function that
-        // returns a Response into a `Service`.
-        async { Ok::<_, Infallible>(service_fn(hello)) }
-    });
+async fn main() -> Result<(), String> {
+    // Generating self-signed certificate if there is no one
+    if let Err(err) = handle_certificates("~/.cruster") {
+        return Err(err);
+    }
 
-    let addr = ([127, 0, 0, 1], 3000).into();
-    let server = Server::bind(&addr).serve(make_svc);
-    println!("Listening on http://{}", addr);
-    server.await?;
+    ui::render().await;
+    proxy::run_proxy();
     Ok(())
 }

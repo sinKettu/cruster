@@ -11,3 +11,7 @@ description = "Something between MitMProxy, Burp Suite/ZAP anf nuclei"
 tokio = { version = "1", features = ["full"] }
 hyper = { version = "0.14", features = ["full"] }
 futures = "0.3.19"
+tui = { version = "0.17", default-features = false, features = ['termion', 'crossterm'] }
+crossterm = "0.22.1"
+rcgen = "0.8.14"
+shellexpand = "2.1.0"
