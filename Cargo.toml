@@ -8,6 +8,7 @@ description = "Something between MitMProxy, Burp Suite/ZAP anf nuclei"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# hudsucker and dependencies
 async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
 async-trait = "0.1.7"
 bstr = "0.2.1"
@@ -30,3 +31,7 @@ tokio-tungstenite = { version = "0.17.0" }
 tokio-util = { version = "0.7.0", features = ["io"], optional = true }
 tracing = { version = "0.1.21", features = ["log"] }
 hudsucker = { version = "*", features = ["full"] }
+# ---------------------------------------------------------------------
+# TUI
+tui = "0.18.0"
+crossterm = "0.23.2"

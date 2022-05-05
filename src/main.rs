@@ -1,5 +1,6 @@
 mod utils;
 mod cruster_handler;
+mod ui;
 
 use hudsucker::ProxyBuilder;
 use std::net::SocketAddr;
