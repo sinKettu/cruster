@@ -8,10 +8,25 @@ description = "Something between MitMProxy, Burp Suite/ZAP anf nuclei"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-hyper = { version = "0.14", features = ["full"] }
-futures = "0.3.19"
-tui = { version = "0.17", default-features = false, features = ['termion', 'crossterm'] }
-crossterm = "0.22.1"
-rcgen = "0.8.14"
-shellexpand = "2.1.0"
+async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
+async-trait = "0.1.7"
+bstr = "0.2.1"
+bytes = "1.0.0"
+futures = "0.3.11"
+http = "0.2.0"
+hyper = { version = "0.14.7", features = ["client", "http1", "server", "stream", "tcp"] }
+hyper-rustls = { version = "0.23.0", default-features = false, features = ["http1", "logging", "tls12", "webpki-tokio"], optional = true }
+hyper-tls = { version = "0.5.0", optional = true }
+hyper-tungstenite = "0.8.0"
+moka = { version = "0.8.0", features = ["future"], optional = true }
+openssl = { version = "0.10.25", optional = true }
+rand = { version = "0.8.0", optional = true }
+rcgen = { version = "0.9.0", features = ["x509-parser"], optional = true }
+thiserror = "1.0.23"
+time = { version = "0.3.1", optional = true }
+tokio = { version = "1.6.1", features = ["full"] }
+tokio-rustls = "0.23.0"
+tokio-tungstenite = { version = "0.17.0" }
+tokio-util = { version = "0.7.0", features = ["io"], optional = true }
+tracing = { version = "0.1.21", features = ["log"] }
+hudsucker = { version = "*", features = ["full"] }
