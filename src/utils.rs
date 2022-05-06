@@ -1,12 +1,14 @@
-use std::io;
 use hudsucker::{
     certificate_authority::OpensslAuthority,
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509, self},
     self
 };
-use std::fmt;
-use std::fs;
-use std::io::Read;
+use std::{
+    io::{self, Read},
+    fmt,
+    fs
+};
+use rcgen;
 
 #[derive(Debug)]
 pub(crate) enum CrusterError {
@@ -95,4 +97,27 @@ pub(crate) fn get_ca(key_path: &str, cer_path: &str) -> Result<OpensslAuthority,
         MessageDigest::sha256(),
         1_000
     ))
+}
+
+pub(crate) fn generate_key_and_cer(key_path: &str, cer_path: &str) {
+    let cert: rcgen::Certificate = rcgen::generate_simple_self_signed(
+        vec![
+            String::from("cruster.intercepting.proxy"),
+            String::from("localhost"),
+            String::from("127.0.0.1")
+        ]
+    ).expect("Could not generate certificate, check filenames");
+    fs::write(
+        cer_path,
+        cert
+            .serialize_pem()
+            .expect("Unable to serialize cer-data to PEM")
+            .as_bytes()
+    ).expect(format!("Could not write cer-file to '{}'", cer_path.to_string()).as_str());
+    fs::write(
+        key_path,
+            cert
+                .serialize_private_key_pem()
+                .as_bytes()
+    ).expect(format!("Could not write key-file to '{}'", key_path.to_string()).as_str());
 }

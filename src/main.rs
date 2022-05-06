@@ -13,9 +13,10 @@ async fn shutdown_signal() {
 
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
+    utils::generate_key_and_cer("/tmp/test.key", "/tmp/test.cer");
     let ca = utils::get_ca(
-        "ca/hudsucker.key",
-        "ca/hudsucker.cer"
+        "/tmp/test.key",
+        "/tmp/test.cer"
     )?;
 
     let proxy = ProxyBuilder::new()
