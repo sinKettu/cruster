@@ -14,8 +14,8 @@ async fn shutdown_signal() {
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
     let ca = utils::get_ca(
-        "target/debug/ca/hudsucker.key",
-        "target/debug/ca/hudsucker.cer"
+        "ca/hudsucker.key",
+        "ca/hudsucker.cer"
     )?;
 
     let proxy = ProxyBuilder::new()
@@ -26,5 +26,6 @@ async fn main() -> Result<(), utils::CrusterError> {
         .build();
 
     proxy.start(shutdown_signal()).await?;
+    ui::render().await?;
     Ok(())
 }

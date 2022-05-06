@@ -1,8 +1,9 @@
-use std::{io, thread, time::{Duration, Instant}};
+use std::{io, time::{Duration, Instant}};
 use tui::{
     backend::{CrosstermBackend, Backend},
-    widgets::{Widget, Block, Borders, Paragraph},
-    layout::{Layout, Constraint, Direction, Rect},
+    widgets::{/*Widget, */Block, Borders, Paragraph},
+    layout::Rect,
+//    layout::{Layout, Constraint, Direction, Rect},
     Terminal,
     text,
     Frame,
@@ -25,7 +26,7 @@ pub async fn render() -> Result<(), io::Error> {
     let tick_rate = Duration::from_millis(250);
     let mut terminal = Terminal::new(backend)?;
 
-    let res = run_app(&mut terminal, tick_rate).await;
+    run_app(&mut terminal, tick_rate).await?;
 
     // restore terminal
     disable_raw_mode()?;
@@ -53,10 +54,9 @@ async fn run_app<B: Backend>(
 
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
-                // if let KeyCode::Char('q') = key.code {
-                //     return Ok(());
-                // }
-                return Ok(());
+                if let KeyCode::Char('q') = key.code {
+                    return Ok(());
+                }
             }
         }
         if last_tick.elapsed() >= tick_rate {
@@ -82,7 +82,7 @@ fn ui<B: Backend>(f: &mut Frame<B>) {
         window_height / 2
     );
 
-    let size = f.size();
+    // let size = f.size();
     let request_block = Block::default()
         .title("Upper Left Block")
         .borders(Borders::TOP);
@@ -96,7 +96,7 @@ fn ui<B: Backend>(f: &mut Frame<B>) {
     let proxy_history = Block::default()
         .title("Proxy History")
         .borders(Borders::NONE);
-    // f.render_widget(proxy_history.clone(), upper_rect);
+    f.render_widget(proxy_history.clone(), upper_rect);
 
     let text = vec![
         text::Spans::from("Hello"),
