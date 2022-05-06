@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Sin Kettu"]
 description = "Something between MitMProxy, Burp Suite/ZAP anf nuclei"
@@ -35,3 +35,9 @@ hudsucker = { version = "*", features = ["full"] }
 # TUI
 tui = "0.18.0"
 crossterm = "0.23.2"
+# ---------------------------------------------------------------------
+# Configuration
+shellexpand = "2.1.0"
+clap = "2.34.0"
+serde = { version = "1.0.137", features = ["derive"] }
+serde_yaml = "0.8.24"

@@ -5,16 +5,18 @@ use hudsucker::{
 };
 use std::{
     io::{self, Read},
-    fmt,
+    fmt::{self, Debug},
     fs
 };
 use rcgen;
+use serde_yaml;
 
 #[derive(Debug)]
 pub(crate) enum CrusterError {
     IOError(String),
     OpenSSLError(String),
     HudSuckerError(String),
+    ConfigError(String),
     UndefinedError(String)
 }
 
@@ -38,9 +40,25 @@ impl From<String> for CrusterError {
     fn from(s: String) -> Self { Self::UndefinedError(s.to_string()) }
 }
 
+impl From<serde_yaml::Error> for CrusterError {
+    fn from(e: serde_yaml::Error) -> Self {
+        Self::ConfigError(
+            format!("Unable to serialize/deserialize YAML data: {}", e.to_string())
+        )
+    }
+}
+
 impl fmt::Display for CrusterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        match self {
+            CrusterError::ConfigError(s) => {
+                write!(f, "An error occurred while handling input parameters: {}\n{}",
+                       s,
+                       "Enter '-h' for help."
+                )
+            },
+            _ => { write!(f, "{}", self) }
+        }
     }
 }
 
@@ -107,6 +125,8 @@ pub(crate) fn generate_key_and_cer(key_path: &str, cer_path: &str) {
             String::from("127.0.0.1")
         ]
     ).expect("Could not generate certificate, check filenames");
+
+    // TODO: check existence!
     fs::write(
         cer_path,
         cert
@@ -114,6 +134,8 @@ pub(crate) fn generate_key_and_cer(key_path: &str, cer_path: &str) {
             .expect("Unable to serialize cer-data to PEM")
             .as_bytes()
     ).expect(format!("Could not write cer-file to '{}'", cer_path.to_string()).as_str());
+
+    // TODO: check existence!
     fs::write(
         key_path,
             cert

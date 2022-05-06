@@ -1,6 +1,7 @@
 mod utils;
 mod cruster_handler;
 mod ui;
+mod config;
 
 use hudsucker::ProxyBuilder;
 use std::net::SocketAddr;
@@ -13,11 +14,9 @@ async fn shutdown_signal() {
 
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
-    utils::generate_key_and_cer("/tmp/test.key", "/tmp/test.cer");
-    let ca = utils::get_ca(
-        "/tmp/test.key",
-        "/tmp/test.cer"
-    )?;
+    let config = config::handle_user_input()?;
+    utils::generate_key_and_cer(&config.tls_key_name, &config.tls_cer_name);
+    let ca = utils::get_ca(&config.tls_key_name, &config.tls_cer_name)?;
 
     let proxy = ProxyBuilder::new()
         .with_addr(SocketAddr::from(([127, 0, 0, 1], 3000)))
