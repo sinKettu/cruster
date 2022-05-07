@@ -6,6 +6,8 @@ use hudsucker::{
 use std::{
     io::{self, Read},
     fmt::{self, Debug},
+    num::ParseIntError,
+    net::AddrParseError,
     fs
 };
 use rcgen;
@@ -17,6 +19,8 @@ pub(crate) enum CrusterError {
     OpenSSLError(String),
     HudSuckerError(String),
     ConfigError(String),
+    PortParsingError(String),
+    ParseAddressError(String),
     UndefinedError(String)
 }
 
@@ -38,6 +42,18 @@ impl From<hudsucker::Error> for CrusterError {
 
 impl From<String> for CrusterError {
     fn from(s: String) -> Self { Self::UndefinedError(s.to_string()) }
+}
+
+impl From<ParseIntError> for CrusterError {
+    fn from(e: ParseIntError) -> Self {
+        Self::PortParsingError(
+            format!("Unable to parse port number: {}", e)
+        )
+    }
+}
+
+impl From<AddrParseError> for CrusterError {
+    fn from(e: AddrParseError) -> Self { Self::ParseAddressError(e.to_string()) }
 }
 
 impl From<serde_yaml::Error> for CrusterError {

@@ -10,7 +10,9 @@ pub(crate) struct Config {
     pub(crate) workplace: String,
     pub(crate) tls_key_name: String,
     pub(crate) tls_cer_name: String,
-    pub(crate) config_name: String
+    pub(crate) config_name: String,
+    pub(crate) address: String,
+    pub(crate) port: u16
 }
 
 impl Default for Config {
@@ -20,7 +22,9 @@ impl Default for Config {
             workplace: expanded_path.clone(),
             config_name: format!("{}{}", &expanded_path, "config.yaml"),
             tls_cer_name: format!("{}{}", &expanded_path, "cruster.cer"),
-            tls_key_name: format!("{}{}", &expanded_path, "cruster.key")
+            tls_key_name: format!("{}{}", &expanded_path, "cruster.key"),
+            address: "127.0.0.1".to_string(),
+            port: 8080_u16
         }
     }
 }
@@ -30,13 +34,15 @@ impl Default for Config {
 pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored";
     let config_help = "Path to config with YAML format";
+    let address_help = "Address for proxy to bind, default: 127.0.0.1";
+    let port_help = "Port for proxy to listen to, default: 8080";
     let matches = App::new("Cruster")
-        .version("0.1.2")
+        .version("0.1.3")
         .author("Andrey Ivano v<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .arg(
             Arg::with_name("workplace")
-                .short("p")
+                .short("P")
                 .long("workplace")
                 .takes_value(true)
                 .default_value("~/.cruster/")
@@ -51,6 +57,22 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .default_value("~/.cruster/config.yaml")
                 .value_name("YAML_CONFIG")
                 .help(config_help)
+        )
+        .arg(
+            Arg::with_name("address")
+                .short("a")
+                .long("address")
+                .takes_value(true)
+                .value_name("ADDR")
+                .help(address_help)
+        )
+        .arg(
+            Arg::with_name("port")
+                .short("p")
+                .long("port")
+                .takes_value(true)
+                .value_name("PORT")
+                .help(port_help)
         )
         .get_matches();
 
@@ -71,7 +93,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
 
     let config_path = path::Path::new(&config_name);
-    let config = if config_path.exists() {
+    let mut config = if config_path.exists() {
         let file = fs::File::open(&config_name)?;
         let config_from_file: Config = yml::from_reader(file)?;
         config_from_file
@@ -87,6 +109,14 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         yml::to_writer(file, &yaml_config)?;
         default_config
     };
+
+    if let Some(addr) = matches.value_of("address") {
+        config.address = addr.to_string();
+    }
+
+    if let Some(port) = matches.value_of("port") {
+        config.port = port.parse()?;
+    }
 
     Ok(config)
 }
