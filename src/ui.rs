@@ -1,8 +1,8 @@
 use std::{io, time::{Duration, Instant}};
 use tui::{
     backend::{CrosstermBackend, Backend},
-    widgets::{/*Widget, */Block, Borders, Paragraph},
-    layout::Rect,
+    widgets::{/*Widget, */Block, Borders, Paragraph, Wrap},
+    layout::{Rect, Alignment},
 //    layout::{Layout, Constraint, Direction, Rect},
     Terminal,
     text,
@@ -14,10 +14,10 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use tui::layout::Alignment;
-use tui::widgets::Wrap;
+use hudsucker::RequestOrResponse;
+use tokio::sync::mpsc::Receiver;
 
-pub async fn render() -> Result<(), io::Error> {
+pub async fn render(ui_rx: Receiver<RequestOrResponse>) -> Result<(), io::Error> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();

@@ -1,3 +1,4 @@
+use tokio::sync::mpsc::Sender;
 use hudsucker::{
     async_trait::async_trait,
     hyper::{Body, Request, Response},
@@ -7,7 +8,34 @@ use hudsucker::{
 };
 
 #[derive(Clone)]
-pub(crate) struct CrusterHandler;
+pub(crate) struct CrusterHandler {
+    pub(crate) proxy_tx: Sender<RequestOrResponse>
+}
+
+/// TODO: find a way to copy hyper::Request
+// impl CrusterHandler {
+//     async fn clone_request(req: &Request<Body>) -> Request<Body> {
+//         let (parts, body) = req.into_parts();
+//         let cloned_version = parts.version.clone();
+//         let cloned_method = parts.method.clone();
+//         let cloned_uri = parts.uri.clone();
+//         let hd = parts.headers.clone();
+//         let new_body = hyper_body::to_bytes(body).await.unwrap();
+//         let new_body = Body::from(new_body.clone());
+//
+//
+//         let mut new_req = Request::builder()
+//             .method(cloned_method)
+//             .uri(cloned_uri)
+//             .version(cloned_version);
+//
+//         for (k, v) in &hd {
+//             new_req = new_req.header(k, v);
+//         }
+//
+//         new_req.body(new_body).unwrap()
+//     }
+// }
 
 #[async_trait]
 impl HttpHandler for CrusterHandler {
@@ -18,6 +46,7 @@ impl HttpHandler for CrusterHandler {
     ) -> RequestOrResponse
     {
         println!("{:?}", req);
+        // self.proxy_tx.send(RequestOrResponse::Request(req));
         RequestOrResponse::Request(req)
     }
 
