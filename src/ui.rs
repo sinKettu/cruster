@@ -14,10 +14,10 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use hudsucker::RequestOrResponse;
 use tokio::sync::mpsc::Receiver;
+use crate::cruster_handler::HyperRequestWrapper;
 
-pub async fn render(ui_rx: Receiver<RequestOrResponse>) -> Result<(), io::Error> {
+pub(crate) async fn render(mut ui_rx: Receiver<HyperRequestWrapper>) -> Result<(), io::Error> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();

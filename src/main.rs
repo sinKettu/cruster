@@ -6,8 +6,7 @@ mod config;
 use std::net::{IpAddr, SocketAddr};
 use hudsucker::{
     ProxyBuilder,
-    certificate_authority::OpensslAuthority,
-    RequestOrResponse
+    certificate_authority::OpensslAuthority
 };
 use tokio::{
     self,
@@ -20,7 +19,7 @@ async fn shutdown_signal() {
         .expect("Failed to install CTRL+C signal handler");
 }
 
-async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<RequestOrResponse>) {
+async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<cruster_handler::HyperRequestWrapper>) {
     let proxy = ProxyBuilder::new()
         .with_addr(socket_addr)
         .with_rustls_client()
@@ -43,7 +42,7 @@ async fn main() -> Result<(), utils::CrusterError> {
         config.port
     ));
 
-    let (proxy_tx, ui_rx) = channel(100);
+    let (mut proxy_tx, mut ui_rx) = channel(100);
     tokio::spawn(async move { start_proxy(socket_addr, ca, proxy_tx).await; });
     ui::render(ui_rx).await?;
     Ok(())
