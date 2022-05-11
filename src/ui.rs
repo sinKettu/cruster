@@ -15,7 +15,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use tokio::sync::mpsc::Receiver;
-use crate::cruster_handler::HyperRequestWrapper;
+use crate::cruster_handler::request_response::HyperRequestWrapper;
 
 pub(crate) async fn render(mut ui_rx: Receiver<HyperRequestWrapper>) -> Result<(), io::Error> {
     // setup terminal

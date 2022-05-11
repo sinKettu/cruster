@@ -1,4 +1,3 @@
-use tokio::sync::mpsc::Sender;
 use hudsucker::{
     async_trait::async_trait,
     hyper::{Body, Request, Response, self},
@@ -17,7 +16,7 @@ pub(crate) struct HyperRequestWrapper {
 }
 
 impl HyperRequestWrapper {
-    pub(crate) async fn new(mut req: Request<Body>) -> (Self, Request<Body>) {
+    pub(crate) async fn from_hyper(mut req: Request<Body>) -> (Self, Request<Body>) {
         let uri = req.uri().to_string();
         let method = req.method().to_string();
         let version = match req.version() {
@@ -26,7 +25,7 @@ impl HyperRequestWrapper {
             hyper::Version::HTTP_10 => "HTTP/1.0".to_string(),
             hyper::Version::HTTP_2 => "HTTP/2".to_string(),
             hyper::Version::HTTP_3 => "HTTP/2".to_string(),
-            _ => "HTTP/UNKNOWN".to_string()
+            _ => "HTTP/UNKNOWN".to_string() // TODO: Think once more
         };
         let headers = req.headers().to_owned();
         let body = hyper::body::to_bytes(req.body_mut())
@@ -54,53 +53,19 @@ impl HyperRequestWrapper {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct CrusterHandler {
-    pub(crate) proxy_tx: Sender<HyperRequestWrapper>
+// -----------------------------------------------------------------------------------------------//
+
+#[derive(Clone, Debug)]
+pub(crate) struct HyperResponseWrapper {
+    pub(crate) status: String,
+    pub(crate) version: String,
+    pub(crate) headers: hyper::HeaderMap,
+    pub(crate) body: Vec<u8>
 }
 
-/// TODO: find a way to copy hyper::Request
-// impl CrusterHandler {
-//     async fn clone_request(req: &Request<Body>) -> Request<Body> {
-//         let (parts, body) = req.into_parts();
-//         let cloned_version = parts.version.clone();
-//         let cloned_method = parts.method.clone();
-//         let cloned_uri = parts.uri.clone();
-//         let hd = parts.headers.clone();
-//         let new_body = hyper_body::to_bytes(body).await.unwrap();
-//         let new_body = Body::from(new_body.clone());
-//
-//
-//         let mut new_req = Request::builder()
-//             .method(cloned_method)
-//             .uri(cloned_uri)
-//             .version(cloned_version);
-//
-//         for (k, v) in &hd {
-//             new_req = new_req.header(k, v);
-//         }
-//
-//         new_req.body(new_body).unwrap()
+// impl HyperResponseWrapper {
+//     fn from_hyper(mut rsp: Response<Body>) -> (Self, Response<Body>) {
+//         let (rsp_parts, rsp_body) = rsp.into_parts();
+//         rsp_parts.
 //     }
 // }
-
-#[async_trait]
-impl HttpHandler for CrusterHandler {
-    async fn handle_request(
-        &mut self,
-        _ctx: &HttpContext,
-        req: Request<Body>
-    ) -> RequestOrResponse
-    {
-        println!("{:?}", &req);
-        let (wrapper, new_req) = HyperRequestWrapper::new(req).await;
-        // TODO: handle error in a better way
-        self.proxy_tx.send(wrapper).await.unwrap();
-        RequestOrResponse::Request(new_req)
-    }
-
-    async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
-        println!("{:?}", res);
-        res
-    }
-}
