@@ -12,7 +12,7 @@ use tokio::{
     self,
     sync::mpsc::{channel, Sender}
 };
-use cruster_handler::request_response::HyperRequestWrapper;
+use cruster_handler::request_response::CrusterWrapper;
 
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
@@ -20,7 +20,7 @@ async fn shutdown_signal() {
         .expect("Failed to install CTRL+C signal handler");
 }
 
-async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<HyperRequestWrapper>) {
+async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<CrusterWrapper>) {
     let proxy = ProxyBuilder::new()
         .with_addr(socket_addr)
         .with_rustls_client()

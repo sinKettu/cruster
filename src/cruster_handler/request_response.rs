@@ -63,9 +63,38 @@ pub(crate) struct HyperResponseWrapper {
     pub(crate) body: Vec<u8>
 }
 
-// impl HyperResponseWrapper {
-//     fn from_hyper(mut rsp: Response<Body>) -> (Self, Response<Body>) {
-//         let (rsp_parts, rsp_body) = rsp.into_parts();
-//         rsp_parts.
-//     }
-// }
+impl HyperResponseWrapper {
+    async fn from_hyper(mut rsp: Response<Body>) -> (Self, Response<Body>) {
+        let (rsp_parts, mut rsp_body) = rsp.into_parts();
+        let status = rsp_parts.status.clone().to_string();
+        let version = match rsp_parts.version {
+            hyper::Version::HTTP_11 => "HTTP/1.1".to_string(),
+            hyper::Version::HTTP_09 => "HTTP/0.1".to_string(),
+            hyper::Version::HTTP_10 => "HTTP/1.0".to_string(),
+            hyper::Version::HTTP_2 => "HTTP/2".to_string(),
+            hyper::Version::HTTP_3 => "HTTP/2".to_string(),
+            _ => "HTTP/UNKNOWN".to_string() // TODO: Think once more
+        };
+        let headers = rsp_parts.headers.clone();
+        let body = hyper::body::to_bytes(rsp_body).await.unwrap().to_vec();
+
+        let new_body = Body::from(body.clone());
+
+        (
+            HyperResponseWrapper {
+                status,
+                version,
+                headers,
+                body
+            },
+            Response::from_parts(rsp_parts, new_body)
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------------------------- //
+
+pub(crate) enum CrusterWrapper {
+    Request(HyperRequestWrapper),
+    Response(HyperResponseWrapper)
+}
