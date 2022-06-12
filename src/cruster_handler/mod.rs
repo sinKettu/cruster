@@ -23,7 +23,7 @@ impl HttpHandler for CrusterHandler {
         req: Request<Body>
     ) -> RequestOrResponse
     {
-        println!("{:?}", &req);
+        // println!("{:?}", &req);
         let (wrapper, new_req) = HyperRequestWrapper::from_hyper(req).await;
         // TODO: handle error in a better way
         // self.proxy_tx.send(CrusterWrapper::Request(wrapper));
@@ -34,7 +34,7 @@ impl HttpHandler for CrusterHandler {
     }
 
     async fn handle_response(&mut self, _ctx: &HttpContext, res: Response<Body>) -> Response<Body> {
-        println!("{:?}", res);
+        // println!("{:?}", res);
         res
     }
 }
