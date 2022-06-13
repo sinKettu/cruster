@@ -64,8 +64,8 @@ pub(crate) struct HyperResponseWrapper {
 }
 
 impl HyperResponseWrapper {
-    async fn from_hyper(mut rsp: Response<Body>) -> (Self, Response<Body>) {
-        let (rsp_parts, mut rsp_body) = rsp.into_parts();
+    async fn from_hyper(rsp: Response<Body>) -> (Self, Response<Body>) {
+        let (rsp_parts, rsp_body) = rsp.into_parts();
         let status = rsp_parts.status.clone().to_string();
         let version = match rsp_parts.version {
             hyper::Version::HTTP_11 => "HTTP/1.1".to_string(),

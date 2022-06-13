@@ -1,6 +1,7 @@
 mod storage;
 
 use std::{io, time::{Duration, Instant}};
+use std::io::Write;
 use tui::{
     backend::{CrosstermBackend, Backend},
     widgets::{Widget, Block, Borders, Paragraph, Wrap, Table, Row},
@@ -18,8 +19,11 @@ use crossterm::{
 };
 use crossterm::event::KeyCode::Tab;
 use tokio::sync::mpsc::Receiver;
+use tui::buffer::Buffer;
+use tui::widgets::{StatefulWidget, TableState};
 use crate::cruster_handler::request_response::CrusterWrapper;
-use storage::RenderUnitUnwrap;
+
+// https://docs.rs/tui/latest/tui/widgets/index.html
 
 pub(crate) async fn render(mut ui_rx: Receiver<CrusterWrapper>) -> Result<(), io::Error> {
     // setup terminal
@@ -51,13 +55,16 @@ async fn run_app<B: Backend>(
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     let mut ui_storage = storage::UI::new();
+    let mut something_changed = true;
     loop {
         match ui_rx.try_recv() {
             Ok(wrapper) => {
                 // terminal.draw(|f| ui(f, Some(wrapper)))?;
-                terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+                something_changed = true;
             },
-            Err(e) => ()
+            Err(e) => {
+                // something_changed = true;
+            }
         }
 
         let timeout = tick_rate
@@ -69,10 +76,20 @@ async fn run_app<B: Backend>(
                 if let KeyCode::Char('q') = key.code {
                     return Ok(());
                 }
+                else if let KeyCode::Char('w') = key.code {
+                    // something_changed = true;
+                    // let test_paragraph = Paragraph::new("Test Hello");
+                    // ui_storage.add_paragraph(test_paragraph, 0);
+                }
             }
         }
         if last_tick.elapsed() >= tick_rate {
             last_tick = Instant::now();
+        }
+
+        if something_changed {
+            terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+            something_changed = false;
         }
     }
 }
@@ -80,6 +97,7 @@ async fn run_app<B: Backend>(
 fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
     let window_width = f.size().width;
     let window_height = f.size().height;
+    uis.make_table_widths(window_width);
 
     // 0 - Rect for requests log,
     // 1 - Rect for requests
@@ -106,52 +124,22 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
     ];
 
     for ruint in uis.widgets.iter() {
-        let area_index = ruint.area();
-        f.render_widget(ruint.widget(), rects[area_index]);
+        match ruint {
+            storage::RenderUnit::TUIBlock((block, area_index)) => {
+                let new_block = block.clone();
+                let index = area_index.clone();
+                f.render_widget(new_block, rects[index]);
+            },
+            storage::RenderUnit::TUIParagraph((paragraph, area_index)) => {
+                let new_paragraph = paragraph.clone();
+                let index = area_index.clone();
+                f.render_widget(new_paragraph, rects[index]);
+            },
+            storage::RenderUnit::TUITable((table, area_index)) => {
+                let new_table = table.clone();
+                let index = area_index.clone();
+                f.render_stateful_widget(new_table, rects[index], &mut uis.proxy_history_state);
+            }
+        }
     }
 }
-
-// fn ui<B: Backend>(f: &mut Frame<B>, thread_message: Option<CrusterWrapper>) {
-//     let window_width = f.size().width;
-//     let window_height = f.size().height;
-//     let lower_left_rect = Rect::new(f.size().x, f.size().y + window_height / 2, window_width / 2, window_height / 2);
-//     let lower_right_rect = Rect::new(
-//         f.size().x + window_width / 2,
-//         f.size().y + window_height / 2,
-//         window_width / 2,
-//         window_height / 2
-//     );
-//     let upper_rect = Rect::new(
-//         f.size().x,
-//         f.size().y,
-//         window_width,
-//         window_height / 2
-//     );
-//
-//     let request_block = Block::default()
-//         .title("Upper Left Block")
-//         .borders(Borders::TOP);
-//     f.render_widget(request_block, lower_left_rect);
-//
-//     let response_block = Block::default()
-//         .title("Upper Right Block")
-//         .borders(Borders::TOP | Borders::LEFT);
-//     f.render_widget(response_block, lower_right_rect);
-//
-//     let proxy_history = Block::default()
-//         .title("Proxy History")
-//         .borders(Borders::NONE);
-//     f.render_widget(proxy_history.clone(), upper_rect);
-//
-//     if let Some(wrapper) = thread_message {
-//         let row = match wrapper {
-//             CrusterWrapper::Request(req) => Row::new(vec![req.uri]),
-//             CrusterWrapper::Response(rsp) => Row::new(vec![rsp.status])
-//         };
-//
-//         let rows= vec![row];
-//         let table = Table::new(rows);
-//
-//         f.render_widget(table, upper_rect);
-//     }
-// }

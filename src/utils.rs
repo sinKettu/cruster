@@ -21,6 +21,7 @@ pub(crate) enum CrusterError {
     ConfigError(String),
     PortParsingError(String),
     ParseAddressError(String),
+    RenderUnitCastError(String),
     UndefinedError(String)
 }
 
