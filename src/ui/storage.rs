@@ -1,23 +1,25 @@
-use std::{io, time::{Duration, Instant}};
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use tui::{
-    backend::{CrosstermBackend, Backend},
-    widgets::{Widget, Block, Borders, Paragraph, Wrap, Table, Row, TableState},
-    layout::{Rect, Alignment, Constraint},
+    // backend::{CrosstermBackend, Backend},
+    widgets::{/*Widget,*/ Block, Borders, Paragraph, /*Wrap,*/ Table, Row, TableState},
+    layout::{/*Rect, Alignment,*/ Constraint},
     style::{Color, Modifier, Style},
-    Terminal,
-    text,
-    Frame,
+    // Terminal,
+    // text,
+    // Frame,
     self
 };
-use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
-use tokio::sync::mpsc::Receiver;
-use tui::text::Text;
+use tui::widgets::Wrap;
+// use crossterm::{
+//     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+//     execute,
+//     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+// };
+// use tokio::sync::mpsc::Receiver;
+// use tui::text::Text;
 
-use crate::utils::CrusterError;
+// use crate::utils::CrusterError;
 use crate::cruster_handler::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
 #[derive(Clone, Debug)]
@@ -43,27 +45,34 @@ pub(crate) enum RenderUnit<'ru_lt> {
 }
 
 impl RenderUnit<'_> {
-    pub(crate) fn as_paragraph(&self) -> Result<&Paragraph, CrusterError> {
-        match self {
-            RenderUnit::TUIParagraph(paragraph) => { Ok(&paragraph.0) },
-            _ => Err(CrusterError::RenderUnitCastError(String::from("'as_paragrpah' called on non-paragraph widget")))
-        }
-    }
+    // pub(crate) fn as_paragraph(&self) -> Result<&Paragraph, CrusterError> {
+    //     match self {
+    //         RenderUnit::TUIParagraph(paragraph) => { Ok(&paragraph.0) },
+    //         _ => Err(CrusterError::RenderUnitCastError(String::from("'as_paragrpah' called on non-paragraph widget")))
+    //     }
+    // }
+    //
+    // pub(crate) fn as_table(&self) -> Result<Table, CrusterError> {
+    //     match self {
+    //         RenderUnit::TUITable(table) => { Ok(table.0.clone()) },
+    //         _ => Err(CrusterError::RenderUnitCastError(String::from("'as_table' called on non-table widget")))
+    //     }
+    // }
 
-    pub(crate) fn as_table(&self) -> Result<Table, CrusterError> {
-        match self {
-            RenderUnit::TUITable(table) => { Ok(table.0.clone()) },
-            _ => Err(CrusterError::RenderUnitCastError(String::from("'as_table' called on non-table widget")))
-        }
-    }
-
-    pub(crate) fn area(&self) -> usize {
-        match self {
-            RenderUnit::TUITable((t, a)) => a.to_owned(),
-            RenderUnit::TUIBlock((b, a)) => a.to_owned(),
-            RenderUnit::TUIParagraph((p, a)) => a.to_owned(),
-        }
-    }
+    // pub(crate) fn as_block(&self) -> Result<Block, CrusterError> {
+    //     match self {
+    //         RenderUnit::TUIBlock(block) => { Ok(block.0.clone()) },
+    //         _ => Err(CrusterError::RenderUnitCastError(String::from("'as_table' called on non-table widget")))
+    //     }
+    // }
+    //
+    // pub(crate) fn area(&self) -> usize {
+    //     match self {
+    //         RenderUnit::TUITable((_, a)) => a.to_owned(),
+    //         RenderUnit::TUIBlock((_, a)) => a.to_owned(),
+    //         RenderUnit::TUIParagraph((_, a)) => a.to_owned(),
+    //     }
+    // }
 }
 
 // ---------------------------------------------------------------------------------------------- //
@@ -80,9 +89,9 @@ pub(crate) struct UI<'ui_lt> {
     // Array of table's cells' widths
     table_widths: Option<[Constraint; 5]>,
     // Last known window width
-    saved_window_width: u16
-    // request_block_index: usize,
-    // response_block_history: usize
+    saved_window_width: u16,
+    request_block_index: usize,
+    response_block_index: usize
 }
 
 impl UI<'static> {
@@ -102,8 +111,6 @@ impl UI<'static> {
         //             .borders(Borders::ALL)
         //     );
 
-
-
         UI {
             widgets: vec![
                 RenderUnit::TUIBlock((request_block, 1)),
@@ -113,31 +120,31 @@ impl UI<'static> {
             proxy_history_index: 2,
             proxy_history_state: {
                 let mut table_state = TableState::default();
-                table_state.select(Some(0));
+                table_state.select(None);
                 table_state
             },
             table_widths: None,
-            saved_window_width: 0
+            saved_window_width: 0,
+            request_block_index: 1,
+            response_block_index: 2
         }
     }
 
-    pub(crate) fn add_block(&mut self, block: Block<'static>, area_index: usize) {
-        let new_render_unit = RenderUnit::TUIBlock((block, area_index));
-        self.widgets.push(new_render_unit);
-    }
-
-    pub(crate) fn add_paragraph(&mut self, para: Paragraph<'static>, area_index: usize) {
-        let new_render_unit = RenderUnit::TUIParagraph((para, area_index));
-        self.widgets.push(new_render_unit);
-    }
+    // pub(crate) fn add_block(&mut self, block: Block<'static>, area_index: usize) {
+    //     let new_render_unit = RenderUnit::TUIBlock((block, area_index));
+    //     self.widgets.push(new_render_unit);
+    // }
+    //
+    // pub(crate) fn add_paragraph(&mut self, para: Paragraph<'static>, area_index: usize) {
+    //     let new_render_unit = RenderUnit::TUIParagraph((para, area_index));
+    //     self.widgets.push(new_render_unit);
+    // }
 
     // pub(crate) fn modify_proxy_history(&mut self, text: &str) -> Result<(), CrusterError> {
     //     Ok(())
     // }
 
-    pub(crate) fn make_table_widths(&mut self, size: u16) {
-        if size == self.saved_window_width { return; }
-
+    pub(crate) fn make_table_widths(&mut self, size: u16, storage: &HTTPStorage) {
         self.saved_window_width = size;
         self.table_widths = Some([
             Constraint::Length(16),
@@ -146,8 +153,29 @@ impl UI<'static> {
             Constraint::Length(16),
             Constraint::Length(16 * 2)
         ]);
+        // self.widgets.clear();
 
-        let proxy_history_table = Table::new(vec![])
+        if let None = self.proxy_history_state.selected() {
+            if storage.storage.len() > 0 {
+                self.proxy_history_state.select(Some(0));
+            }
+        }
+
+        let mut rows: Vec<Row> = Vec::new();
+        for (index, pair) in storage.storage.iter().enumerate() {
+            let request = pair.request.as_ref().unwrap();
+            let response = pair.response.as_ref();
+            let row = vec![
+                (index + 1).to_string(),
+                request.method.clone(),
+                request.uri.clone(),
+                if let Some(rsp) = response {rsp.status.clone()} else {". . .".to_string()},
+                "TODO".to_string()
+            ];
+            rows.push(Row::new(row));
+        }
+
+        let proxy_history_table = Table::new(rows)
             .header(Row::new(vec!["№", "Method", "URL", "Response Code", "Address"]))
             .style(Style::default().fg(Color::White))
             .widths(&[
@@ -169,23 +197,120 @@ impl UI<'static> {
 
         self.widgets.push(RenderUnit::TUITable((proxy_history_table, 0)));
         self.proxy_history_index = self.widgets.len() - 1;
+
+        // TODO: as new function
+        let selected_index = match self.proxy_history_state.selected() {
+            Some(index) => index,
+            None => return
+        };
+
+        let request = storage.storage[selected_index].request.as_ref().unwrap();
+        let request: String = format!(
+            "{} {} {}\n{}\n{}",
+            request.method, request.uri, request.version,
+            {
+                let mut headers_string: String = "".to_string();
+                for (k, v) in request.headers.iter() {
+                    headers_string.push_str(k.as_str());
+                    headers_string.push_str(": ");
+                    headers_string.push_str(v.to_str().unwrap());
+                    headers_string.push_str("\n");
+                }
+                headers_string
+            },
+            // String::from(&request.body)
+            &request.body
+        );
+        let new_block = Block::default()
+            .title("Request")
+            .borders(Borders::TOP);
+
+        let request_paragraph = Paragraph::new(request)
+            .block(new_block)
+            .wrap(Wrap {trim: false});
+        // self.widgets.push(RenderUnit::TUIParagraph((request_paragraph, self.request_block_index)));
+        self.widgets.insert(self.proxy_history_index + 1, RenderUnit::TUIParagraph((request_paragraph, self.request_block_index)));
+
+        // TODO: as new function
+        let response = match storage.storage[selected_index].response.as_ref() {
+            Some(rsp) => rsp,
+            None => return
+        };
+
+        let response: String = format!(
+            "{} {}\n{}\n{}",
+            response.status, response.version,
+            {
+                let mut headers_string: String = "".to_string();
+                for (k, v) in response.headers.iter() {
+                    headers_string.push_str(k.as_str());
+                    headers_string.push_str(": ");
+                    headers_string.push_str(v.to_str().unwrap());
+                    headers_string.push_str("\n");
+                }
+                headers_string
+            },
+            &response.body
+        );
+
+        let new_block = Block::default()
+            .title("Response")
+            .borders(Borders::TOP | Borders::LEFT);
+
+        let response_paragraph = Paragraph::new(response)
+            .block(new_block)
+            .wrap(Wrap {trim: false});
+
+        // self.widgets.push(RenderUnit::TUIParagraph((response_paragraph, self.response_block_index)));
+        self.widgets.insert(self.proxy_history_index + 2, RenderUnit::TUIParagraph((response_paragraph, self.response_block_index)));
     }
 }
 
 // ---------------------------------------------------------------------------------------------- //
 
+pub(super) struct RequestResponsePair {
+    request: Option<HyperRequestWrapper>,
+    response: Option<HyperResponseWrapper>
+}
+
 pub(crate) struct HTTPStorage {
-    storage: Vec<(Option<HyperRequestWrapper>, Option<HyperResponseWrapper>)>,
-    seek: usize,
-    capacity: usize
+    pub(super) storage: Vec<RequestResponsePair>,
+    context_reference: HashMap<SocketAddr, usize>,
+    // seek: usize,
+    // capacity: usize
 }
 
 impl Default for HTTPStorage {
     fn default() -> Self {
-        Storage {
+        HTTPStorage {
             storage: Vec::new(),
-            seek: 0,
-            capacity: 10000
+            context_reference: HashMap::new(),
+            // seek: 0,
+            // capacity: 10000
         }
+    }
+}
+
+impl HTTPStorage {
+    pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: SocketAddr) {
+        self.storage.push(RequestResponsePair {
+                request: Some(request),
+                response: None
+            }
+        );
+
+        self.context_reference.insert(addr, self.storage.len() - 1);
+    }
+
+    pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &SocketAddr) {
+        if let Some(index) = self.context_reference.get(addr) {
+            self.storage[index.to_owned()].response = Some(response);
+        }
+
+        self.context_reference.remove(addr);
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        return self.storage.len().clone();
     }
 }

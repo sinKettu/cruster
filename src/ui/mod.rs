@@ -1,14 +1,13 @@
 mod storage;
 
 use std::{io, time::{Duration, Instant}};
-use std::io::Write;
 use tui::{
     backend::{CrosstermBackend, Backend},
-    widgets::{Widget, Block, Borders, Paragraph, Wrap, Table, Row},
-    layout::{Rect, Alignment},
-//    layout::{Layout, Constraint, Direction, Rect},
+    // widgets::{Widget, Block, Borders, Paragraph, Wrap, Table, Row},
+    layout::{Rect/*, Alignment*/},
+    // layout::{Layout, Constraint, Direction, Rect},
     Terminal,
-    text,
+    // text,
     Frame,
     self
 };
@@ -17,15 +16,14 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use crossterm::event::KeyCode::Tab;
+use hudsucker::HttpContext;
 use tokio::sync::mpsc::Receiver;
-use tui::buffer::Buffer;
-use tui::widgets::{StatefulWidget, TableState};
 use crate::cruster_handler::request_response::CrusterWrapper;
+use crate::ui::storage::HTTPStorage;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
-pub(crate) async fn render(mut ui_rx: Receiver<CrusterWrapper>) -> Result<(), io::Error> {
+pub(crate) async fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Result<(), io::Error> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -51,18 +49,23 @@ pub(crate) async fn render(mut ui_rx: Receiver<CrusterWrapper>) -> Result<(), io
 async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     tick_rate: Duration,
-    mut ui_rx: Receiver<CrusterWrapper>
+    mut ui_rx: Receiver<(CrusterWrapper, HttpContext)>
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     let mut ui_storage = storage::UI::new();
     let mut something_changed = true;
+    let mut http_storage = storage::HTTPStorage::default();
     loop {
         match ui_rx.try_recv() {
-            Ok(wrapper) => {
-                // terminal.draw(|f| ui(f, Some(wrapper)))?;
+            Ok((wrapper, ctx)) => {
+                let string_reference = ctx.client_addr;
+                match wrapper {
+                    CrusterWrapper::Request(request) => http_storage.put_request(request, string_reference),
+                    CrusterWrapper::Response(response) => http_storage.put_response(response, &string_reference)
+                }
                 something_changed = true;
             },
-            Err(e) => {
+            Err(_) => {
                 // something_changed = true;
             }
         }
@@ -81,6 +84,22 @@ async fn run_app<B: Backend>(
                     // let test_paragraph = Paragraph::new("Test Hello");
                     // ui_storage.add_paragraph(test_paragraph, 0);
                 }
+                else if let KeyCode::Up = key.code {
+                    let index = match ui_storage.proxy_history_state.selected() {
+                        Some(i) => if i == 0 { 0 } else { i - 1 },
+                        None => 0 as usize
+                    };
+                    ui_storage.proxy_history_state.select(Some(index));
+                    something_changed = true;
+                }
+                else if let KeyCode::Down = key.code {
+                    let index = match ui_storage.proxy_history_state.selected() {
+                        Some(i) => if i == http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
+                        None => 0 as usize
+                    };
+                    ui_storage.proxy_history_state.select(Some(index));
+                    something_changed = true;
+                }
             }
         }
         if last_tick.elapsed() >= tick_rate {
@@ -88,21 +107,21 @@ async fn run_app<B: Backend>(
         }
 
         if something_changed {
-            terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+            terminal.draw(|f| new_ui(f, &mut ui_storage, &http_storage))?;
             something_changed = false;
         }
     }
 }
 
-fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
+fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>, http_storage: &HTTPStorage) {
     let window_width = f.size().width;
     let window_height = f.size().height;
-    uis.make_table_widths(window_width);
+    uis.make_table_widths(window_width, http_storage);
 
     // 0 - Rect for requests log,
     // 1 - Rect for requests
     // 2 - Rect for responses
-    let mut rects: [Rect; 3] = [
+    let rects: [Rect; 3] = [
         Rect::new(
             f.size().x,
             f.size().y,
