@@ -1,9 +1,9 @@
 [package]
 name = "cruster"
-version = "0.2.0"
+version = "0.2.2"
 edition = "2021"
-authors = ["Sin Kettu"]
-description = "Something between MitMProxy, Burp Suite/ZAP anf nuclei"
+authors = ["Andrey Ivanov"]
+description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
