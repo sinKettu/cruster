@@ -10,8 +10,11 @@ use std::{
     net::AddrParseError,
     fs
 };
-use rcgen;
+use rcgen::{Certificate, CertificateParams, self, KeyPair, IsCa, BasicConstraints};
 use serde_yaml;
+// use std::time::macros::datetime;
+use time::OffsetDateTime;
+use time::macros::datetime;
 
 #[derive(Debug)]
 pub(crate) enum CrusterError {
@@ -135,28 +138,36 @@ pub(crate) fn get_ca(key_path: &str, cer_path: &str) -> Result<OpensslAuthority,
 }
 
 pub(crate) fn generate_key_and_cer(key_path: &str, cer_path: &str) {
-    let cert: rcgen::Certificate = rcgen::generate_simple_self_signed(
-        vec![
-            String::from("cruster.intercepting.proxy"),
-            String::from("localhost"),
-            String::from("127.0.0.1")
-        ]
-    ).expect("Could not generate certificate, check filenames");
+    if std::path::Path::new(key_path).exists() && std::path::Path::new(key_path).exists() {
+        return;
+    }
 
-    // TODO: check existence!
-    fs::write(
-        cer_path,
+    let subject_alt_names = vec![
+        "Cruster".to_string(),
+        "localhost".to_string()
+    ];
+
+    let cert = rcgen::generate_simple_self_signed(subject_alt_names).unwrap();
+    let kp = KeyPair::from_pem(
         cert
+            .get_key_pair()
             .serialize_pem()
-            .expect("Unable to serialize cer-data to PEM")
-            .as_bytes()
-    ).expect(format!("Could not write cer-file to '{}'", cer_path.to_string()).as_str());
+            .as_str()
+    ).unwrap();
 
-    // TODO: check existence!
-    fs::write(
-        key_path,
-            cert
-                .serialize_private_key_pem()
-                .as_bytes()
-    ).expect(format!("Could not write key-file to '{}'", key_path.to_string()).as_str());
+    let mut cert_params = CertificateParams::from_ca_cert_pem(
+        cert
+            .serialize_pem().
+            unwrap()
+            .as_str(),
+        kp
+    ).unwrap();
+
+    cert_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    cert_params.not_before = OffsetDateTime::from(datetime!(1970-01-01 0:00 UTC));
+    cert_params.not_after = OffsetDateTime::from(datetime!(5000-01-01 0:00 UTC));
+
+    let new_cert = Certificate::from_params(cert_params).unwrap();
+    fs::write(cer_path, new_cert.serialize_pem().unwrap()).unwrap();
+    fs::write(key_path, new_cert.serialize_private_key_pem()).unwrap();
 }
