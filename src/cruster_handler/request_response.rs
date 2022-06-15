@@ -75,7 +75,10 @@ impl HyperResponseWrapper {
         let headers = rsp_parts.headers.clone();
         let body = hyper::body::to_bytes(rsp_body).await.unwrap().to_vec();
         let new_body = Body::from(body.clone());
-        let body = String::from_utf8(body).unwrap();
+        let body = match String::from_utf8(body) {
+            Ok(s) => s,
+            Err(e) => format!("UNDECODED: {}", e)
+        };
 
         (
             HyperResponseWrapper {

@@ -150,14 +150,17 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>, http_sto
                 f.render_widget(new_block, rects[index]);
             },
             storage::RenderUnit::TUIParagraph((paragraph, area_index)) => {
-                let new_paragraph = paragraph.clone();
-                let index = area_index.clone();
-                f.render_widget(new_paragraph, rects[index]);
+                let p = paragraph.clone();
+                let i = area_index.to_owned();
+                f.render_widget(p, rects[i]);
             },
             storage::RenderUnit::TUITable((table, area_index)) => {
                 let new_table = table.clone();
                 let index = area_index.clone();
                 f.render_stateful_widget(new_table, rects[index], &mut uis.proxy_history_state);
+            },
+            storage::RenderUnit::TUIClear((clr, area_index)) => {
+                f.render_widget(clr.to_owned(), rects[area_index.to_owned()])
             }
         }
     }
