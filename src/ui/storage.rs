@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use tui::{
@@ -92,128 +93,87 @@ pub(crate) struct UI<'ui_lt> {
     pub(crate) widgets: Vec<RenderUnit<'ui_lt>>,
     // Position of block with proxy history in rectangles array (see ui/mod.rs:new:ui)
     proxy_history_index: usize,
+    request_area_index: usize,
+    response_area_index: usize,
     // State of table with proxy history
     pub(crate) proxy_history_state: TableState,
-    // Array of table's cells' widths
-    table_widths: Option<[Constraint; 5]>,
-    // Last known window width
-    saved_window_width: u16,
     // Index of block with request text in vector above
     request_block_index: usize,
     // Index of block with response text in vector above
-    response_block_index: usize
+    response_block_index: usize,
+    proxy_block_index: usize,
+    table_start_index: usize,
+    table_end_index: usize,
+    table_window_size: usize,
+    table_step: usize
 }
 
 impl UI<'static> {
     pub(crate) fn new() -> Self {
         let request_block = Block::default()
-            .title("Upper Left Block")
+            .title("REQUEST").title_alignment(Alignment::Center)
             .borders(Borders::TOP);
 
         let response_block = Block::default()
-            .title("Upper Right Block")
+            .title("RESPONSE").title_alignment(Alignment::Center)
             .borders(Borders::TOP | Borders::LEFT);
+
+        let proxy_history_block = Block::default()
+            .title("Proxy History")
+            .borders(Borders::ALL);
 
         UI {
             widgets: vec![
+                RenderUnit::TUIClear((Clear, 0)),
+                RenderUnit::TUIBlock((proxy_history_block, 0)),
+                RenderUnit::TUIClear((Clear, 1)),
                 RenderUnit::TUIBlock((request_block, 1)),
+                RenderUnit::TUIClear((Clear, 2)),
                 RenderUnit::TUIBlock((response_block, 2)),
-                // RenderUnit::TUITable((proxy_history_table, 0))
             ],
-            proxy_history_index: 2,
+            proxy_history_index: 0,
+            request_area_index: 1,
+            response_area_index: 2,
             proxy_history_state: {
                 let mut table_state = TableState::default();
                 table_state.select(None);
                 table_state
             },
-            table_widths: None,
-            saved_window_width: 0,
-            request_block_index: 1,
-            response_block_index: 2
+            request_block_index: 3,
+            response_block_index: 5,
+            proxy_block_index: 1,
+            table_start_index: 0,
+            table_end_index: 24,
+            table_window_size: 25,
+            table_step: 5
         }
     }
 
-    pub(crate) fn make_table_widths(&mut self, size: u16, storage: & HTTPStorage) {
-        self.saved_window_width = size;
-        self.table_widths = Some([
-            Constraint::Length(16),
-            Constraint::Length(16),
-            Constraint::Length(16 * 6 + 9),
-            Constraint::Length(16),
-            Constraint::Length(16 * 2)
-        ]);
-        // self.widgets.clear();
-
+    pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
         if let None = self.proxy_history_state.selected() {
             if storage.storage.len() > 0 {
                 self.proxy_history_state.select(Some(0));
             }
         }
 
-        let mut rows: Vec<Row> = Vec::new();
-        for (index, pair) in storage.storage.iter().enumerate() {
-            let request = pair.request.as_ref().unwrap();
-            let response = pair.response.as_ref();
-            let row = vec![
-                (index + 1).to_string(),
-                request.method.clone(),
-                request.uri.clone(),
-                if let Some(rsp) = response {rsp.status.clone()} else {". . .".to_string()},
-                "TODO".to_string()
-            ];
-            rows.push(Row::new(row));
-        }
-
-        // TODO: Clear before table
-        {
-            let proxy_history_table = Table::new(rows)
-                .header(Row::new(vec!["№", "Method", "URL", "Response Code", "Address"]))
-                .style(Style::default().fg(Color::White))
-                .widths(&[
-                    Constraint::Length(16),
-                    Constraint::Length(16),
-                    Constraint::Length(16 * 6 + 9),
-                    Constraint::Length(16),
-                    Constraint::Length(16 * 2)
-                ])
-                .highlight_style(
-                    Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::White)
-                        .add_modifier(Modifier::BOLD))
-                .block(
-                    Block::default()
-                        .title("Proxy History")
-                        .borders(Borders::ALL));
-
-            self.widgets.push(RenderUnit::TUITable((proxy_history_table, 0)));
-            self.proxy_history_index = self.widgets.len() - 1;
-        }
-
-        // Clears
-        self.widgets.insert(self.proxy_history_index + 1, RenderUnit::TUIClear((Clear, self.request_block_index)));
-        self.widgets.insert(self.proxy_history_index + 2, RenderUnit::TUIClear((Clear, self.response_block_index)));
-
         let selected_index = match self.proxy_history_state.selected() {
-            Some(index) => index,
+            Some(index) => index + self.table_start_index,
             None => {
-                self.widgets.insert(
-                    self.proxy_history_index + 3,
-                    RenderUnit::TUIBlock(
-                        (
-                            Block::default().title("REQUEST").borders(Borders::TOP).title_alignment(Alignment::Center),
-                            self.request_block_index
-                        )
-                    ),
+                self.widgets[self.request_block_index] = RenderUnit::TUIBlock(
+                    (
+                        Block::default()
+                            .title("REQUEST")
+                            .borders(Borders::TOP)
+                            .title_alignment(Alignment::Center),
+                        self.request_area_index
+                    )
                 );
-                self.widgets.insert(
-                    self.proxy_history_index + 4,
-                    RenderUnit::TUIBlock(
-                        (
-                            Block::default().title("RESPONSE").borders(Borders::TOP | Borders::LEFT).title_alignment(Alignment::Center),
-                            self.response_block_index
-                        )
-                    ),
+
+                self.widgets[self.response_block_index] = RenderUnit::TUIBlock(
+                    (
+                        Block::default().title("RESPONSE").borders(Borders::TOP | Borders::LEFT).title_alignment(Alignment::Center),
+                        self.response_area_index
+                    )
                 );
                 return;
             }
@@ -256,8 +216,8 @@ impl UI<'static> {
             let request_paragraph = Paragraph::new(request_list)
                 .block(new_block)
                 .wrap(Wrap { trim: true });
-            // self.widgets.push(RenderUnit::TUIParagraph((request_paragraph, self.request_block_index)));
-            self.widgets.insert(self.proxy_history_index + 3, RenderUnit::TUIParagraph((request_paragraph, self.request_block_index)));
+
+            self.widgets[self.request_block_index] =  RenderUnit::TUIParagraph((request_paragraph, self.request_area_index));
         }
 
         // TODO: RESPONSE as new function
@@ -265,14 +225,14 @@ impl UI<'static> {
             let response = match storage.storage[selected_index].response.as_ref() {
                 Some(rsp) => rsp,
                 None => {
-                    self.widgets.insert(
-                        self.proxy_history_index + 4,
-                        RenderUnit::TUIBlock(
-                            (
-                                Block::default().title("RESPONSE").borders(Borders::TOP | Borders::LEFT).title_alignment(Alignment::Center),
-                                self.response_block_index
-                            )
-                        ),
+                    self.widgets[self.response_block_index] = RenderUnit::TUIBlock(
+                        (
+                            Block::default()
+                                .title("RESPONSE")
+                                .borders(Borders::TOP | Borders::LEFT)
+                                .title_alignment(Alignment::Center),
+                            self.response_area_index
+                        )
                     );
                     return;
                 }
@@ -302,9 +262,90 @@ impl UI<'static> {
                 .block(new_block)
                 .wrap(Wrap { trim: false });
 
-            self.widgets.insert(self.proxy_history_index + 4, RenderUnit::TUIParagraph((response_paragraph, self.response_block_index)));
+            self.widgets[self.response_block_index] = RenderUnit::TUIParagraph((response_paragraph, self.response_area_index));
         }
     }
+
+    fn make_table(&mut self, storage: &HTTPStorage) {
+        let mut rows: Vec<Row> = Vec::new();
+        for (index, pair) in storage.storage
+            .iter()
+            .skip(self.table_start_index)
+            .take(self.table_window_size + 5)
+            .enumerate()
+        {
+            let request = pair.request.as_ref().unwrap();
+            let response = pair.response.as_ref();
+            let row = vec![
+                (index + self.table_start_index + 1).to_string(),
+                request.method.clone(),
+                request.uri.clone(),
+                if let Some(rsp) = response {rsp.status.clone()} else {"".to_string()},
+                "TODO".to_string()
+            ];
+            rows.push(Row::new(row));
+        }
+
+        let proxy_history_table = Table::new(rows)
+            .header(Row::new(vec!["№", "Method", "URL", "Response Code", "Address"]))
+            .style(Style::default().fg(Color::White))
+            .widths(&[
+                Constraint::Length(16),
+                Constraint::Length(16),
+                Constraint::Length(16 * 6 + 9),
+                Constraint::Length(16),
+                Constraint::Length(16 * 2)
+            ])
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::White)
+                    .add_modifier(Modifier::BOLD))
+            .block(
+                Block::default()
+                    .title("Proxy History")
+                    .borders(Borders::ALL));
+
+        self.widgets[self.proxy_block_index] = RenderUnit::TUITable(
+            (
+                proxy_history_table,
+                self.proxy_history_index
+            )
+        );
+    }
+
+    pub(crate) fn update_table(&mut self, storage: &HTTPStorage) {
+        match self.proxy_history_state.selected() {
+            Some(i) => {
+                if storage.len() < self.table_window_size {
+                    eprintln!("First block reached");
+                    self.make_table(storage);
+                }
+                else if i >= self.table_window_size {
+                    let index = self.table_window_size - min(storage.len() - self.table_end_index, self.table_step);
+                    self.table_end_index = min(storage.len() - 1, self.table_end_index + self.table_step);
+                    self.table_start_index = self.table_end_index.saturating_sub(self.table_window_size - 1);
+                    self.make_table(storage);
+                }
+                else if i == 0 {
+                    let index = min(self.table_start_index, self.table_step);
+                    self.table_start_index = self.table_start_index.saturating_sub(self.table_step);
+                    self.table_end_index = self.table_start_index + self.table_window_size - 1;
+                    self.proxy_history_state.select(Some(index));
+                    self.make_table(storage);
+                }
+            },
+            None => {
+                self.make_table(storage);
+            }
+        }
+    }
+
+    // pub(crate) fn draw_state(&mut self, storage: &HTTPStorage) {
+    //    if let Some(index) = self.proxy_history_state.selected() {
+    //        if index
+    //    }
+    // }
 }
 
 // ---------------------------------------------------------------------------------------------- //

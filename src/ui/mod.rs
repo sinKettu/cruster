@@ -19,7 +19,6 @@ use crossterm::{
 use hudsucker::HttpContext;
 use tokio::sync::mpsc::Receiver;
 use crate::cruster_handler::request_response::CrusterWrapper;
-use crate::ui::storage::HTTPStorage;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
@@ -54,7 +53,9 @@ async fn run_app<B: Backend>(
     let mut last_tick = Instant::now();
     let mut ui_storage = storage::UI::new();
     let mut something_changed = true;
+    let mut table_state_changed = false;
     let mut http_storage = storage::HTTPStorage::default();
+
     loop {
         match ui_rx.try_recv() {
             Ok((wrapper, ctx)) => {
@@ -79,26 +80,25 @@ async fn run_app<B: Backend>(
                 if let KeyCode::Char('q') = key.code {
                     return Ok(());
                 }
-                else if let KeyCode::Char('w') = key.code {
-                    // something_changed = true;
-                    // let test_paragraph = Paragraph::new("Test Hello");
-                    // ui_storage.add_paragraph(test_paragraph, 0);
-                }
                 else if let KeyCode::Up = key.code {
                     let index = match ui_storage.proxy_history_state.selected() {
                         Some(i) => if i == 0 { 0 } else { i - 1 },
                         None => 0 as usize
                     };
+                    eprintln!("New index: {}", index);
                     ui_storage.proxy_history_state.select(Some(index));
-                    something_changed = true;
+                    table_state_changed = true;
+                    something_changed = true
                 }
                 else if let KeyCode::Down = key.code {
                     let index = match ui_storage.proxy_history_state.selected() {
-                        Some(i) => if i == http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
+                        Some(i) => if i >= http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
                         None => 0 as usize
                     };
+                    eprintln!("New index: {}", index);
                     ui_storage.proxy_history_state.select(Some(index));
-                    something_changed = true;
+                    table_state_changed = true;
+                    something_changed = true
                 }
             }
         }
@@ -107,16 +107,20 @@ async fn run_app<B: Backend>(
         }
 
         if something_changed {
-            terminal.draw(|f| new_ui(f, &mut ui_storage, &http_storage))?;
+            if something_changed { ui_storage.update_table(&http_storage); }
+            if table_state_changed { ui_storage.draw_state(&http_storage); }
+
+            terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+
             something_changed = false;
+            table_state_changed = false;
         }
     }
 }
 
-fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>, http_storage: &HTTPStorage) {
+fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
     let window_width = f.size().width;
     let window_height = f.size().height;
-    uis.make_table_widths(window_width, http_storage);
 
     // 0 - Rect for requests log,
     // 1 - Rect for requests
@@ -157,6 +161,7 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>, http_sto
             storage::RenderUnit::TUITable((table, area_index)) => {
                 let new_table = table.clone();
                 let index = area_index.clone();
+                // TODO: replace 'uis.proxy_history_state' with something more convenient
                 f.render_stateful_widget(new_table, rects[index], &mut uis.proxy_history_state);
             },
             storage::RenderUnit::TUIClear((clr, area_index)) => {

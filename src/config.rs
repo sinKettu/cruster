@@ -37,7 +37,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
     let port_help = "Port for proxy to listen to, default: 8080";
     let matches = App::new("Cruster")
-        .version("0.2.2")
+        .version("0.2.3")
         .author("Andrey Ivano v<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .arg(
