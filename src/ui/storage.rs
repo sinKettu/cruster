@@ -341,12 +341,6 @@ impl UI<'static> {
             }
         }
     }
-
-    // pub(crate) fn draw_state(&mut self, storage: &HTTPStorage) {
-    //    if let Some(index) = self.proxy_history_state.selected() {
-    //        if index
-    //    }
-    // }
 }
 
 // ---------------------------------------------------------------------------------------------- //

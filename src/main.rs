@@ -41,7 +41,17 @@ async fn main() -> Result<(), utils::CrusterError> {
     ));
 
     let (proxy_tx, ui_rx) = channel(100);
-    tokio::spawn(async move { start_proxy(socket_addr, ca, proxy_tx).await; });
-    ui::render(ui_rx).await?;
+    let proxy = ProxyBuilder::new()
+        .with_addr(socket_addr)
+        .with_rustls_client()
+        .with_ca(ca)
+        .with_http_handler(cruster_handler::CrusterHandler{proxy_tx})
+        .build();
+
+    proxy.start(shutdown_signal()).await.unwrap();
+
+    // let (proxy_tx, ui_rx) = channel(100);
+    // tokio::spawn(async move { start_proxy(socket_addr, ca, proxy_tx).await; });
+    // ui::render(ui_rx).await?;
     Ok(())
 }
