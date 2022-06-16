@@ -325,6 +325,7 @@ impl UI<'static> {
                     let index = self.table_window_size - min(storage.len() - self.table_end_index, self.table_step);
                     self.table_end_index = min(storage.len() - 1, self.table_end_index + self.table_step);
                     self.table_start_index = self.table_end_index.saturating_sub(self.table_window_size - 1);
+                    self.proxy_history_state.select(Some(index));
                     self.make_table(storage);
                 }
                 else if i == 0 {
