@@ -1,3 +1,4 @@
+use http::HeaderMap;
 use hudsucker::{
     hyper::{Body, Request, Response, self},
 };
@@ -8,7 +9,7 @@ pub(crate) struct HyperRequestWrapper {
     pub(crate) method: String,
     pub(crate) version: String,
     pub(crate) headers: hyper::HeaderMap,
-    pub(crate) body: String
+    pub(crate) body: Vec<u8>
 }
 
 impl HyperRequestWrapper {
@@ -35,7 +36,6 @@ impl HyperRequestWrapper {
             .version(hyper::Version::from(req.version()));
         for (k, v) in &headers { new_request = new_request.header(k, v); }
         let new_request = new_request.body(hyper::Body::from(body.clone())).unwrap();
-        let body= String::from_utf8(body).unwrap();
 
         return (
             HyperRequestWrapper {
@@ -53,11 +53,19 @@ impl HyperRequestWrapper {
 // -----------------------------------------------------------------------------------------------//
 
 #[derive(Clone, Debug)]
+pub(crate) enum BodyCompressedWith {
+    GZIP,
+    DEFLATE,
+    NONE
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct HyperResponseWrapper {
     pub(crate) status: String,
     pub(crate) version: String,
     pub(crate) headers: hyper::HeaderMap,
-    pub(crate) body: String
+    pub(crate) body: Vec<u8>,
+    pub(crate) body_compressed: BodyCompressedWith
 }
 
 impl HyperResponseWrapper {
@@ -72,20 +80,36 @@ impl HyperResponseWrapper {
             hyper::Version::HTTP_3 => "HTTP/2".to_string(),
             _ => "HTTP/UNKNOWN".to_string() // TODO: Think once more
         };
-        let headers = rsp_parts.headers.clone();
+
+        let mut headers = HeaderMap::new();
+        // Copy headers and determine if body is compressed
+        let mut body_compressed: BodyCompressedWith = BodyCompressedWith::NONE;
+        for (k, v) in &rsp_parts.headers {
+            if k.as_str().to_lowercase() == "content-encoding" {
+                match v.to_str() {
+                    Ok(s) => {
+                        if s.contains("gzip") {
+                            body_compressed = BodyCompressedWith::GZIP;
+                        } else if s.contains("deflate") {
+                            body_compressed = BodyCompressedWith::DEFLATE;
+                        }
+                    },
+                    Err(_e) => { todo!() }
+                }
+            }
+
+            headers.insert(k.clone(), v.clone());
+        }
         let body = hyper::body::to_bytes(rsp_body).await.unwrap().to_vec();
         let new_body = Body::from(body.clone());
-        let body = match String::from_utf8(body) {
-            Ok(s) => s,
-            Err(e) => format!("UNDECODED: {}", e)
-        };
 
         (
             HyperResponseWrapper {
                 status,
                 version,
                 headers,
-                body
+                body,
+                body_compressed
             },
             Response::from_parts(rsp_parts, new_body)
         )

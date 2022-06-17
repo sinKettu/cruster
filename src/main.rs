@@ -41,17 +41,13 @@ async fn main() -> Result<(), utils::CrusterError> {
     ));
 
     let (proxy_tx, ui_rx) = channel(100);
-    let proxy = ProxyBuilder::new()
-        .with_addr(socket_addr)
-        .with_rustls_client()
-        .with_ca(ca)
-        .with_http_handler(cruster_handler::CrusterHandler{proxy_tx})
-        .build();
-
-    proxy.start(shutdown_signal()).await.unwrap();
-
-    // let (proxy_tx, ui_rx) = channel(100);
-    // tokio::spawn(async move { start_proxy(socket_addr, ca, proxy_tx).await; });
-    // ui::render(ui_rx).await?;
+    tokio::spawn(async move { start_proxy(socket_addr, ca, proxy_tx).await; });
+    ui::render(ui_rx).await?;
     Ok(())
 }
+
+// eprintln!("{} >>> {:#?}", &status, String::from_utf8_lossy(body.as_slice()).to_string());
+// let mut decoder = GzipDecoder::new(Vec::new());
+// decoder.write_all(body.as_slice()).await.unwrap();
+// let a = String::from_utf8_lossy(decoder.get_ref()).to_string();
+// eprintln!("{} >>> {:#?}", &status, a);

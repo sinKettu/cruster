@@ -1,6 +1,7 @@
 use std::cmp::min;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use bstr::ByteSlice;
 use tui::{
     // backend::{CrosstermBackend, Backend},
     widgets::{/*Widget,*/ Block, Borders, Paragraph, /*Wrap,*/ Table, Row, TableState},
@@ -14,6 +15,9 @@ use tui::{
 };
 use tui::layout::Alignment;
 use tui::widgets::{Clear, Wrap};
+
+use flate2::write::GzDecoder;
+use std::io::prelude::*;
 // use crossterm::{
 //     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
 //     execute,
@@ -23,7 +27,7 @@ use tui::widgets::{Clear, Wrap};
 // use tui::text::Text;
 
 // use crate::utils::CrusterError;
-use crate::cruster_handler::request_response::{HyperRequestWrapper, HyperResponseWrapper};
+use crate::cruster_handler::request_response::{BodyCompressedWith, HyperRequestWrapper, HyperResponseWrapper};
 
 #[derive(Clone, Debug)]
 pub(crate) enum RenderUnit<'ru_lt> {
@@ -150,6 +154,8 @@ impl UI<'static> {
     }
 
     pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
+        if storage.len() == 0 { return; }
+
         if let None = self.proxy_history_state.selected() {
             if storage.storage.len() > 0 {
                 self.proxy_history_state.select(Some(0));
@@ -203,6 +209,7 @@ impl UI<'static> {
             let tmp: Vec<Span> = request
                 .body
                 .clone()
+                .to_str_lossy()
                 .split("\n")
                 .map(|s| Span::from(s.to_string()))
                 .collect();
@@ -251,7 +258,16 @@ impl UI<'static> {
                     }
                     headers_string
                 },
-                &response.body
+                match response.body_compressed {
+                    BodyCompressedWith::NONE => String::from_utf8_lossy(response.body.as_slice()).to_string(),
+                    BodyCompressedWith::GZIP => {
+                        let writer = Vec::new();
+                        let mut decoder = GzDecoder::new(writer);
+                        decoder.write_all(response.body.as_slice()).unwrap();
+                        decoder.finish().unwrap().to_str_lossy().to_string()
+                    }
+                    BodyCompressedWith::DEFLATE => { todo!() }
+                }
             );
 
             let new_block = Block::default()

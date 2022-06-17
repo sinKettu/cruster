@@ -9,7 +9,6 @@ description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
 
 [dependencies]
 # hudsucker and dependencies
-async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
 async-trait = "0.1.7"
 bstr = "0.2.1"
 bytes = "1.0.0"
@@ -41,3 +40,4 @@ shellexpand = "2.1.0"
 clap = "2.34.0"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_yaml = "0.8.24"
+flate2 = "1.0.24"
