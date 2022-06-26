@@ -4,6 +4,8 @@ use clap::{App, Arg};
 use serde_yaml as yml;
 use std::{fs, path};
 use serde::{Serialize, Deserialize};
+use simple_logging;
+use log::{LevelFilter, debug};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Config {
@@ -12,7 +14,8 @@ pub(crate) struct Config {
     pub(crate) tls_cer_name: String,
     pub(crate) config_name: String,
     pub(crate) address: String,
-    pub(crate) port: u16
+    pub(crate) port: u16,
+    pub(crate) debug_file: String
 }
 
 impl Default for Config {
@@ -24,7 +27,8 @@ impl Default for Config {
             tls_cer_name: format!("{}{}", &expanded_path, "cruster.cer"),
             tls_key_name: format!("{}{}", &expanded_path, "cruster.key"),
             address: "127.0.0.1".to_string(),
-            port: 8080_u16
+            port: 8080_u16,
+            debug_file: "".to_string()
         }
     }
 }
@@ -36,8 +40,10 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let config_help = "Path to config with YAML format";
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
     let port_help = "Port for proxy to listen to, default: 8080";
+    let debug_file_help = "A file to write debug messages, mostly needed for development";
+
     let matches = App::new("Cruster")
-        .version("0.2.3")
+        .version("0.2.4")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .arg(
@@ -73,6 +79,13 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .takes_value(true)
                 .value_name("PORT")
                 .help(port_help)
+        )
+        .arg(
+            Arg::with_name("debug-file")
+                .long("debug-file")
+                .takes_value(true)
+                .value_name("FILE-TO-WRITE")
+                .help(debug_file_help)
         )
         .get_matches();
 
@@ -116,6 +129,13 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
 
     if let Some(port) = matches.value_of("port") {
         config.port = port.parse()?;
+    }
+
+    if let Some(dfile) = matches.value_of("debug-file") {
+        config.debug_file = dfile.to_string();
+        simple_logging::log_to_file(dfile, LevelFilter::Debug)
+            .expect("Cannot configure debug logger to given file");
+        debug!("Debugging enabled");
     }
 
     Ok(config)

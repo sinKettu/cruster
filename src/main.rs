@@ -3,13 +3,14 @@ mod cruster_handler;
 mod ui;
 mod config;
 
+use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
 use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority, HttpContext};
 use tokio::{
     self,
     sync::mpsc::{channel, Sender}
 };
-use cruster_handler::request_response::CrusterWrapper;
+use cruster_handler::{CrusterHandler, CrusterWSHandler, request_response::CrusterWrapper};
 
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
@@ -23,6 +24,8 @@ async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<(
         .with_rustls_client()
         .with_ca(ca)
         .with_http_handler(cruster_handler::CrusterHandler{proxy_tx: tx})
+        .with_incoming_message_handler(CrusterWSHandler)
+        .with_outgoing_message_handler(CrusterWSHandler)
         .build();
 
     proxy.start(shutdown_signal()).await.unwrap();
