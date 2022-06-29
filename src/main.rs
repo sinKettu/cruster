@@ -43,14 +43,8 @@ async fn main() -> Result<(), utils::CrusterError> {
         config.port
     ));
 
-    let (proxy_tx, ui_rx) = channel(100);
+    let (proxy_tx, ui_rx) = channel(1);
     tokio::spawn(async move { start_proxy(socket_addr, ca, proxy_tx).await; });
     ui::render(ui_rx).await?;
     Ok(())
 }
-
-// eprintln!("{} >>> {:#?}", &status, String::from_utf8_lossy(body.as_slice()).to_string());
-// let mut decoder = GzipDecoder::new(Vec::new());
-// decoder.write_all(body.as_slice()).await.unwrap();
-// let a = String::from_utf8_lossy(decoder.get_ref()).to_string();
-// eprintln!("{} >>> {:#?}", &status, a);

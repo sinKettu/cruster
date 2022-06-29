@@ -28,7 +28,7 @@ pub(crate) async fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Re
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
-    let tick_rate = Duration::from_millis(250);
+    let tick_rate = Duration::from_millis(0);
     let mut terminal = Terminal::new(backend)?;
 
     run_app(&mut terminal, tick_rate, ui_rx).await?;
