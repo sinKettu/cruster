@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use bstr::ByteSlice;
+// use bstr::ByteSlice;
 use tui::{
     // backend::{CrosstermBackend, Backend},
     widgets::{/*Widget,*/ Block, Borders, Paragraph, /*Wrap,*/ Table, Row, TableState},
@@ -18,6 +18,7 @@ use tui::widgets::{Clear, Wrap};
 
 use flate2::write::GzDecoder;
 use std::io::prelude::*;
+use bstr::ByteSlice;
 // use crossterm::{
 //     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
 //     execute,

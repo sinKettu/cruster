@@ -15,7 +15,8 @@ pub(crate) struct Config {
     pub(crate) config_name: String,
     pub(crate) address: String,
     pub(crate) port: u16,
-    pub(crate) debug_file: String
+    pub(crate) debug_file: String,
+    pub(crate) dump_mode: bool
 }
 
 impl Default for Config {
@@ -28,7 +29,8 @@ impl Default for Config {
             tls_key_name: format!("{}{}", &expanded_path, "cruster.key"),
             address: "127.0.0.1".to_string(),
             port: 8080_u16,
-            debug_file: "".to_string()
+            debug_file: "".to_string(),
+            dump_mode: false
         }
     }
 }
@@ -41,6 +43,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
     let port_help = "Port for proxy to listen to, default: 8080";
     let debug_file_help = "A file to write debug messages, mostly needed for development";
+    let dump_help = "Enable non-interactive dumping mode: all communications will be shown in terminal output";
 
     let matches = App::new("Cruster")
         .version("0.2.4")
@@ -86,6 +89,13 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .takes_value(true)
                 .value_name("FILE-TO-WRITE")
                 .help(debug_file_help)
+        )
+        .arg(
+            Arg::with_name("dump-mode")
+                .long("dump")
+                .short("-d")
+                .takes_value(false)
+                .help(dump_help)
         )
         .get_matches();
 
@@ -136,6 +146,10 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         simple_logging::log_to_file(dfile, LevelFilter::Debug)
             .expect("Cannot configure debug logger to given file");
         debug!("Debugging enabled");
+    }
+
+    if matches.is_present("dump-mode") {
+        config.dump_mode = true;
     }
 
     Ok(config)

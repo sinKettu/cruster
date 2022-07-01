@@ -22,7 +22,7 @@ use crate::cruster_handler::request_response::CrusterWrapper;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
-pub(crate) async fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Result<(), io::Error> {
+pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Result<(), io::Error> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -31,7 +31,7 @@ pub(crate) async fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Re
     let tick_rate = Duration::from_millis(0);
     let mut terminal = Terminal::new(backend)?;
 
-    run_app(&mut terminal, tick_rate, ui_rx).await?;
+    run_app(&mut terminal, tick_rate, ui_rx)?;
 
     // restore terminal
     disable_raw_mode()?;
@@ -45,7 +45,7 @@ pub(crate) async fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Re
     Ok(())
 }
 
-async fn run_app<B: Backend>(
+fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     tick_rate: Duration,
     mut ui_rx: Receiver<(CrusterWrapper, HttpContext)>
@@ -85,7 +85,7 @@ async fn run_app<B: Backend>(
                         Some(i) => if i == 0 { 0 } else { i - 1 },
                         None => 0 as usize
                     };
-                    eprintln!("New index: {}", index);
+
                     ui_storage.proxy_history_state.select(Some(index));
                     table_state_changed = true;
                     something_changed = true
@@ -95,7 +95,7 @@ async fn run_app<B: Backend>(
                         Some(i) => if i >= http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
                         None => 0 as usize
                     };
-                    eprintln!("New index: {}", index);
+
                     ui_storage.proxy_history_state.select(Some(index));
                     table_state_changed = true;
                     something_changed = true
