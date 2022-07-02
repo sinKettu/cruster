@@ -52,7 +52,7 @@ impl HttpHandler for CrusterHandler {
             RequestOrResponse::Request(Request::from_parts(parts, Body::from(body)))
         }
         else {
-            let (wrapper, new_req) = HyperRequestWrapper::from_hyper(req).await;
+            let (mut wrapper, new_req) = HyperRequestWrapper::from_hyper(req).await;
             // TODO: handle error in a better way
             match self.proxy_tx.send((CrusterWrapper::Request(wrapper), _ctx.clone())).await {
                 Ok(_) => RequestOrResponse::Request(new_req),
@@ -83,7 +83,7 @@ impl HttpHandler for CrusterHandler {
             return Response::from_parts(parts, Body::from(body));
         }
         else {
-            let (wrapper, new_res) = HyperResponseWrapper::from_hyper(res).await;
+            let (mut wrapper, new_res) = HyperResponseWrapper::from_hyper(res).await;
             match self.proxy_tx.send((CrusterWrapper::Response(wrapper), _ctx.clone())).await {
                 Ok(_) => {
                     new_res

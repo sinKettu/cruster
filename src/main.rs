@@ -47,7 +47,7 @@ async fn main() -> Result<(), utils::CrusterError> {
         config.port
     ));
 
-    let (proxy_tx, ui_rx) = channel(1);
+    let (proxy_tx, ui_rx) = channel(10);
     tokio::task::spawn(async move { start_proxy(socket_addr, ca, proxy_tx, config.dump_mode).await });
 
     if config.dump_mode {
@@ -59,13 +59,8 @@ async fn main() -> Result<(), utils::CrusterError> {
         }
     }
     else {
-        thread::spawn(move || { ui::render(ui_rx) });
-        match signal::ctrl_c().await {
-            Ok(()) => {},
-            Err(err) => {
-                eprintln!("Unable to listen for shutdown signal: {}", err);
-            },
-        }
+        let ui_thread = thread::spawn(move || { ui::render(ui_rx) });
+        ui_thread.join();
     }
     Ok(())
 }
