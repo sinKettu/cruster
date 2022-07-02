@@ -3,6 +3,7 @@ use http::HeaderMap;
 use hudsucker::{
     hyper::{Body, Request, Response, self},
 };
+use log::debug;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -31,7 +32,16 @@ impl HyperRequestWrapper {
             _ => "HTTP/UNKNOWN".to_string()
         };
 
-        let body = hyper::body::to_bytes(body).await.unwrap();
+        let body = match hyper::body::to_bytes(body).await {
+            Ok(body_bytes) => body_bytes,
+            Err(e) => {
+                debug!("- CRUSTER - Could not read request body for '{} {}', reason: {:?}", &method, &uri, e);
+                // This is not the best way to do it
+                hyper::body::Bytes::new()
+            }
+        };
+
+
         let reconstructed_request = Request::from_parts(parts, Body::from(body.clone()));
         let request_wrapper = HyperRequestWrapper {
             uri,
@@ -96,7 +106,15 @@ impl HyperResponseWrapper {
             }
         }
 
-        let body = hyper::body::to_bytes(rsp_body).await.unwrap();
+        let body = match hyper::body::to_bytes(rsp_body).await {
+            Ok(body_bytes) => body_bytes,
+            Err(e) => {
+                debug!("- CRUSTER - Could not read response body, reason: {:?}", e);
+                // This is not the best way to do it
+                hyper::body::Bytes::new()
+            }
+        };
+
         let reconstructed_body = Body::from(body.clone());
         let reconstructed_response = Response::from_parts(rsp_parts, reconstructed_body);
         let response_wrapper = HyperResponseWrapper {

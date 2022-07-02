@@ -46,7 +46,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let dump_help = "Enable non-interactive dumping mode: all communications will be shown in terminal output";
 
     let matches = App::new("Cruster")
-        .version("0.2.5")
+        .version("0.3.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .arg(
@@ -145,7 +145,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         config.debug_file = dfile.to_string();
         simple_logging::log_to_file(dfile, LevelFilter::Debug)
             .expect("Cannot configure debug logger to given file");
-        debug!("Debugging enabled");
+        debug!("- CRUSTER - Debugging enabled");
     }
 
     if matches.is_present("dump-mode") {

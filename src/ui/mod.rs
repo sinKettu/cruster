@@ -22,7 +22,7 @@ use crate::cruster_handler::request_response::CrusterWrapper;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
-pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Result<(), io::Error> {
+pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, usize)>) -> Result<(), io::Error> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -48,7 +48,7 @@ pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Result<(
 fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     tick_rate: Duration,
-    mut ui_rx: Receiver<(CrusterWrapper, HttpContext)>
+    mut ui_rx: Receiver<(CrusterWrapper, usize)>
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     let mut ui_storage = storage::UI::new();
@@ -59,10 +59,9 @@ fn run_app<B: Backend>(
     loop {
         match ui_rx.try_recv() {
             Ok((wrapper, ctx)) => {
-                let string_reference = ctx.client_addr;
                 match wrapper {
-                    CrusterWrapper::Request(request) => http_storage.put_request(request, string_reference),
-                    CrusterWrapper::Response(response) => http_storage.put_response(response, &string_reference)
+                    CrusterWrapper::Request(request) => http_storage.put_request(request, ctx),
+                    CrusterWrapper::Response(response) => http_storage.put_response(response, &ctx)
                 }
                 something_changed = true;
             },

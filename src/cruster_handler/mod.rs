@@ -2,8 +2,11 @@ pub(crate) mod request_response;
 
 use std::cmp::min;
 use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use std::net::SocketAddr;
 use std::time::Duration;
+use std::collections::hash_map::DefaultHasher;
+use std::ptr::hash;
 use bstr::ByteSlice;
 use request_response::{CrusterWrapper, HyperRequestWrapper, HyperResponseWrapper};
 use tokio::sync::mpsc::Sender;
@@ -15,12 +18,22 @@ use rand as rnd;
 use rand::Rng;
 use serde_yaml::Value::String;
 use tokio::time::sleep;
-// use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
+
+fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> usize {
+    let mut hasher = DefaultHasher::new();
+    client_addr.hash(&mut hasher);
+    uri.hash(&mut hasher);
+    method.hash(&mut hasher);
+    let result = hasher.finish() as usize;
+
+    return result
+}
 
 #[derive(Clone)]
 pub(crate) struct CrusterHandler {
-    pub(crate) proxy_tx: Sender<(CrusterWrapper, HttpContext)>,
-    pub(crate) dump: bool
+    pub(crate) proxy_tx: Sender<(CrusterWrapper, usize)>,
+    pub(crate) dump: bool,
+    pub(crate) request_hash: usize
 }
 
 #[derive(Clone)]
@@ -53,8 +66,11 @@ impl HttpHandler for CrusterHandler {
         }
         else {
             let (mut wrapper, new_req) = HyperRequestWrapper::from_hyper(req).await;
+            self.request_hash = get_http_request_hash(&_ctx.client_addr, &wrapper.uri, &wrapper.method);
+            debug!("- CRUSTER - HTTP Request with id {}", &self.request_hash);
+
             // TODO: handle error in a better way
-            match self.proxy_tx.send((CrusterWrapper::Request(wrapper), _ctx.clone())).await {
+            match self.proxy_tx.send((CrusterWrapper::Request(wrapper), self.request_hash)).await {
                 Ok(_) => RequestOrResponse::Request(new_req),
                 Err(e) => panic!("Could not send: {}", e)
             }
@@ -84,10 +100,10 @@ impl HttpHandler for CrusterHandler {
         }
         else {
             let (mut wrapper, new_res) = HyperResponseWrapper::from_hyper(res).await;
-            match self.proxy_tx.send((CrusterWrapper::Response(wrapper), _ctx.clone())).await {
-                Ok(_) => {
-                    new_res
-                },
+            debug!("- CRUSTER - HTTP Response with id {}", &self.request_hash);
+
+            match self.proxy_tx.send((CrusterWrapper::Response(wrapper), self.request_hash)).await {
+                Ok(_) => { return new_res },
                 Err(e) => panic!("Could not send to thread: {}", e)
             }
         }
@@ -105,7 +121,6 @@ impl MessageHandler for CrusterWSHandler {
             Some(msg)
         }
         else {
-            // println!("{:?}", msg);
             Some(msg)
         }
     }

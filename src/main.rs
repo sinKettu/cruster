@@ -21,12 +21,12 @@ async fn shutdown_signal() {
         .expect("Failed to install CTRL+C signal handler");
 }
 
-async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<(CrusterWrapper, HttpContext)>, dump_mode: bool) {
+async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<(CrusterWrapper, usize)>, dump_mode: bool) {
     let proxy = ProxyBuilder::new()
         .with_addr(socket_addr)
         .with_rustls_client()
         .with_ca(ca)
-        .with_http_handler(cruster_handler::CrusterHandler{proxy_tx: tx, dump: dump_mode})
+        .with_http_handler(cruster_handler::CrusterHandler{proxy_tx: tx, dump: dump_mode, request_hash: 0})
         .with_incoming_message_handler(CrusterWSHandler {dump: dump_mode, from_client: false})
         .with_outgoing_message_handler(CrusterWSHandler {dump: dump_mode, from_client: true})
         .build();
