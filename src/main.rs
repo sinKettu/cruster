@@ -3,15 +3,13 @@ mod cruster_handler;
 mod ui;
 mod config;
 
-use std::collections::HashSet;
 use std::net::{IpAddr, SocketAddr};
-use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority, HttpContext};
+use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority};
 use tokio::{
     self,
     sync::mpsc::{channel, Sender},
     signal
 };
-use tokio::runtime::Runtime;
 use cruster_handler::{CrusterHandler, CrusterWSHandler, request_response::CrusterWrapper};
 use std::thread;
 
@@ -26,7 +24,7 @@ async fn start_proxy(socket_addr: SocketAddr, ca: OpensslAuthority, tx: Sender<(
         .with_addr(socket_addr)
         .with_rustls_client()
         .with_ca(ca)
-        .with_http_handler(cruster_handler::CrusterHandler{proxy_tx: tx, dump: dump_mode, request_hash: 0})
+        .with_http_handler(CrusterHandler{proxy_tx: tx, dump: dump_mode, request_hash: 0})
         .with_incoming_message_handler(CrusterWSHandler {dump: dump_mode, from_client: false})
         .with_outgoing_message_handler(CrusterWSHandler {dump: dump_mode, from_client: true})
         .build();
@@ -52,15 +50,18 @@ async fn main() -> Result<(), utils::CrusterError> {
 
     if config.dump_mode {
         match signal::ctrl_c().await {
-            Ok(()) => {},
+            Ok(()) => Ok(()),
             Err(err) => {
-                eprintln!("Unable to listen for shutdown signal: {}", err);
+                panic!("Unable to listen for shutdown signal: {}", err);
             },
         }
     }
     else {
         let ui_thread = thread::spawn(move || { ui::render(ui_rx) });
-        ui_thread.join();
+
+        match ui_thread.join() {
+            Ok(_) => Ok(()),
+            Err(e) => panic!("Error when exiting: {:?}", e)
+        }
     }
-    Ok(())
 }

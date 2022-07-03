@@ -1,23 +1,25 @@
 pub(crate) mod request_response;
 
-use std::cmp::min;
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
-use std::net::SocketAddr;
-use std::time::Duration;
-use std::collections::hash_map::DefaultHasher;
-use std::ptr::hash;
 use bstr::ByteSlice;
 use request_response::{CrusterWrapper, HyperRequestWrapper, HyperResponseWrapper};
 use tokio::sync::mpsc::Sender;
-use hudsucker::{async_trait::async_trait, hyper::{Body, Request, Response}, HttpHandler, RequestOrResponse, HttpContext, MessageHandler, MessageContext};
-use hudsucker::tungstenite::Message;
-use hudsucker::tungstenite::protocol::WebSocketContext;
 use log::debug;
-use rand as rnd;
-use rand::Rng;
-use serde_yaml::Value::String;
-use tokio::time::sleep;
+use hudsucker::{
+    async_trait::async_trait,
+    hyper::{Body, Request, Response},
+    tungstenite::Message,
+    HttpHandler,
+    RequestOrResponse,
+    HttpContext,
+    MessageHandler,
+    MessageContext
+};
+use std::{
+    cmp::min,
+    hash::{Hash, Hasher},
+    net::SocketAddr,
+    collections::hash_map::DefaultHasher
+};
 
 fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> usize {
     let mut hasher = DefaultHasher::new();
@@ -51,7 +53,8 @@ impl HttpHandler for CrusterHandler {
             for (k, v) in &parts.headers {
                 let v_str: &str = match v.to_str() {
                     Ok(s) => s,
-                    Err(e) => return RequestOrResponse::Request(Request::from_parts(parts, body))
+                    // TODO: something better
+                    Err(_) => return RequestOrResponse::Request(Request::from_parts(parts, body))
                 };
 
                 println!("http ==> {}: {}", k.as_str(), v_str);
@@ -65,7 +68,7 @@ impl HttpHandler for CrusterHandler {
             RequestOrResponse::Request(Request::from_parts(parts, Body::from(body)))
         }
         else {
-            let (mut wrapper, new_req) = HyperRequestWrapper::from_hyper(req).await;
+            let (wrapper, new_req) = HyperRequestWrapper::from_hyper(req).await;
             self.request_hash = get_http_request_hash(&_ctx.client_addr, &wrapper.uri, &wrapper.method);
             debug!("- CRUSTER - HTTP Request with id {}", &self.request_hash);
 
@@ -84,7 +87,7 @@ impl HttpHandler for CrusterHandler {
             for (k, v) in &parts.headers {
                 let v_str = match v.to_str() {
                     Ok(s) => s,
-                    Err(e) => return Response::from_parts(parts, body)
+                    Err(_) => return Response::from_parts(parts, body)
                 };
 
                 println!("http <== {}: {}", k.as_str(), v_str);
@@ -99,7 +102,7 @@ impl HttpHandler for CrusterHandler {
             return Response::from_parts(parts, Body::from(body));
         }
         else {
-            let (mut wrapper, new_res) = HyperResponseWrapper::from_hyper(res).await;
+            let (wrapper, new_res) = HyperResponseWrapper::from_hyper(res).await;
             debug!("- CRUSTER - HTTP Response with id {}", &self.request_hash);
 
             match self.proxy_tx.send((CrusterWrapper::Response(wrapper), self.request_hash)).await {

@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Andrey Ivanov"]
 description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"

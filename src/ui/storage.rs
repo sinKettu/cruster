@@ -1,11 +1,21 @@
-use std::cmp::min;
-use std::collections::HashMap;
-use std::net::SocketAddr;
-// use bstr::ByteSlice;
+use flate2::write::GzDecoder;
+use std::io::prelude::*;
+use bstr::ByteSlice;
+
+use std::{
+    cmp::min,
+    collections::HashMap
+};
+
+use crate::cruster_handler::request_response::{
+    BodyCompressedWith,
+    HyperRequestWrapper,
+    HyperResponseWrapper
+};
+
 use tui::{
-    // backend::{CrosstermBackend, Backend},
-    widgets::{/*Widget,*/ Block, Borders, Paragraph, /*Wrap,*/ Table, Row, TableState},
-    layout::{/*Rect, Alignment,*/ Constraint},
+    widgets::{Clear, Block, Borders, Paragraph, Wrap, Table, Row, TableState},
+    layout::{Alignment, Constraint},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     // Terminal,
@@ -13,22 +23,6 @@ use tui::{
     // Frame,
     self
 };
-use tui::layout::Alignment;
-use tui::widgets::{Clear, Wrap};
-
-use flate2::write::GzDecoder;
-use std::io::prelude::*;
-use bstr::ByteSlice;
-// use crossterm::{
-//     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-//     execute,
-//     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-// };
-// use tokio::sync::mpsc::Receiver;
-// use tui::text::Text;
-
-// use crate::utils::CrusterError;
-use crate::cruster_handler::request_response::{BodyCompressedWith, HyperRequestWrapper, HyperResponseWrapper};
 
 #[derive(Clone, Debug)]
 pub(crate) enum RenderUnit<'ru_lt> {

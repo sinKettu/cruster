@@ -1,4 +1,3 @@
-use std::os::macos::raw::stat;
 use http::HeaderMap;
 use hudsucker::{
     hyper::{Body, Request, Response, self},
@@ -15,7 +14,7 @@ pub(crate) struct HyperRequestWrapper {
 }
 
 impl HyperRequestWrapper {
-    pub(crate) async fn from_hyper(mut req: Request<Body>) -> (Self, Request<Body>) {
+    pub(crate) async fn from_hyper(req: Request<Body>) -> (Self, Request<Body>) {
         // TODO сделать через parts
         let (parts, body) = req.into_parts();
         let uri = parts.uri.clone().to_string();

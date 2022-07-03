@@ -1,6 +1,9 @@
 mod storage;
 
 use std::{io, time::{Duration, Instant}};
+use tokio::sync::mpsc::Receiver;
+use crate::cruster_handler::request_response::CrusterWrapper;
+
 use tui::{
     backend::{CrosstermBackend, Backend},
     // widgets::{Widget, Block, Borders, Paragraph, Wrap, Table, Row},
@@ -11,14 +14,12 @@ use tui::{
     Frame,
     self
 };
+
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use hudsucker::HttpContext;
-use tokio::sync::mpsc::Receiver;
-use crate::cruster_handler::request_response::CrusterWrapper;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
