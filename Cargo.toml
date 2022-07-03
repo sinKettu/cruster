@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.2.3"
+version = "0.3.1"
 edition = "2021"
 authors = ["Andrey Ivanov"]
 description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
@@ -9,28 +9,34 @@ description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
 
 [dependencies]
 # hudsucker and dependencies
-async-compression = { version = "0.3.7", features = ["tokio", "brotli", "gzip", "zlib", "zstd"], optional = true }
 async-trait = "0.1.7"
+#bytes = "1.0.0"
+#futures = "0.3.11"
+#http = "0.2.0"
+#hyper = { version = "0.14.7", features = ["full"] }
+#hyper-rustls = { version = "0.23.0", default-features = false, features = ["http1", "logging", "tls12", "webpki-tokio"], optional = true }
+#hyper-tls = { version = "0.5.0", optional = true }
+#hyper-tungstenite = "0.8.0"
+#moka = { version = "0.8.0", features = ["future"], optional = true }
+#openssl = { version = "0.10.25"}
+#rand = { version = "0.8.0"}
+#rcgen = { version = "0.9.0", features = ["x509-parser", "pem"]}
+#thiserror = "1.0.23"
+#time = { version = "0.3.1" }
+#tokio = { version = "1.6.1", features = ["full"] }
+#tokio-rustls = "0.23.0"
+#tokio-tungstenite = { version = "0.17.0" }
+#tokio-util = { version = "0.7.0", features = ["io"], optional = true }
+#tracing = { version = "0.1.21", features = ["log"] }
+# hudsucker = { version = "0.17.2", features = ["full"] }
+# For 'to_str_lossy'
+hyper = { version = "0.14.7", features = ["full"] }
 bstr = "0.2.1"
-bytes = "1.0.0"
-futures = "0.3.11"
+rand = { version = "0.8.0"}
 http = "0.2.0"
-hyper = { version = "0.14.7", features = ["client", "http1", "server", "stream", "tcp"] }
-hyper-rustls = { version = "0.23.0", default-features = false, features = ["http1", "logging", "tls12", "webpki-tokio"], optional = true }
-hyper-tls = { version = "0.5.0", optional = true }
-hyper-tungstenite = "0.8.0"
-moka = { version = "0.8.0", features = ["future"], optional = true }
-openssl = { version = "0.10.25"}
-rand = { version = "0.8.0", optional = true }
-rcgen = { version = "0.9.0", features = ["x509-parser", "pem"]}
-thiserror = "1.0.23"
-time = { version = "0.3.1" }
 tokio = { version = "1.6.1", features = ["full"] }
-tokio-rustls = "0.23.0"
-tokio-tungstenite = { version = "0.17.0" }
-tokio-util = { version = "0.7.0", features = ["io"], optional = true }
-tracing = { version = "0.1.21", features = ["log"] }
-hudsucker = { version = "*", features = ["full"] }
+time = { version = "0.3.1" }
+hudsucker = { version = "0.17.2", features = ["full"] }
 # ---------------------------------------------------------------------
 # TUI
 tui = "0.18.0"
@@ -41,3 +47,7 @@ shellexpand = "2.1.0"
 clap = "2.34.0"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_yaml = "0.8.24"
+flate2 = "1.0.24"
+simple-logging = "2.0.2"
+log = "0.4.17"
+rcgen = { version = "0.9.0", features = ["x509-parser", "pem"]}

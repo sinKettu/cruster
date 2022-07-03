@@ -1,10 +1,21 @@
-use std::cmp::min;
-use std::collections::HashMap;
-use std::net::SocketAddr;
+use flate2::write::GzDecoder;
+use std::io::prelude::*;
+use bstr::ByteSlice;
+
+use std::{
+    cmp::min,
+    collections::HashMap
+};
+
+use crate::cruster_handler::request_response::{
+    BodyCompressedWith,
+    HyperRequestWrapper,
+    HyperResponseWrapper
+};
+
 use tui::{
-    // backend::{CrosstermBackend, Backend},
-    widgets::{/*Widget,*/ Block, Borders, Paragraph, /*Wrap,*/ Table, Row, TableState},
-    layout::{/*Rect, Alignment,*/ Constraint},
+    widgets::{Clear, Block, Borders, Paragraph, Wrap, Table, Row, TableState},
+    layout::{Alignment, Constraint},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     // Terminal,
@@ -12,18 +23,6 @@ use tui::{
     // Frame,
     self
 };
-use tui::layout::Alignment;
-use tui::widgets::{Clear, Wrap};
-// use crossterm::{
-//     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-//     execute,
-//     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-// };
-// use tokio::sync::mpsc::Receiver;
-// use tui::text::Text;
-
-// use crate::utils::CrusterError;
-use crate::cruster_handler::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
 #[derive(Clone, Debug)]
 pub(crate) enum RenderUnit<'ru_lt> {
@@ -150,6 +149,8 @@ impl UI<'static> {
     }
 
     pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
+        if storage.len() == 0 { return; }
+
         if let None = self.proxy_history_state.selected() {
             if storage.storage.len() > 0 {
                 self.proxy_history_state.select(Some(0));
@@ -203,6 +204,7 @@ impl UI<'static> {
             let tmp: Vec<Span> = request
                 .body
                 .clone()
+                .to_str_lossy()
                 .split("\n")
                 .map(|s| Span::from(s.to_string()))
                 .collect();
@@ -251,7 +253,16 @@ impl UI<'static> {
                     }
                     headers_string
                 },
-                &response.body
+                match response.body_compressed {
+                    BodyCompressedWith::NONE => String::from_utf8_lossy(response.body.as_slice()).to_string(),
+                    BodyCompressedWith::GZIP => {
+                        let writer = Vec::new();
+                        let mut decoder = GzDecoder::new(writer);
+                        decoder.write_all(response.body.as_slice()).unwrap();
+                        decoder.finish().unwrap().to_str_lossy().to_string()
+                    }
+                    BodyCompressedWith::DEFLATE => { todo!() }
+                }
             );
 
             let new_block = Block::default()
@@ -318,7 +329,6 @@ impl UI<'static> {
         match self.proxy_history_state.selected() {
             Some(i) => {
                 if storage.len() < self.table_window_size {
-                    eprintln!("First block reached");
                     self.make_table(storage);
                 }
                 else if i >= self.table_window_size {
@@ -341,12 +351,6 @@ impl UI<'static> {
             }
         }
     }
-
-    // pub(crate) fn draw_state(&mut self, storage: &HTTPStorage) {
-    //    if let Some(index) = self.proxy_history_state.selected() {
-    //        if index
-    //    }
-    // }
 }
 
 // ---------------------------------------------------------------------------------------------- //
@@ -358,7 +362,7 @@ pub(super) struct RequestResponsePair {
 
 pub(crate) struct HTTPStorage {
     pub(super) storage: Vec<RequestResponsePair>,
-    context_reference: HashMap<SocketAddr, usize>,
+    context_reference: HashMap<usize, usize>,
     // seek: usize,
     // capacity: usize
 }
@@ -375,7 +379,7 @@ impl Default for HTTPStorage {
 }
 
 impl HTTPStorage {
-    pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: SocketAddr) {
+    pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: usize) {
         self.storage.push(RequestResponsePair {
                 request: Some(request),
                 response: None
@@ -385,7 +389,7 @@ impl HTTPStorage {
         self.context_reference.insert(addr, self.storage.len() - 1);
     }
 
-    pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &SocketAddr) {
+    pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &usize) {
         if let Some(index) = self.context_reference.get(addr) {
             self.storage[index.to_owned()].response = Some(response);
         }

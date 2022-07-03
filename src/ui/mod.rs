@@ -1,6 +1,9 @@
 mod storage;
 
 use std::{io, time::{Duration, Instant}};
+use tokio::sync::mpsc::Receiver;
+use crate::cruster_handler::request_response::CrusterWrapper;
+
 use tui::{
     backend::{CrosstermBackend, Backend},
     // widgets::{Widget, Block, Borders, Paragraph, Wrap, Table, Row},
@@ -11,27 +14,25 @@ use tui::{
     Frame,
     self
 };
+
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use hudsucker::HttpContext;
-use tokio::sync::mpsc::Receiver;
-use crate::cruster_handler::request_response::CrusterWrapper;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
-pub(crate) async fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Result<(), io::Error> {
+pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, usize)>) -> Result<(), io::Error> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
-    let tick_rate = Duration::from_millis(250);
+    let tick_rate = Duration::from_millis(0);
     let mut terminal = Terminal::new(backend)?;
 
-    run_app(&mut terminal, tick_rate, ui_rx).await?;
+    run_app(&mut terminal, tick_rate, ui_rx)?;
 
     // restore terminal
     disable_raw_mode()?;
@@ -45,10 +46,10 @@ pub(crate) async fn render(ui_rx: Receiver<(CrusterWrapper, HttpContext)>) -> Re
     Ok(())
 }
 
-async fn run_app<B: Backend>(
+fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     tick_rate: Duration,
-    mut ui_rx: Receiver<(CrusterWrapper, HttpContext)>
+    mut ui_rx: Receiver<(CrusterWrapper, usize)>
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     let mut ui_storage = storage::UI::new();
@@ -59,10 +60,9 @@ async fn run_app<B: Backend>(
     loop {
         match ui_rx.try_recv() {
             Ok((wrapper, ctx)) => {
-                let string_reference = ctx.client_addr;
                 match wrapper {
-                    CrusterWrapper::Request(request) => http_storage.put_request(request, string_reference),
-                    CrusterWrapper::Response(response) => http_storage.put_response(response, &string_reference)
+                    CrusterWrapper::Request(request) => http_storage.put_request(request, ctx),
+                    CrusterWrapper::Response(response) => http_storage.put_response(response, &ctx)
                 }
                 something_changed = true;
             },
@@ -85,7 +85,7 @@ async fn run_app<B: Backend>(
                         Some(i) => if i == 0 { 0 } else { i - 1 },
                         None => 0 as usize
                     };
-                    eprintln!("New index: {}", index);
+
                     ui_storage.proxy_history_state.select(Some(index));
                     table_state_changed = true;
                     something_changed = true
@@ -95,7 +95,7 @@ async fn run_app<B: Backend>(
                         Some(i) => if i >= http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
                         None => 0 as usize
                     };
-                    eprintln!("New index: {}", index);
+
                     ui_storage.proxy_history_state.select(Some(index));
                     table_state_changed = true;
                     something_changed = true
