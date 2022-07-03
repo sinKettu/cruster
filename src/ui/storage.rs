@@ -6,6 +6,7 @@ use std::{
     cmp::min,
     collections::HashMap
 };
+use std::os::macos::raw::stat;
 
 use crate::cruster_handler::request_response::{
     BodyCompressedWith,
@@ -89,21 +90,46 @@ pub(crate) struct UI<'ui_lt> {
     // 0 - Rect for requests log,
     // 1 - Rect for requests
     // 2 - Rect for responses
+    // 3 - Rect for statusbar
     pub(crate) widgets: Vec<RenderUnit<'ui_lt>>,
+
     // Position of block with proxy history in rectangles array (see ui/mod.rs:new:ui)
     proxy_history_index: usize,
+
+    // Position of block with request data
     request_area_index: usize,
+
+    // Position of block with response data
     response_area_index: usize,
+
+    // Statusbar area index,
+    statusbar_area_index: usize,
+
     // State of table with proxy history
     pub(crate) proxy_history_state: TableState,
+
     // Index of block with request text in vector above
     request_block_index: usize,
+
     // Index of block with response text in vector above
     response_block_index: usize,
+
+    // Index of block with proxy history in vector above
     proxy_block_index: usize,
+
+    // Index of Statusbar in vector above
+    status_index: usize,
+
+    // Index of request/response in HTTPStorage.storage which is current table's first element
     table_start_index: usize,
+
+    // Index of request/response in HTTPStorage.storage which is current table's last element
     table_end_index: usize,
+
+    // Size in number of elements of table's sliding window
     table_window_size: usize,
+
+    // Step size in number of items to take after cursor reaches current window's border
     table_step: usize
 }
 
@@ -121,6 +147,9 @@ impl UI<'static> {
             .title("Proxy History")
             .borders(Borders::ALL);
 
+        let statusbar_block = Block::default()
+            .borders(Borders::TOP);
+
         UI {
             widgets: vec![
                 RenderUnit::TUIClear((Clear, 0)),
@@ -129,10 +158,13 @@ impl UI<'static> {
                 RenderUnit::TUIBlock((request_block, 1)),
                 RenderUnit::TUIClear((Clear, 2)),
                 RenderUnit::TUIBlock((response_block, 2)),
+                RenderUnit::TUIClear((Clear, 3)),
+                RenderUnit::TUIBlock((statusbar_block, 3)),
             ],
             proxy_history_index: 0,
             request_area_index: 1,
             response_area_index: 2,
+            statusbar_area_index: 3,
             proxy_history_state: {
                 let mut table_state = TableState::default();
                 table_state.select(None);
@@ -141,6 +173,7 @@ impl UI<'static> {
             request_block_index: 3,
             response_block_index: 5,
             proxy_block_index: 1,
+            status_index: 7,
             table_start_index: 0,
             table_end_index: 24,
             table_window_size: 25,
@@ -172,7 +205,10 @@ impl UI<'static> {
 
                 self.widgets[self.response_block_index] = RenderUnit::TUIBlock(
                     (
-                        Block::default().title("RESPONSE").borders(Borders::TOP | Borders::LEFT).title_alignment(Alignment::Center),
+                        Block::default()
+                            .title("RESPONSE")
+                            .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                            .title_alignment(Alignment::Center),
                         self.response_area_index
                     )
                 );
@@ -213,7 +249,7 @@ impl UI<'static> {
 
             let new_block = Block::default()
                 .title("REQUEST").title_alignment(Alignment::Center)
-                .borders(Borders::TOP);
+                .borders(Borders::TOP | Borders::BOTTOM);
 
             let request_paragraph = Paragraph::new(request_list)
                 .block(new_block)
@@ -231,7 +267,7 @@ impl UI<'static> {
                         (
                             Block::default()
                                 .title("RESPONSE")
-                                .borders(Borders::TOP | Borders::LEFT)
+                                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
                                 .title_alignment(Alignment::Center),
                             self.response_area_index
                         )
@@ -267,7 +303,7 @@ impl UI<'static> {
 
             let new_block = Block::default()
                 .title("RESPONSE").title_alignment(Alignment::Center)
-                .borders(Borders::TOP | Borders::LEFT);
+                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM);
 
             let response_paragraph = Paragraph::new(response)
                 .block(new_block)
@@ -275,6 +311,31 @@ impl UI<'static> {
 
             self.widgets[self.response_block_index] = RenderUnit::TUIParagraph((response_paragraph, self.response_area_index));
         }
+    }
+
+    pub(crate) fn draw_statusbar(&mut self, storage: &HTTPStorage) {
+        // -----------------------------------------------------------------------------------------
+        // | Errors: N | Requests: K                                             Type "?" for help |
+        // -----------------------------------------------------------------------------------------
+        let status_block = Block::default()
+            .borders(Borders::ALL);
+        let status_paragraph = Paragraph::new(vec![
+            Spans::from(vec![
+                Span::styled("Errors: ", Style::default().add_modifier(Modifier::BOLD)),
+                // TODO: make it real later
+                Span::from("0".to_string()),
+                Span::from(" | "),
+                Span::styled("Requests: ", Style::default().add_modifier(Modifier::BOLD)),
+                Span::from(storage.len().to_string()),
+                Span::from(" | "),
+                Span::from("Type '?' for help")
+            ])
+        ])
+            .block(status_block)
+            .alignment(Alignment::Right);
+
+
+        self.widgets[self.status_index] = RenderUnit::TUIParagraph((status_paragraph, self.statusbar_area_index));
     }
 
     fn make_table(&mut self, storage: &HTTPStorage) {
@@ -315,6 +376,7 @@ impl UI<'static> {
             .block(
                 Block::default()
                     .title("Proxy History")
+                    .title_alignment(Alignment::Center)
                     .borders(Borders::ALL));
 
         self.widgets[self.proxy_block_index] = RenderUnit::TUITable(

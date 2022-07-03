@@ -107,7 +107,9 @@ fn run_app<B: Backend>(
         }
 
         if something_changed {
-            if something_changed { ui_storage.update_table(&http_storage); }
+            ui_storage.draw_statusbar(&http_storage);
+            ui_storage.update_table(&http_storage);
+
             if table_state_changed { ui_storage.draw_state(&http_storage); }
 
             terminal.draw(|f| new_ui(f, &mut ui_storage))?;
@@ -125,7 +127,8 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
     // 0 - Rect for requests log,
     // 1 - Rect for requests
     // 2 - Rect for responses
-    let rects: [Rect; 3] = [
+    // 3 - Rect for statusbar
+    let rects: [Rect; 4] = [
         Rect::new(
             f.size().x,
             f.size().y,
@@ -136,13 +139,19 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
             f.size().x,
             f.size().y + window_height / 2,
             window_width / 2,
-            window_height / 2)
-        ,
+            window_height / 2 - 3
+        ),
         Rect::new(
             f.size().x + window_width / 2,
             f.size().y + window_height / 2,
             window_width / 2,
-            window_height / 2
+            window_height / 2 - 3
+        ),
+        Rect::new(
+            f.size().x,
+            f.size().y + window_height - 3,
+            window_width,
+            3
         )
     ];
 
