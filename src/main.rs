@@ -1,7 +1,8 @@
 mod utils;
-mod cruster_handler;
+mod cruster_proxy;
 mod ui;
 mod config;
+mod http_storage;
 
 use std::net::{IpAddr, SocketAddr};
 use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority};
@@ -10,7 +11,7 @@ use tokio::{
     sync::mpsc::{channel, Sender},
     signal
 };
-use cruster_handler::{CrusterHandler, CrusterWSHandler, request_response::CrusterWrapper};
+use cruster_proxy::{CrusterHandler, CrusterWSHandler, request_response::CrusterWrapper};
 use std::thread;
 
 async fn shutdown_signal() {

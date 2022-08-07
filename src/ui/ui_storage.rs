@@ -3,6 +3,7 @@ pub(crate) mod help;
 
 use render_units::*;
 use help::make_help_menu;
+use crate::http_storage::*;
 
 use flate2::write::GzDecoder;
 use std::io::prelude::*;
@@ -14,7 +15,7 @@ use std::{
 };
 use std::os::macos::raw::stat;
 
-use crate::cruster_handler::request_response::{
+use crate::cruster_proxy::request_response::{
     BodyCompressedWith,
     HyperRequestWrapper,
     HyperResponseWrapper
@@ -43,7 +44,7 @@ pub(crate) struct UI<'ui_lt> {
     // 4 - Rect for help menu
     pub(crate) widgets: Vec<RenderUnit<'ui_lt>>,
 
-    // Position of block with proxy history in rectangles array (see ui/mod.rs:new:ui)
+    // Position of block with proxy history in rectangles array (see ui/cruster_proxy:new:ui)
     proxy_history_index: usize,
 
     // Position of block with request data
@@ -73,10 +74,10 @@ pub(crate) struct UI<'ui_lt> {
     // Index of help menu in vector above
     help_index: usize,
 
-    // Index of request/response in HTTPStorage.storage which is current table's first element
+    // Index of request/response in HTTPStorage.ui_storage which is current table's first element
     table_start_index: usize,
 
-    // Index of request/response in HTTPStorage.storage which is current table's last element
+    // Index of request/response in HTTPStorage.ui_storage which is current table's last element
     table_end_index: usize,
 
     // Size in number of elements of table's sliding window
@@ -386,49 +387,3 @@ impl UI<'static> {
 
 // ---------------------------------------------------------------------------------------------- //
 
-pub(super) struct RequestResponsePair {
-    request: Option<HyperRequestWrapper>,
-    response: Option<HyperResponseWrapper>
-}
-
-pub(crate) struct HTTPStorage {
-    pub(super) storage: Vec<RequestResponsePair>,
-    context_reference: HashMap<usize, usize>,
-    // seek: usize,
-    // capacity: usize
-}
-
-impl Default for HTTPStorage {
-    fn default() -> Self {
-        HTTPStorage {
-            storage: Vec::with_capacity(1000),
-            context_reference: HashMap::new(),
-            // seek: 0,
-            // capacity: 10000
-        }
-    }
-}
-
-impl HTTPStorage {
-    pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: usize) {
-        self.storage.push(RequestResponsePair {
-                request: Some(request),
-                response: None
-            }
-        );
-
-        self.context_reference.insert(addr, self.storage.len() - 1);
-    }
-
-    pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &usize) {
-        if let Some(index) = self.context_reference.get(addr) {
-            self.storage[index.to_owned()].response = Some(response);
-        }
-
-        self.context_reference.remove(addr);
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        return self.storage.len().clone();
-    }
-}

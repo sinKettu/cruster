@@ -1,9 +1,11 @@
-mod storage;
+mod ui_storage;
 
 use std::{io, time::{Duration, Instant}};
 use tokio::sync::mpsc::Receiver;
-use crate::cruster_handler::request_response::CrusterWrapper;
-use storage::render_units;
+
+use crate::cruster_proxy::request_response::CrusterWrapper;
+use ui_storage::render_units;
+use super::http_storage::*;
 
 use tui::{
     backend::{CrosstermBackend, Backend},
@@ -49,19 +51,19 @@ pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, usize)>) -> Result<(), io:
 }
 
 fn run_app<B: Backend>(
-    terminal: &mut Terminal<B>,
-    tick_rate: Duration,
-    mut ui_rx: Receiver<(CrusterWrapper, usize)>
+                    terminal: &mut Terminal<B>,
+                    tick_rate: Duration,
+                    mut ui_rx: Receiver<(CrusterWrapper, usize)>
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
-    let mut ui_storage = storage::UI::new();
+    let mut ui_storage = ui_storage::UI::new();
 
     // Flags
     let mut something_changed = true;
     let mut table_state_changed = false;
     let mut help_enabled = false;
 
-    let mut http_storage = storage::HTTPStorage::default();
+    let mut http_storage = HTTPStorage::default();
 
     loop {
         match ui_rx.try_recv() {
@@ -138,7 +140,7 @@ fn run_app<B: Backend>(
     }
 }
 
-fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
+fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
     let window_width = f.size().width;
     let window_height = f.size().height;
 
