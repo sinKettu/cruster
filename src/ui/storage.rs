@@ -2,6 +2,7 @@ pub(crate) mod render_units;
 pub(crate) mod help;
 
 use render_units::*;
+use help::make_help_menu;
 
 use flate2::write::GzDecoder;
 use std::io::prelude::*;
@@ -33,52 +34,6 @@ use tui::{
 
 
 // ---------------------------------------------------------------------------------------------- //
-
-fn make_help_menu<'help>(rect_index: usize) -> (RenderUnit<'help>, RenderUnit<'help>) {
-    let help_text: Vec<Spans> = vec![
-        Spans::from(vec![
-            Span::styled(
-                "?",
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD)),
-            Span::raw(" - Show this screen")
-        ]),
-        Spans::from(vec![
-            Span::styled(
-                "↑ ↓ ← →",
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD)),
-            Span::raw(" - Navigation")
-        ]),
-        Spans::from(vec![
-            Span::styled(
-                "q",
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD)),
-            Span::raw(" - Quit / Go back")
-        ]),
-    ];
-
-    let help_block = Block::default()
-        .title("HELP")
-        .title_alignment(Alignment::Center)
-        .style(Style::default().fg(Color::Green))
-        .borders(Borders::ALL);
-
-    let help_paragraph = Paragraph::new(help_text)
-        .block(help_block);
-
-    // let mut clear = UniversalRenderUnit::make_clear(rect_index);
-    let mut clear = RenderUnit::new_clear(rect_index);
-    // let help = UniversalRenderUnit::make_paragraph(help_paragraph, rect_index, true);
-    let help = RenderUnit::new_paragraph(help_paragraph, rect_index, false);
-    clear.disable();
-
-    return (clear, help);
-}
 
 pub(crate) struct UI<'ui_lt> {
     // 0 - Rect for requests log,
