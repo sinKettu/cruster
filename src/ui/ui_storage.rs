@@ -32,10 +32,6 @@ use tui::{
     self
 };
 
-
-
-// ---------------------------------------------------------------------------------------------- //
-
 pub(crate) struct UI<'ui_lt> {
     // 0 - Rect for requests log,
     // 1 - Rect for requests
@@ -84,7 +80,16 @@ pub(crate) struct UI<'ui_lt> {
     table_window_size: usize,
 
     // Step size in number of items to take after cursor reaches current window's border
-    table_step: usize
+    table_step: usize,
+
+    // Widgets which is active (chosen) now
+    active_widget: usize,
+
+    // Default widget header style
+    default_widget_header_style: Style,
+
+    // Active widget header style
+    active_widget_header_style: Style
 }
 
 impl UI<'static> {
@@ -136,7 +141,12 @@ impl UI<'static> {
             table_start_index: 0,
             table_end_index: 24,
             table_window_size: 25,
-            table_step: 5
+            table_step: 5,
+            active_widget: 1,        // Table,
+            active_widget_header_style: Style::default()
+                .bg(Color::White)
+                .fg(Color::Black),
+            default_widget_header_style: Style::default()
         }
     }
 
@@ -155,7 +165,7 @@ impl UI<'static> {
                 self.widgets[self.request_block_index] = RenderUnit::new_block(
                     Block::default()
                         .title("REQUEST")
-                        .borders(Borders::TOP)
+                        .borders(Borders::TOP | Borders::BOTTOM)
                         .title_alignment(Alignment::Center),
                     self.request_area_index,
                     true
@@ -204,8 +214,16 @@ impl UI<'static> {
 
             request_list.push(Spans::from(tmp));
 
+            let header_style = if self.active_widget == self.request_block_index {
+                self.active_widget_header_style
+            }
+            else {
+                self.default_widget_header_style
+            };
+
             let new_block = Block::default()
-                .title("REQUEST").title_alignment(Alignment::Center)
+                .title(Span::styled("REQUEST", header_style))
+                .title_alignment(Alignment::Center)
                 .borders(Borders::TOP | Borders::BOTTOM);
 
             let request_paragraph = Paragraph::new(request_list)
@@ -257,8 +275,16 @@ impl UI<'static> {
                 }
             );
 
+            let header_style = if self.active_widget == self.response_block_index {
+                self.active_widget_header_style
+            }
+            else {
+                self.default_widget_header_style
+            };
+
             let new_block = Block::default()
-                .title("RESPONSE").title_alignment(Alignment::Center)
+                .title(Span::styled("RESPONSE", header_style))
+                .title_alignment(Alignment::Center)
                 .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM);
 
             let response_paragraph = Paragraph::new(response)
@@ -289,7 +315,6 @@ impl UI<'static> {
         ])
             .block(status_block)
             .alignment(Alignment::Right);
-
 
         self.widgets[self.status_index] = RenderUnit::new_paragraph(status_paragraph, self.statusbar_area_index, true);
     }
@@ -328,6 +353,13 @@ impl UI<'static> {
             rows.push(Row::new(row));
         }
 
+        let header_style = if self.proxy_block_index == self.active_widget {
+            self.active_widget_header_style
+        }
+        else {
+            self.default_widget_header_style
+        };
+
         let proxy_history_table = Table::new(rows)
             .header(Row::new(vec!["№", "Method", "URL", "Response Code", "Address"]))
             .style(Style::default().fg(Color::White))
@@ -345,7 +377,7 @@ impl UI<'static> {
                     .add_modifier(Modifier::BOLD))
             .block(
                 Block::default()
-                    .title("Proxy History")
+                    .title(Span::styled("Proxy History", header_style))
                     .title_alignment(Alignment::Center)
                     .borders(Borders::ALL));
 
@@ -353,7 +385,6 @@ impl UI<'static> {
             proxy_history_table,
             self.proxy_history_index,
             true
-
         );
     }
 
@@ -383,7 +414,16 @@ impl UI<'static> {
             }
         }
     }
+
+    pub(super) fn activate_proxy(&mut self) {
+        self.active_widget = self.proxy_block_index;
+    }
+
+    pub(super) fn activate_request(&mut self) {
+        self.active_widget = self.request_block_index;
+    }
+
+    pub(super) fn activate_response(&mut self) {
+        self.active_widget = self.response_block_index;
+    }
 }
-
-// ---------------------------------------------------------------------------------------------- //
-

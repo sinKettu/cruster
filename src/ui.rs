@@ -120,6 +120,21 @@ fn run_app<B: Backend>(
                     help_enabled = true;
                     something_changed = true;
                 }
+                else if let KeyCode::Char('r') = key.code {
+                    ui_storage.activate_request();
+                    something_changed = true;
+                    table_state_changed = true;
+                }
+                else if let KeyCode::Char('s') = key.code {
+                    ui_storage.activate_response();
+                    something_changed = true;
+                    table_state_changed = true;
+                }
+                else if let KeyCode::Char('p') = key.code {
+                    ui_storage.activate_proxy();
+                    something_changed = true;
+                    table_state_changed = true;
+                }
             }
         }
         if last_tick.elapsed() >= tick_rate {
