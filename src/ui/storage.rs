@@ -1,3 +1,8 @@
+pub(crate) mod render_units;
+pub(crate) mod help;
+
+use render_units::*;
+
 use flate2::write::GzDecoder;
 use std::io::prelude::*;
 use bstr::ByteSlice;
@@ -15,7 +20,7 @@ use crate::cruster_handler::request_response::{
 };
 
 use tui::{
-    widgets::{Clear, Block, Borders, Paragraph, Wrap, Table, Row, TableState},
+    widgets::{Clear, Block, Borders, Paragraph, Wrap, Table, Row, TableState, Widget},
     layout::{Alignment, Constraint},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
@@ -25,72 +30,62 @@ use tui::{
     self
 };
 
-#[derive(Clone, Debug)]
-pub(crate) enum RenderUnit<'ru_lt> {
-    TUIBlock(
-        (
-            Block<'ru_lt>,
-            usize
-        )
-    ),
-    TUIParagraph(
-        (
-            Paragraph<'ru_lt>,
-            usize
-        )
-    ),
-    TUITable(
-        (
-            Table<'ru_lt>,
-            usize
-        )
-    ),
-    TUIClear(
-        (
-            Clear,
-            usize
-        )
-    )
-}
 
-impl RenderUnit<'_> {
-    // pub(crate) fn as_paragraph(&self) -> Result<&Paragraph, CrusterError> {
-    //     match self {
-    //         RenderUnit::TUIParagraph(paragraph) => { Ok(&paragraph.0) },
-    //         _ => Err(CrusterError::RenderUnitCastError(String::from("'as_paragrpah' called on non-paragraph widget")))
-    //     }
-    // }
-    //
-    // pub(crate) fn as_table(&self) -> Result<Table, CrusterError> {
-    //     match self {
-    //         RenderUnit::TUITable(table) => { Ok(table.0.clone()) },
-    //         _ => Err(CrusterError::RenderUnitCastError(String::from("'as_table' called on non-table widget")))
-    //     }
-    // }
-
-    // pub(crate) fn as_block(&self) -> Result<Block, CrusterError> {
-    //     match self {
-    //         RenderUnit::TUIBlock(block) => { Ok(block.0.clone()) },
-    //         _ => Err(CrusterError::RenderUnitCastError(String::from("'as_table' called on non-table widget")))
-    //     }
-    // }
-    //
-    // pub(crate) fn area(&self) -> usize {
-    //     match self {
-    //         RenderUnit::TUITable((_, a)) => a.to_owned(),
-    //         RenderUnit::TUIBlock((_, a)) => a.to_owned(),
-    //         RenderUnit::TUIParagraph((_, a)) => a.to_owned(),
-    //     }
-    // }
-}
 
 // ---------------------------------------------------------------------------------------------- //
+
+fn make_help_menu<'help>(rect_index: usize) -> (RenderUnit<'help>, RenderUnit<'help>) {
+    let help_text: Vec<Spans> = vec![
+        Spans::from(vec![
+            Span::styled(
+                "?",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Show this screen")
+        ]),
+        Spans::from(vec![
+            Span::styled(
+                "↑ ↓ ← →",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Navigation")
+        ]),
+        Spans::from(vec![
+            Span::styled(
+                "q",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Quit / Go back")
+        ]),
+    ];
+
+    let help_block = Block::default()
+        .title("HELP")
+        .title_alignment(Alignment::Center)
+        .style(Style::default().fg(Color::Green))
+        .borders(Borders::ALL);
+
+    let help_paragraph = Paragraph::new(help_text)
+        .block(help_block);
+
+    // let mut clear = UniversalRenderUnit::make_clear(rect_index);
+    let mut clear = RenderUnit::new_clear(rect_index);
+    // let help = UniversalRenderUnit::make_paragraph(help_paragraph, rect_index, true);
+    let help = RenderUnit::new_paragraph(help_paragraph, rect_index, false);
+    clear.disable();
+
+    return (clear, help);
+}
 
 pub(crate) struct UI<'ui_lt> {
     // 0 - Rect for requests log,
     // 1 - Rect for requests
     // 2 - Rect for responses
     // 3 - Rect for statusbar
+    // 4 - Rect for help menu
     pub(crate) widgets: Vec<RenderUnit<'ui_lt>>,
 
     // Position of block with proxy history in rectangles array (see ui/mod.rs:new:ui)
@@ -120,6 +115,9 @@ pub(crate) struct UI<'ui_lt> {
     // Index of Statusbar in vector above
     status_index: usize,
 
+    // Index of help menu in vector above
+    help_index: usize,
+
     // Index of request/response in HTTPStorage.storage which is current table's first element
     table_start_index: usize,
 
@@ -148,18 +146,22 @@ impl UI<'static> {
             .borders(Borders::ALL);
 
         let statusbar_block = Block::default()
-            .borders(Borders::TOP);
+            .borders(Borders::ALL);
+
+        let (help_clear_widget, help_paragraph) = make_help_menu(4);
 
         UI {
             widgets: vec![
-                RenderUnit::TUIClear((Clear, 0)),
-                RenderUnit::TUIBlock((proxy_history_block, 0)),
-                RenderUnit::TUIClear((Clear, 1)),
-                RenderUnit::TUIBlock((request_block, 1)),
-                RenderUnit::TUIClear((Clear, 2)),
-                RenderUnit::TUIBlock((response_block, 2)),
-                RenderUnit::TUIClear((Clear, 3)),
-                RenderUnit::TUIBlock((statusbar_block, 3)),
+                RenderUnit::new_clear(0),
+                RenderUnit::new_block(proxy_history_block, 0, true),
+                RenderUnit::new_clear(1),
+                RenderUnit::new_block(request_block, 1, true),
+                RenderUnit::new_clear(2),
+                RenderUnit::new_block(response_block, 2, true),
+                RenderUnit::new_clear(3),
+                RenderUnit::new_block(statusbar_block, 3, true),
+                help_clear_widget,
+                help_paragraph
             ],
             proxy_history_index: 0,
             request_area_index: 1,
@@ -174,6 +176,7 @@ impl UI<'static> {
             response_block_index: 5,
             proxy_block_index: 1,
             status_index: 7,
+            help_index: 9,
             table_start_index: 0,
             table_end_index: 24,
             table_window_size: 25,
@@ -193,24 +196,22 @@ impl UI<'static> {
         let selected_index = match self.proxy_history_state.selected() {
             Some(index) => index + self.table_start_index,
             None => {
-                self.widgets[self.request_block_index] = RenderUnit::TUIBlock(
-                    (
-                        Block::default()
-                            .title("REQUEST")
-                            .borders(Borders::TOP)
-                            .title_alignment(Alignment::Center),
-                        self.request_area_index
-                    )
+                self.widgets[self.request_block_index] = RenderUnit::new_block(
+                    Block::default()
+                        .title("REQUEST")
+                        .borders(Borders::TOP)
+                        .title_alignment(Alignment::Center),
+                    self.request_area_index,
+                    true
                 );
 
-                self.widgets[self.response_block_index] = RenderUnit::TUIBlock(
-                    (
-                        Block::default()
-                            .title("RESPONSE")
-                            .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
-                            .title_alignment(Alignment::Center),
-                        self.response_area_index
-                    )
+                self.widgets[self.response_block_index] = RenderUnit::new_block(
+                    Block::default()
+                        .title("RESPONSE")
+                        .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                        .title_alignment(Alignment::Center),
+                    self.response_area_index,
+                    true
                 );
                 return;
             }
@@ -255,7 +256,7 @@ impl UI<'static> {
                 .block(new_block)
                 .wrap(Wrap { trim: true });
 
-            self.widgets[self.request_block_index] =  RenderUnit::TUIParagraph((request_paragraph, self.request_area_index));
+            self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(request_paragraph, self.request_area_index, true);
         }
 
         // TODO: RESPONSE as new function
@@ -263,14 +264,13 @@ impl UI<'static> {
             let response = match storage.storage[selected_index].response.as_ref() {
                 Some(rsp) => rsp,
                 None => {
-                    self.widgets[self.response_block_index] = RenderUnit::TUIBlock(
-                        (
-                            Block::default()
-                                .title("RESPONSE")
-                                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
-                                .title_alignment(Alignment::Center),
-                            self.response_area_index
-                        )
+                    self.widgets[self.response_block_index] = RenderUnit::new_block(
+                        Block::default()
+                            .title("RESPONSE")
+                            .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                            .title_alignment(Alignment::Center),
+                        self.response_area_index,
+                        true
                     );
                     return;
                 }
@@ -309,7 +309,7 @@ impl UI<'static> {
                 .block(new_block)
                 .wrap(Wrap { trim: false });
 
-            self.widgets[self.response_block_index] = RenderUnit::TUIParagraph((response_paragraph, self.response_area_index));
+            self.widgets[self.response_block_index] = RenderUnit::new_paragraph(response_paragraph, self.response_area_index, true);
         }
     }
 
@@ -335,7 +335,21 @@ impl UI<'static> {
             .alignment(Alignment::Right);
 
 
-        self.widgets[self.status_index] = RenderUnit::TUIParagraph((status_paragraph, self.statusbar_area_index));
+        self.widgets[self.status_index] = RenderUnit::new_paragraph(status_paragraph, self.statusbar_area_index, true);
+    }
+
+    pub(crate) fn show_help(&mut self) {
+        // Make RenderUnit::TUIClear active for help's clear widget
+        self.widgets[self.help_index - 1].enable();
+
+        // Make RenderUnit::TUIParagraph active for help's clear widget
+        self.widgets[self.help_index].enable();
+    }
+
+    pub(crate) fn hide_help(&mut self) {
+        // Just like in show_help()
+        self.widgets[self.help_index - 1].disable();
+        self.widgets[self.help_index].disable();
     }
 
     fn make_table(&mut self, storage: &HTTPStorage) {
@@ -379,11 +393,11 @@ impl UI<'static> {
                     .title_alignment(Alignment::Center)
                     .borders(Borders::ALL));
 
-        self.widgets[self.proxy_block_index] = RenderUnit::TUITable(
-            (
-                proxy_history_table,
-                self.proxy_history_index
-            )
+        self.widgets[self.proxy_block_index] = RenderUnit::new_table(
+            proxy_history_table,
+            self.proxy_history_index,
+            true
+
         );
     }
 

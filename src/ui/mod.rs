@@ -3,6 +3,7 @@ mod storage;
 use std::{io, time::{Duration, Instant}};
 use tokio::sync::mpsc::Receiver;
 use crate::cruster_handler::request_response::CrusterWrapper;
+use storage::render_units;
 
 use tui::{
     backend::{CrosstermBackend, Backend},
@@ -20,6 +21,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use tui::widgets::Widget;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
@@ -53,8 +55,12 @@ fn run_app<B: Backend>(
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     let mut ui_storage = storage::UI::new();
+
+    // Flags
     let mut something_changed = true;
     let mut table_state_changed = false;
+    let mut help_enabled = false;
+
     let mut http_storage = storage::HTTPStorage::default();
 
     loop {
@@ -78,7 +84,14 @@ fn run_app<B: Backend>(
         if crossterm::event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if let KeyCode::Char('q') = key.code {
-                    return Ok(());
+                    if help_enabled {
+                        ui_storage.hide_help();
+                        something_changed = true;
+                        help_enabled = false;
+                    }
+                    else {
+                        return Ok(());
+                    }
                 }
                 else if let KeyCode::Up = key.code {
                     let index = match ui_storage.proxy_history_state.selected() {
@@ -99,6 +112,11 @@ fn run_app<B: Backend>(
                     ui_storage.proxy_history_state.select(Some(index));
                     table_state_changed = true;
                     something_changed = true
+                }
+                else if let KeyCode::Char('?') = key.code {
+                    ui_storage.show_help();
+                    help_enabled = true;
+                    something_changed = true;
                 }
             }
         }
@@ -128,7 +146,8 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
     // 1 - Rect for requests
     // 2 - Rect for responses
     // 3 - Rect for statusbar
-    let rects: [Rect; 4] = [
+    // 4 - Rect for help menu
+    let rects: [Rect; 5] = [
         Rect::new(
             f.size().x,
             f.size().y,
@@ -152,30 +171,34 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut storage::UI<'static>) {
             f.size().y + window_height - 3,
             window_width,
             3
+        ),
+        Rect::new(
+            f.size().x + 5,
+            f.size().y + 5,
+            window_width - 10,
+            window_height - 10
         )
     ];
 
     for ruint in uis.widgets.iter() {
         match ruint {
-            storage::RenderUnit::TUIBlock((block, area_index)) => {
-                let new_block = block.clone();
-                let index = area_index.clone();
-                f.render_widget(new_block, rects[index]);
+            render_units::RenderUnit::TUIBlock(block) => {
+                if ! block.is_active { continue; }
+                f.render_widget(block.widget.clone(), rects[block.rect_index]);
             },
-            storage::RenderUnit::TUIParagraph((paragraph, area_index)) => {
-                let p = paragraph.clone();
-                let i = area_index.to_owned();
-                f.render_widget(p, rects[i]);
-            },
-            storage::RenderUnit::TUITable((table, area_index)) => {
-                let new_table = table.clone();
-                let index = area_index.clone();
-                // TODO: replace 'uis.proxy_history_state' with something more convenient
-                f.render_stateful_widget(new_table, rects[index], &mut uis.proxy_history_state);
-            },
-            storage::RenderUnit::TUIClear((clr, area_index)) => {
-                f.render_widget(clr.to_owned(), rects[area_index.to_owned()])
+            render_units::RenderUnit::TUIParagraph(paragraph) => {
+                if ! paragraph.is_active { continue; }
+                f.render_widget(paragraph.widget.clone(), rects[paragraph.rect_index]);
             }
+            render_units::RenderUnit::TUIClear(clear) => {
+                if ! clear.is_active { continue; }
+                f.render_widget(clear.widget.clone(), rects[clear.rect_index]);
+            },
+            render_units::RenderUnit::TUITable(table) => {
+                if ! table.is_active { continue; }
+                f.render_stateful_widget(table.widget.clone(), rects[table.rect_index], &mut uis.proxy_history_state);
+            },
+            _ => {},
         }
     }
 }
