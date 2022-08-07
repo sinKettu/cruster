@@ -150,27 +150,82 @@ impl UI<'static> {
         }
     }
 
-    pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
-        if storage.len() == 0 { return; }
-
-        if let None = self.proxy_history_state.selected() {
-            if storage.storage.len() > 0 {
-                self.proxy_history_state.select(Some(0));
-            }
+    pub(crate) fn draw_request(&mut self, storage: &HTTPStorage) {
+        let header_style = if self.active_widget == self.request_block_index {
+            self.active_widget_header_style
         }
+        else {
+            self.default_widget_header_style
+        };
 
         let selected_index = match self.proxy_history_state.selected() {
             Some(index) => index + self.table_start_index,
             None => {
                 self.widgets[self.request_block_index] = RenderUnit::new_block(
                     Block::default()
-                        .title("REQUEST")
+                        .title(Span::styled("REQUEST", header_style))
                         .borders(Borders::TOP | Borders::BOTTOM)
                         .title_alignment(Alignment::Center),
                     self.request_area_index,
                     true
                 );
+                return;
+            }
+        };
 
+        let request = storage.storage[selected_index].request.as_ref().unwrap();
+        let mut request_list: Vec<Spans> = Vec::new();
+        let tmp: Vec<Span> = vec![
+            Span::from(format!("{} ", request.method)),
+            Span::from(format!("{} ", request.uri)),
+            Span::from(format!("{}", request.version)),
+        ];
+        request_list.push(Spans::from(tmp));
+
+        for (k, v) in request.headers.iter() {
+            let mut tmp: Vec<Span> = Vec::new();
+            tmp.push(Span::from(format!("{}", k)));
+            tmp.push(Span::from(": ".to_string()));
+            tmp.push(Span::from(format!("{}", v.to_str().unwrap())));
+            request_list.push(Spans::from(tmp));
+        }
+
+        request_list.push(Spans::from(Span::from("")));
+
+        let tmp: Vec<Span> = request
+            .body
+            .clone()
+            .to_str_lossy()
+            .split("\n")
+            .map(|s| Span::from(s.to_string()))
+            .collect();
+
+        request_list.push(Spans::from(tmp));
+
+        let new_block = Block::default()
+            .title(Span::styled("REQUEST", header_style))
+            .title_alignment(Alignment::Center)
+            .borders(Borders::TOP | Borders::BOTTOM);
+
+        let request_paragraph = Paragraph::new(request_list)
+            .block(new_block)
+            .wrap(Wrap { trim: true });
+
+        self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(request_paragraph, self.request_area_index, true);
+
+    }
+
+    fn draw_response(&mut self, storage: &HTTPStorage) {
+        let header_style = if self.active_widget == self.request_block_index {
+            self.active_widget_header_style
+        }
+        else {
+            self.default_widget_header_style
+        };
+
+        let selected_index = match self.proxy_history_state.selected() {
+            Some(index) => index + self.table_start_index,
+            None => {
                 self.widgets[self.response_block_index] = RenderUnit::new_block(
                     Block::default()
                         .title("RESPONSE")
@@ -183,116 +238,76 @@ impl UI<'static> {
             }
         };
 
-        // TODO: REQUEST as new function
-        {
-            let request = storage.storage[selected_index].request.as_ref().unwrap();
-            let mut request_list: Vec<Spans> = Vec::new();
-            let tmp: Vec<Span> = vec![
-                Span::from(format!("{} ", request.method)),
-                Span::from(format!("{} ", request.uri)),
-                Span::from(format!("{}", request.version)),
-            ];
-            request_list.push(Spans::from(tmp));
-
-            for (k, v) in request.headers.iter() {
-                let mut tmp: Vec<Span> = Vec::new();
-                tmp.push(Span::from(format!("{}", k)));
-                tmp.push(Span::from(": ".to_string()));
-                tmp.push(Span::from(format!("{}", v.to_str().unwrap())));
-                request_list.push(Spans::from(tmp));
+        let response = match storage.storage[selected_index].response.as_ref() {
+            Some(rsp) => rsp,
+            None => {
+                self.widgets[self.response_block_index] = RenderUnit::new_block(
+                    Block::default()
+                        .title("RESPONSE")
+                        .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                        .title_alignment(Alignment::Center),
+                    self.response_area_index,
+                    true
+                );
+                return;
             }
+        };
 
-            request_list.push(Spans::from(Span::from("")));
-
-            let tmp: Vec<Span> = request
-                .body
-                .clone()
-                .to_str_lossy()
-                .split("\n")
-                .map(|s| Span::from(s.to_string()))
-                .collect();
-
-            request_list.push(Spans::from(tmp));
-
-            let header_style = if self.active_widget == self.request_block_index {
-                self.active_widget_header_style
+        let response: String = format!(
+            "{} {}\n{}\n{}",
+            response.status, response.version,
+            {
+                let mut headers_string: String = "".to_string();
+                for (k, v) in response.headers.iter() {
+                    headers_string.push_str(k.as_str());
+                    headers_string.push_str(": ");
+                    headers_string.push_str(v.to_str().unwrap());
+                    headers_string.push_str("\n");
+                }
+                headers_string
+            },
+            match response.body_compressed {
+                BodyCompressedWith::NONE => String::from_utf8_lossy(response.body.as_slice()).to_string(),
+                BodyCompressedWith::GZIP => {
+                    let writer = Vec::new();
+                    let mut decoder = GzDecoder::new(writer);
+                    decoder.write_all(response.body.as_slice()).unwrap();
+                    decoder.finish().unwrap().to_str_lossy().to_string()
+                }
+                BodyCompressedWith::DEFLATE => { todo!() }
             }
-            else {
-                self.default_widget_header_style
-            };
+        );
 
-            let new_block = Block::default()
-                .title(Span::styled("REQUEST", header_style))
-                .title_alignment(Alignment::Center)
-                .borders(Borders::TOP | Borders::BOTTOM);
+        let header_style = if self.active_widget == self.response_block_index {
+            self.active_widget_header_style
+        }
+        else {
+            self.default_widget_header_style
+        };
 
-            let request_paragraph = Paragraph::new(request_list)
-                .block(new_block)
-                .wrap(Wrap { trim: true });
+        let new_block = Block::default()
+            .title(Span::styled("RESPONSE", header_style))
+            .title_alignment(Alignment::Center)
+            .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM);
 
-            self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(request_paragraph, self.request_area_index, true);
+        let response_paragraph = Paragraph::new(response)
+            .block(new_block)
+            .wrap(Wrap { trim: false });
+
+        self.widgets[self.response_block_index] = RenderUnit::new_paragraph(response_paragraph, self.response_area_index, true);
+    }
+
+    pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
+        if storage.len() == 0 { return; }
+
+        if let None = self.proxy_history_state.selected() {
+            if storage.storage.len() > 0 {
+                self.proxy_history_state.select(Some(0));
+            }
         }
 
-        // TODO: RESPONSE as new function
-        {
-            let response = match storage.storage[selected_index].response.as_ref() {
-                Some(rsp) => rsp,
-                None => {
-                    self.widgets[self.response_block_index] = RenderUnit::new_block(
-                        Block::default()
-                            .title("RESPONSE")
-                            .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
-                            .title_alignment(Alignment::Center),
-                        self.response_area_index,
-                        true
-                    );
-                    return;
-                }
-            };
-
-            let response: String = format!(
-                "{} {}\n{}\n{}",
-                response.status, response.version,
-                {
-                    let mut headers_string: String = "".to_string();
-                    for (k, v) in response.headers.iter() {
-                        headers_string.push_str(k.as_str());
-                        headers_string.push_str(": ");
-                        headers_string.push_str(v.to_str().unwrap());
-                        headers_string.push_str("\n");
-                    }
-                    headers_string
-                },
-                match response.body_compressed {
-                    BodyCompressedWith::NONE => String::from_utf8_lossy(response.body.as_slice()).to_string(),
-                    BodyCompressedWith::GZIP => {
-                        let writer = Vec::new();
-                        let mut decoder = GzDecoder::new(writer);
-                        decoder.write_all(response.body.as_slice()).unwrap();
-                        decoder.finish().unwrap().to_str_lossy().to_string()
-                    }
-                    BodyCompressedWith::DEFLATE => { todo!() }
-                }
-            );
-
-            let header_style = if self.active_widget == self.response_block_index {
-                self.active_widget_header_style
-            }
-            else {
-                self.default_widget_header_style
-            };
-
-            let new_block = Block::default()
-                .title(Span::styled("RESPONSE", header_style))
-                .title_alignment(Alignment::Center)
-                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM);
-
-            let response_paragraph = Paragraph::new(response)
-                .block(new_block)
-                .wrap(Wrap { trim: false });
-
-            self.widgets[self.response_block_index] = RenderUnit::new_paragraph(response_paragraph, self.response_area_index, true);
-        }
+        self.draw_request(storage);
+        self.draw_response(storage);
     }
 
     pub(crate) fn draw_statusbar(&mut self, storage: &HTTPStorage) {

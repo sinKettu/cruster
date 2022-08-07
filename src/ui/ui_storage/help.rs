@@ -73,9 +73,7 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> (RenderUnit<'help>, Re
     let help_paragraph = Paragraph::new(help_text)
         .block(help_block);
 
-    // let mut clear = UniversalRenderUnit::make_clear(rect_index);
     let mut clear = RenderUnit::new_clear(rect_index);
-    // let help = UniversalRenderUnit::make_paragraph(help_paragraph, rect_index, true);
     let help = RenderUnit::new_paragraph(help_paragraph, rect_index, false);
     clear.disable();
 
