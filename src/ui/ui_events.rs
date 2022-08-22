@@ -80,6 +80,24 @@ impl UIEvents {
                     self.something_changed = true;
                 }
             }
+            else if let KeyCode::PageDown = key.code {
+                if !self.help_enabled {
+                    if ui_storage.is_table_active() {
+                        ui_storage.table_scroll_page_down(http_storage);
+                        self.something_changed = true;
+                        self.table_state_changed = true;
+                    }
+                }
+            }
+            else if let KeyCode::PageUp = key.code {
+                if ! self.help_enabled {
+                    if ui_storage.is_table_active() {
+                        ui_storage.table_scroll_page_up(http_storage);
+                        self.something_changed = true;
+                        self.table_state_changed = true;
+                    }
+                }
+            }
             else if let KeyCode::Char('?') = key.code {
                 ui_storage.show_help();
                 self.help_enabled = true;

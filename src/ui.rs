@@ -154,7 +154,7 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
         Rect::new(
             f.size().x,
             f.size().y,
-            window_width - 1,
+            window_width,
             window_height - 2
         ),
         Rect::new(

@@ -121,7 +121,12 @@ impl UI<'static> {
             .borders(Borders::ALL);
 
         let proxy_history_block = Block::default()
-            .title("Proxy History")
+            .title(Span::styled(
+                "Proxy History",
+                Style::default()
+                    .bg(Color::White)
+                    .fg(Color::Black)))
+            .title_alignment(Alignment::Center)
             .borders(Borders::ALL);
 
         let statusbar_block = Block::default()
@@ -273,8 +278,8 @@ impl UI<'static> {
                 let is_active = self.widgets[self.response_block].is_widget_active();
                 self.widgets[self.response_block] = RenderUnit::new_block(
                     Block::default()
-                        .title("RESPONSE")
-                        .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                        .title(Span::styled("RESPONSE", header_style))
+                        .borders(Borders::ALL)
                         .title_alignment(Alignment::Center),
                     self.response_area,
                     is_active
@@ -630,6 +635,30 @@ impl UI<'static> {
 
     pub(super) fn get_table_sliding_window(&self) -> usize {
         return self.table_window_size.clone();
+    }
+
+    pub(super) fn table_scroll_page_down(&mut self, storage: &HTTPStorage) {
+        if self.table_end_index == storage.len() - 1 {
+            self.proxy_history_state.select(Some(self.table_end_index));
+        } else if self.table_end_index + self.table_window_size >= storage.len() - 1 {
+            self.table_end_index = storage.len() - 1;
+            self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
+        } else {
+            self.table_start_index += self.table_window_size;
+            self.table_end_index += self.table_window_size;
+        }
+    }
+
+    pub(super) fn table_scroll_page_up(&mut self, storage: &HTTPStorage) {
+        if self.table_start_index == 0 {
+            self.proxy_history_state.select(Some(0));
+        } else if self.table_start_index.saturating_sub(self.table_window_size) == 0 {
+            self.table_start_index = 0;
+            self.table_end_index = min(self.table_window_size, storage.len()) - 1;
+        } else {
+            self.table_start_index -= self.table_window_size;
+            self.table_end_index -= self.table_window_size;
+        }
     }
 }
 
