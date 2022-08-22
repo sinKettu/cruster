@@ -37,11 +37,11 @@ impl UIEvents {
             else if let KeyCode::Up = key.code {
                 if ui_storage.is_table_active() {
                     let index = match ui_storage.proxy_history_state.selected() {
-                        Some(i) => if i == 0 { 0 } else { i - 1 },
-                        None => 0 as usize
+                        Some(i) => Some(i.saturating_sub(1)),
+                        None => None
                     };
 
-                    ui_storage.proxy_history_state.select(Some(index));
+                    ui_storage.proxy_history_state.select(index);
                     self.table_state_changed = true;
                     self.something_changed = true
                 }
@@ -57,11 +57,17 @@ impl UIEvents {
             else if let KeyCode::Down = key.code {
                 if ui_storage.is_table_active() {
                     let index = match ui_storage.proxy_history_state.selected() {
-                        Some(i) => if i >= http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
-                        None => 0 as usize
+                        Some(i) => Some(
+                            if i == ui_storage.get_table_sliding_window() - 1 {
+                                i
+                            } else {
+                                i + 1
+                            }
+                        ),
+                        None => None
                     };
 
-                    ui_storage.proxy_history_state.select(Some(index));
+                    ui_storage.proxy_history_state.select(index);
                     self.table_state_changed = true;
                     self.something_changed = true
                 }

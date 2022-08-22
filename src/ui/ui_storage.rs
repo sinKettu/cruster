@@ -34,6 +34,19 @@ use tui::{
     self
 };
 
+const DEFAULT_PROXY_AREA: usize = 0_usize;
+const DEFAULT_REQUEST_AREA: usize = 1_usize;
+const DEFAULT_RESPONSE_AREA: usize = 2_usize;
+const DEFAULT_STATUSBAR_AREA: usize = 3_usize;
+const DEFAULT_HELP_AREA: usize = 4_usize;
+
+const DEFAULT_PROXY_BLOCK: usize = 1_usize;
+const DEFAULT_REQUEST_BLOCK: usize = 3_usize;
+const DEFAULT_RESPONSE_BLOCK: usize = 5_usize;
+const DEFAULT_STATUSBAR_BLOCK: usize = 7_usize;
+const DEFAULT_HELP_BLOCK: usize = 9_usize;
+
+
 pub(crate) struct UI<'ui_lt> {
     // 0 - Rect for requests log,
     // 1 - Rect for requests
@@ -101,11 +114,11 @@ impl UI<'static> {
     pub(crate) fn new() -> Self {
         let request_block = Block::default()
             .title("REQUEST").title_alignment(Alignment::Center)
-            .borders(Borders::TOP);
+            .borders(Borders::ALL);
 
         let response_block = Block::default()
             .title("RESPONSE").title_alignment(Alignment::Center)
-            .borders(Borders::TOP | Borders::LEFT);
+            .borders(Borders::ALL);
 
         let proxy_history_block = Block::default()
             .title("Proxy History")
@@ -128,11 +141,11 @@ impl UI<'static> {
                 RenderUnit::PLACEHOLDER
             ],
 
-            proxy_area: 0,
-            request_area: 1,
-            response_area: 2,
-            statusbar_area: 3,
-            help_area: 4,
+            proxy_area: DEFAULT_PROXY_AREA,
+            request_area: DEFAULT_REQUEST_AREA,
+            response_area: DEFAULT_RESPONSE_AREA,
+            statusbar_area: DEFAULT_STATUSBAR_AREA,
+            help_area: DEFAULT_HELP_AREA,
 
             proxy_history_state: {
                 let mut table_state = TableState::default();
@@ -140,15 +153,15 @@ impl UI<'static> {
                 table_state
             },
 
-            request_block: 3,
-            response_block: 5,
-            proxy_block: 1,
-            statusbar_block: 7,
-            help_block: 9,
+            proxy_block: DEFAULT_PROXY_BLOCK,
+            request_block: DEFAULT_REQUEST_BLOCK,
+            response_block: DEFAULT_RESPONSE_BLOCK,
+            statusbar_block: DEFAULT_STATUSBAR_BLOCK,
+            help_block: DEFAULT_HELP_BLOCK,
 
             table_start_index: 0,
-            table_end_index: 34,
-            table_window_size: 35,
+            table_end_index: 59,
+            table_window_size: 60,
             table_step: 5,
 
             active_widget: 1,        // Table,
@@ -173,7 +186,7 @@ impl UI<'static> {
                 self.widgets[self.request_block] = RenderUnit::new_block(
                     Block::default()
                         .title(Span::styled("REQUEST", header_style))
-                        .borders(Borders::TOP | Borders::BOTTOM)
+                        .borders(Borders::ALL)
                         .title_alignment(Alignment::Center),
                     self.request_area,
                     true
@@ -214,7 +227,7 @@ impl UI<'static> {
         let new_block = Block::default()
             .title(Span::styled("REQUEST", header_style))
             .title_alignment(Alignment::Center)
-            .borders(Borders::TOP | Borders::BOTTOM);
+            .borders(Borders::ALL);
 
         let scroll = self.widgets[self.request_block].paragraph_get_scroll().unwrap_or((0, 0));
         let request_paragraph = Paragraph::new(request_list)
@@ -232,7 +245,7 @@ impl UI<'static> {
     }
 
     pub(crate) fn draw_response(&mut self, storage: &HTTPStorage) {
-        let header_style = if self.active_widget == self.request_block {
+        let header_style = if self.active_widget == self.response_block {
             self.active_widget_header_style
         }
         else {
@@ -244,8 +257,8 @@ impl UI<'static> {
             None => {
                 self.widgets[self.response_block] = RenderUnit::new_block(
                     Block::default()
-                        .title("RESPONSE")
-                        .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                        .title(Span::styled("RESPONSE", header_style))
+                        .borders(Borders::ALL)
                         .title_alignment(Alignment::Center),
                     self.response_area,
                     true
@@ -257,13 +270,14 @@ impl UI<'static> {
         let response = match storage.storage[selected_index].response.as_ref() {
             Some(rsp) => rsp,
             None => {
+                let is_active = self.widgets[self.response_block].is_widget_active();
                 self.widgets[self.response_block] = RenderUnit::new_block(
                     Block::default()
                         .title("RESPONSE")
                         .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
                         .title_alignment(Alignment::Center),
                     self.response_area,
-                    true
+                    is_active
                 );
                 return;
             }
@@ -294,17 +308,10 @@ impl UI<'static> {
             }
         );
 
-        let header_style = if self.active_widget == self.response_block {
-            self.active_widget_header_style
-        }
-        else {
-            self.default_widget_header_style
-        };
-
         let new_block = Block::default()
             .title(Span::styled("RESPONSE", header_style))
             .title_alignment(Alignment::Center)
-            .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM);
+            .borders(Borders::ALL);
 
         let scroll = self.widgets[self.response_block].paragraph_get_scroll().unwrap_or((0, 0));
         let response_paragraph = Paragraph::new(response)
@@ -379,11 +386,15 @@ impl UI<'static> {
     }
 
     fn make_table(&mut self, storage: &HTTPStorage) {
+        if storage.len() == 0 {
+            return
+        }
+
         let mut rows: Vec<Row> = Vec::new();
         for (index, pair) in storage.storage
             .iter()
             .skip(self.table_start_index)
-            .take(self.table_window_size + 5)
+            .take(self.table_window_size)
             .enumerate()
         {
             let request = pair.request.as_ref().unwrap();
@@ -434,27 +445,81 @@ impl UI<'static> {
     }
 
     pub(crate) fn update_table(&mut self, storage: &HTTPStorage) {
+        // match self.proxy_history_state.selected() {
+            // Some(i) => {
+            //     if storage.len() < self.table_window_size {
+            //         self.make_table(storage);
+            //     }
+            //     else if i >= self.table_window_size {
+            //         let index = self.table_window_size - min(storage.len() - self.table_end_index, self.table_step);
+            //         self.table_end_index = min(storage.len() - 1, self.table_end_index + self.table_step);
+            //         self.table_start_index = self.table_end_index.saturating_sub(self.table_window_size - 1);
+            //         self.proxy_history_state.select(Some(index));
+            //         self.make_table(storage);
+            //     }
+            //     else if i == 0 {
+            //         let index = min(self.table_start_index, self.table_step);
+            //         self.table_start_index = self.table_start_index.saturating_sub(self.table_step);
+            //         self.table_end_index = self.table_start_index + self.table_window_size - 1;
+            //         self.proxy_history_state.select(Some(index));
+            //         self.make_table(storage);
+            //     }
+            // },
+            // None => {
+            //     self.make_table(storage);
+            // }
+
+        let start = self.table_start_index.clone();
+        let end = self.table_end_index.clone();
+        let window = self.table_window_size.clone();
+        let storage_len = storage.len();
         match self.proxy_history_state.selected() {
             Some(i) => {
-                if storage.len() < self.table_window_size {
+                if storage.len() < window {
                     self.make_table(storage);
                 }
-                else if i >= self.table_window_size {
-                    let index = self.table_window_size - min(storage.len() - self.table_end_index, self.table_step);
-                    self.table_end_index = min(storage.len() - 1, self.table_end_index + self.table_step);
-                    self.table_start_index = self.table_end_index.saturating_sub(self.table_window_size - 1);
-                    self.proxy_history_state.select(Some(index));
+                else if i == window - 1 {
+                    self.table_start_index = if end == storage_len - 1 {
+                        self.table_end_index + 1 - window
+                    }
+                    else {
+                        self.table_start_index + 1
+                    };
+
+                    self.table_end_index = if end == storage_len - 1 {
+                        self.table_end_index
+                    }
+                    else {
+                        self.table_end_index + 1
+                    };
+
                     self.make_table(storage);
                 }
                 else if i == 0 {
-                    let index = min(self.table_start_index, self.table_step);
-                    self.table_start_index = self.table_start_index.saturating_sub(self.table_step);
-                    self.table_end_index = self.table_start_index + self.table_window_size - 1;
-                    self.proxy_history_state.select(Some(index));
+                    self.table_end_index = if start == 0 {
+                        window - 1
+                    }
+                    else {
+                        end - 1
+                    };
+
+                    self.table_start_index = if start == 0 {
+                        start
+                    }
+                    else {
+                        start - 1
+                    };
+
                     self.make_table(storage);
                 }
-            },
+                else {
+                    self.make_table(storage);
+                }
+            }
             None => {
+                if storage.len() > 0 {
+                    self.proxy_history_state.select(Some(0));
+                }
                 self.make_table(storage);
             }
         }
@@ -528,15 +593,15 @@ impl UI<'static> {
         debug!("cancel_fullscreen: active - {}", &self.active_widget);
         let mut w = &mut self.widgets;
         if self.active_widget == self.proxy_block {
-            self.proxy_area = 0;
+            self.proxy_area = DEFAULT_PROXY_AREA;
             cancel_routine(self.active_widget, self.proxy_area, w);
         }
         else if self.active_widget == self.response_block {
-            self.response_area = 2;
+            self.response_area = DEFAULT_RESPONSE_AREA;
             cancel_routine(self.active_widget, self.response_area, w);
         }
         else if self.active_widget == self.request_block {
-            self.request_area = 1;
+            self.request_area = DEFAULT_REQUEST_AREA;
             cancel_routine(self.active_widget, self.request_area, w);
         }
     }
@@ -561,6 +626,10 @@ impl UI<'static> {
         let new_axes = scrolling_paragraph_axes(base_axes, (x, y));
         debug!("scroll_response: new (x, y) = ({}, {})", new_axes.0, new_axes.1);
         response_block.paragraph_set_scroll(new_axes);
+    }
+
+    pub(super) fn get_table_sliding_window(&self) -> usize {
+        return self.table_window_size.clone();
     }
 }
 
