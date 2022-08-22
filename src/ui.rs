@@ -1,6 +1,9 @@
 mod ui_storage;
+mod ui_events;
 
 use std::{io, time::{Duration, Instant}};
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use tokio::sync::mpsc::Receiver;
 
 use crate::cruster_proxy::request_response::CrusterWrapper;
@@ -25,6 +28,7 @@ use crossterm::{
 };
 use log::debug;
 use tui::widgets::Widget;
+use crate::ui::ui_events::UIEvents;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
@@ -57,14 +61,9 @@ fn run_app<B: Backend>(
                     mut ui_rx: Receiver<(CrusterWrapper, usize)>
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
+
     let mut ui_storage = ui_storage::UI::new();
-
-    // Flags
-    let mut something_changed = true;
-    let mut table_state_changed = false;
-    let mut help_enabled = false;
-    let mut entered_fullscreen = false;
-
+    let mut ui_events = UIEvents::default();
     let mut http_storage = HTTPStorage::default();
 
     loop {
@@ -74,7 +73,7 @@ fn run_app<B: Backend>(
                     CrusterWrapper::Request(request) => http_storage.put_request(request, ctx),
                     CrusterWrapper::Response(response) => http_storage.put_response(response, &ctx)
                 }
-                something_changed = true;
+                ui_events.something_changed = true;
             },
             Err(_) => {
                 // something_changed = true;
@@ -86,101 +85,24 @@ fn run_app<B: Backend>(
             .unwrap_or_else(|| Duration::from_secs(0));
 
         if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if let KeyCode::Char('q') = key.code {
-                    if help_enabled {
-                        ui_storage.hide_help();
-                        something_changed = true;
-                        help_enabled = false;
-                    }
-                    else {
-                        return Ok(());
-                    }
-                }
-                else if let KeyCode::Up = key.code {
-                    let index = match ui_storage.proxy_history_state.selected() {
-                        Some(i) => if i == 0 { 0 } else { i - 1 },
-                        None => 0 as usize
-                    };
-
-                    ui_storage.proxy_history_state.select(Some(index));
-                    table_state_changed = true;
-                    something_changed = true
-                }
-                else if let KeyCode::Down = key.code {
-                    let index = match ui_storage.proxy_history_state.selected() {
-                        Some(i) => if i >= http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
-                        None => 0 as usize
-                    };
-
-                    ui_storage.proxy_history_state.select(Some(index));
-                    table_state_changed = true;
-                    something_changed = true
-                }
-                else if let KeyCode::Char('?') = key.code {
-                    ui_storage.show_help();
-                    help_enabled = true;
-                    something_changed = true;
-                }
-                else if let KeyCode::Char('r') = key.code {
-                    if ! help_enabled {
-                        if entered_fullscreen { ui_storage.cancel_fullscreen() }
-                        ui_storage.activate_request();
-                        something_changed = true;
-                        table_state_changed = true;
-                        if entered_fullscreen { ui_storage.show_fullscreen() }
-                    }
-                }
-                else if let KeyCode::Char('s') = key.code {
-                    if ! help_enabled {
-                        if entered_fullscreen { ui_storage.cancel_fullscreen() }
-                        ui_storage.activate_response();
-                        something_changed = true;
-                        table_state_changed = true;
-                        if entered_fullscreen { ui_storage.show_fullscreen() }
-                    }
-                }
-                else if let KeyCode::Char('p') = key.code {
-                    if ! help_enabled {
-                        if entered_fullscreen { ui_storage.cancel_fullscreen() }
-                        ui_storage.activate_proxy();
-                        something_changed = true;
-                        table_state_changed = true;
-                        if entered_fullscreen { ui_storage.show_fullscreen() }
-                    }
-                }
-                else if let KeyCode::Char('f') = key.code {
-                    if ! help_enabled {
-                        if entered_fullscreen {
-                            ui_storage.cancel_fullscreen();
-                            something_changed = true;
-                            table_state_changed = true;
-                            entered_fullscreen = false;
-                        }
-                        else {
-                            ui_storage.show_fullscreen();
-                            something_changed = true;
-                            table_state_changed = true;
-                            entered_fullscreen = true;
-                        }
-                    }
-                }
+            if ui_events.process_event(&mut ui_storage, &mut http_storage) {
+                return Ok(());
             }
         }
         if last_tick.elapsed() >= tick_rate {
             last_tick = Instant::now();
         }
 
-        if something_changed {
+        if ui_events.something_changed {
             ui_storage.draw_statusbar(&http_storage);
             ui_storage.update_table(&http_storage);
 
-            if table_state_changed { ui_storage.draw_state(&http_storage); }
+            if ui_events.table_state_changed { ui_storage.draw_state(&http_storage); }
 
             terminal.draw(|f| new_ui(f, &mut ui_storage))?;
 
-            something_changed = false;
-            table_state_changed = false;
+            ui_events.something_changed = false;
+            ui_events.table_state_changed = false;
         }
     }
 }

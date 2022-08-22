@@ -43,37 +43,37 @@ pub(crate) struct UI<'ui_lt> {
     pub(crate) widgets: Vec<RenderUnit<'ui_lt>>,
 
     // Position of block with proxy history in rectangles array (see ui/cruster_proxy:new:ui)
-    proxy_history_index: usize,
+    proxy_area: usize,
 
     // Position of block with request data
-    request_area_index: usize,
+    request_area: usize,
 
     // Position of block with response data
-    response_area_index: usize,
+    response_area: usize,
 
     // Statusbar area index,
-    statusbar_area_index: usize,
+    statusbar_area: usize,
 
     // Position of block for help message in rectangles array
-    help_area_index: usize,
+    help_area: usize,
 
     // State of table with proxy history
     pub(crate) proxy_history_state: TableState,
 
+    // Index of block with proxy history in vector above
+    proxy_block: usize,
+
     // Index of block with request text in vector above
-    request_block_index: usize,
+    request_block: usize,
 
     // Index of block with response text in vector above
-    response_block_index: usize,
-
-    // Index of block with proxy history in vector above
-    proxy_block_index: usize,
+    response_block: usize,
 
     // Index of Statusbar in vector above
-    status_index: usize,
+    statusbar_block: usize,
 
     // Index of help menu in vector above
-    help_index: usize,
+    help_block: usize,
 
     // Index of request/response in HTTPStorage.ui_storage which is current table's first element
     table_start_index: usize,
@@ -128,11 +128,11 @@ impl UI<'static> {
                 RenderUnit::PLACEHOLDER
             ],
 
-            proxy_history_index: 0,
-            request_area_index: 1,
-            response_area_index: 2,
-            statusbar_area_index: 3,
-            help_area_index: 4,
+            proxy_area: 0,
+            request_area: 1,
+            response_area: 2,
+            statusbar_area: 3,
+            help_area: 4,
 
             proxy_history_state: {
                 let mut table_state = TableState::default();
@@ -140,11 +140,11 @@ impl UI<'static> {
                 table_state
             },
 
-            request_block_index: 3,
-            response_block_index: 5,
-            proxy_block_index: 1,
-            status_index: 7,
-            help_index: 9,
+            request_block: 3,
+            response_block: 5,
+            proxy_block: 1,
+            statusbar_block: 7,
+            help_block: 9,
 
             table_start_index: 0,
             table_end_index: 34,
@@ -160,7 +160,7 @@ impl UI<'static> {
     }
 
     pub(crate) fn draw_request(&mut self, storage: &HTTPStorage) {
-        let header_style = if self.active_widget == self.request_block_index {
+        let header_style = if self.active_widget == self.request_block {
             self.active_widget_header_style
         }
         else {
@@ -170,12 +170,12 @@ impl UI<'static> {
         let selected_index = match self.proxy_history_state.selected() {
             Some(index) => index + self.table_start_index,
             None => {
-                self.widgets[self.request_block_index] = RenderUnit::new_block(
+                self.widgets[self.request_block] = RenderUnit::new_block(
                     Block::default()
                         .title(Span::styled("REQUEST", header_style))
                         .borders(Borders::TOP | Borders::BOTTOM)
                         .title_alignment(Alignment::Center),
-                    self.request_area_index,
+                    self.request_area,
                     true
                 );
                 return;
@@ -220,18 +220,18 @@ impl UI<'static> {
             .block(new_block)
             .wrap(Wrap { trim: true });
 
-        let is_active = self.widgets[self.request_block_index].is_widget_active();
-        let scroll = self.widgets[self.request_block_index].paragraph_get_scroll().unwrap_or((0, 0));
-        self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(
+        let is_active = self.widgets[self.request_block].is_widget_active();
+        let scroll = self.widgets[self.request_block].paragraph_get_scroll().unwrap_or((0, 0));
+        self.widgets[self.request_block] =  RenderUnit::new_paragraph(
             request_paragraph,
-            self.request_area_index,
+            self.request_area,
             is_active,
             scroll
         );
     }
 
     pub(crate) fn draw_response(&mut self, storage: &HTTPStorage) {
-        let header_style = if self.active_widget == self.request_block_index {
+        let header_style = if self.active_widget == self.request_block {
             self.active_widget_header_style
         }
         else {
@@ -241,12 +241,12 @@ impl UI<'static> {
         let selected_index = match self.proxy_history_state.selected() {
             Some(index) => index + self.table_start_index,
             None => {
-                self.widgets[self.response_block_index] = RenderUnit::new_block(
+                self.widgets[self.response_block] = RenderUnit::new_block(
                     Block::default()
                         .title("RESPONSE")
                         .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
                         .title_alignment(Alignment::Center),
-                    self.response_area_index,
+                    self.response_area,
                     true
                 );
                 return;
@@ -256,12 +256,12 @@ impl UI<'static> {
         let response = match storage.storage[selected_index].response.as_ref() {
             Some(rsp) => rsp,
             None => {
-                self.widgets[self.response_block_index] = RenderUnit::new_block(
+                self.widgets[self.response_block] = RenderUnit::new_block(
                     Block::default()
                         .title("RESPONSE")
                         .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
                         .title_alignment(Alignment::Center),
-                    self.response_area_index,
+                    self.response_area,
                     true
                 );
                 return;
@@ -293,7 +293,7 @@ impl UI<'static> {
             }
         );
 
-        let header_style = if self.active_widget == self.response_block_index {
+        let header_style = if self.active_widget == self.response_block {
             self.active_widget_header_style
         }
         else {
@@ -309,11 +309,11 @@ impl UI<'static> {
             .block(new_block)
             .wrap(Wrap { trim: false });
 
-        let is_active = self.widgets[self.response_block_index].is_widget_active();
-        let scroll = self.widgets[self.response_block_index].paragraph_get_scroll().unwrap_or((0, 0));
-        self.widgets[self.response_block_index] = RenderUnit::new_paragraph(
+        let is_active = self.widgets[self.response_block].is_widget_active();
+        let scroll = self.widgets[self.response_block].paragraph_get_scroll().unwrap_or((0, 0));
+        self.widgets[self.response_block] = RenderUnit::new_paragraph(
             response_paragraph,
-            self.response_area_index,
+            self.response_area,
             is_active,
             scroll
         );
@@ -353,27 +353,27 @@ impl UI<'static> {
             .block(status_block)
             .alignment(Alignment::Right);
 
-        self.widgets[self.status_index] = RenderUnit::new_paragraph(
+        self.widgets[self.statusbar_block] = RenderUnit::new_paragraph(
             status_paragraph,
-            self.statusbar_area_index,
+            self.statusbar_area,
             true,
             (0, 0)
         );
     }
 
     pub(crate) fn show_help(&mut self) {
-        let (clear, help) = make_help_menu(self.help_area_index);
+        let (clear, help) = make_help_menu(self.help_area);
         // Make RenderUnit::TUIClear active for help's clear widget
-        self.widgets[self.help_index - 1] = clear;
+        self.widgets[self.help_block - 1] = clear;
 
         // Make RenderUnit::TUIParagraph active for help's paragraph widget
-        self.widgets[self.help_index] = help;
+        self.widgets[self.help_block] = help;
     }
 
     pub(crate) fn hide_help(&mut self) {
         // Just like in show_help()
-        self.widgets[self.help_index - 1] = RenderUnit::PLACEHOLDER;
-        self.widgets[self.help_index] = RenderUnit::PLACEHOLDER;
+        self.widgets[self.help_block - 1] = RenderUnit::PLACEHOLDER;
+        self.widgets[self.help_block] = RenderUnit::PLACEHOLDER;
     }
 
     fn make_table(&mut self, storage: &HTTPStorage) {
@@ -396,7 +396,7 @@ impl UI<'static> {
             rows.push(Row::new(row));
         }
 
-        let header_style = if self.proxy_block_index == self.active_widget {
+        let header_style = if self.proxy_block == self.active_widget {
             self.active_widget_header_style
         }
         else {
@@ -424,9 +424,9 @@ impl UI<'static> {
                     .title_alignment(Alignment::Center)
                     .borders(Borders::ALL));
 
-        self.widgets[self.proxy_block_index] = RenderUnit::new_table(
+        self.widgets[self.proxy_block] = RenderUnit::new_table(
             proxy_history_table,
-            self.proxy_history_index,
+            self.proxy_area,
             true
         );
     }
@@ -459,15 +459,15 @@ impl UI<'static> {
     }
 
     pub(super) fn activate_proxy(&mut self) {
-        self.active_widget = self.proxy_block_index;
+        self.active_widget = self.proxy_block;
     }
 
     pub(super) fn activate_request(&mut self) {
-        self.active_widget = self.request_block_index;
+        self.active_widget = self.request_block;
     }
 
     pub(super) fn activate_response(&mut self) {
-        self.active_widget = self.response_block_index;
+        self.active_widget = self.response_block;
     }
 
     pub(super) fn show_fullscreen(&mut self) {
@@ -486,16 +486,16 @@ impl UI<'static> {
 
         debug!("show_fullscreen: active - {}", &self.active_widget);
         let mut w = &mut self.widgets;
-        if self.active_widget == self.proxy_block_index {
-            self.proxy_history_index = 5;
+        if self.active_widget == self.proxy_block {
+            self.proxy_area = 5;
             show_routine(self.active_widget, w);
         }
-        else if self.active_widget == self.response_block_index {
-            self.response_area_index = 5;
+        else if self.active_widget == self.response_block {
+            self.response_area = 5;
             show_routine(self.active_widget, w);
         }
-        else if self.active_widget == self.request_block_index {
-            self.request_area_index = 5;
+        else if self.active_widget == self.request_block {
+            self.request_area = 5;
             show_routine(self.active_widget, w);
         }
     }
@@ -513,17 +513,17 @@ impl UI<'static> {
 
         debug!("cancel_fullscreen: active - {}", &self.active_widget);
         let mut w = &mut self.widgets;
-        if self.active_widget == self.proxy_block_index {
-            self.proxy_history_index = 0;
-            cancel_routine(self.active_widget, self.proxy_history_index, w);
+        if self.active_widget == self.proxy_block {
+            self.proxy_area = 0;
+            cancel_routine(self.active_widget, self.proxy_area, w);
         }
-        else if self.active_widget == self.response_block_index {
-            self.response_area_index = 2;
-            cancel_routine(self.active_widget, self.response_area_index, w);
+        else if self.active_widget == self.response_block {
+            self.response_area = 2;
+            cancel_routine(self.active_widget, self.response_area, w);
         }
-        else if self.active_widget == self.request_block_index {
-            self.request_area_index = 1;
-            cancel_routine(self.active_widget, self.request_area_index, w);
+        else if self.active_widget == self.request_block {
+            self.request_area = 1;
+            cancel_routine(self.active_widget, self.request_area, w);
         }
     }
 }
