@@ -221,7 +221,13 @@ impl UI<'static> {
             .wrap(Wrap { trim: true });
 
         let is_active = self.widgets[self.request_block_index].is_widget_active();
-        self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(request_paragraph, self.request_area_index, is_active);
+        let scroll = self.widgets[self.request_block_index].paragraph_get_scroll().unwrap_or((0, 0));
+        self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(
+            request_paragraph,
+            self.request_area_index,
+            is_active,
+            scroll
+        );
     }
 
     pub(crate) fn draw_response(&mut self, storage: &HTTPStorage) {
@@ -304,7 +310,13 @@ impl UI<'static> {
             .wrap(Wrap { trim: false });
 
         let is_active = self.widgets[self.response_block_index].is_widget_active();
-        self.widgets[self.response_block_index] = RenderUnit::new_paragraph(response_paragraph, self.response_area_index, is_active);
+        let scroll = self.widgets[self.response_block_index].paragraph_get_scroll().unwrap_or((0, 0));
+        self.widgets[self.response_block_index] = RenderUnit::new_paragraph(
+            response_paragraph,
+            self.response_area_index,
+            is_active,
+            scroll
+        );
     }
 
     pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
@@ -341,7 +353,12 @@ impl UI<'static> {
             .block(status_block)
             .alignment(Alignment::Right);
 
-        self.widgets[self.status_index] = RenderUnit::new_paragraph(status_paragraph, self.statusbar_area_index, true);
+        self.widgets[self.status_index] = RenderUnit::new_paragraph(
+            status_paragraph,
+            self.statusbar_area_index,
+            true,
+            (0, 0)
+        );
     }
 
     pub(crate) fn show_help(&mut self) {

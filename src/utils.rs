@@ -25,7 +25,8 @@ pub(crate) enum CrusterError {
     PortParsingError(String),
     ParseAddressError(String),
     // RenderUnitCastError(String),
-    UndefinedError(String)
+    UndefinedError(String),
+    NotParagraphRenderUnit(String)
 }
 
 impl From<io::Error> for CrusterError {
