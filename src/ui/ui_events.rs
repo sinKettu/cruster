@@ -35,24 +35,44 @@ impl UIEvents {
                 }
             }
             else if let KeyCode::Up = key.code {
-                let index = match ui_storage.proxy_history_state.selected() {
-                    Some(i) => if i == 0 { 0 } else { i - 1 },
-                    None => 0 as usize
-                };
+                if ui_storage.is_table_active() {
+                    let index = match ui_storage.proxy_history_state.selected() {
+                        Some(i) => if i == 0 { 0 } else { i - 1 },
+                        None => 0 as usize
+                    };
 
-                ui_storage.proxy_history_state.select(Some(index));
-                self.table_state_changed = true;
-                self.something_changed = true
+                    ui_storage.proxy_history_state.select(Some(index));
+                    self.table_state_changed = true;
+                    self.something_changed = true
+                }
+                else if ui_storage.is_request_active() {
+                    ui_storage.scroll_request(Some(-5), None);
+                    self.something_changed = true;
+                }
+                else if ui_storage.is_response_active() {
+                    ui_storage.scroll_response(Some(-5), None);
+                    self.something_changed = true;
+                }
             }
             else if let KeyCode::Down = key.code {
-                let index = match ui_storage.proxy_history_state.selected() {
-                    Some(i) => if i >= http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
-                    None => 0 as usize
-                };
+                if ui_storage.is_table_active() {
+                    let index = match ui_storage.proxy_history_state.selected() {
+                        Some(i) => if i >= http_storage.len() - 1 { http_storage.len() - 1 } else { i + 1 },
+                        None => 0 as usize
+                    };
 
-                ui_storage.proxy_history_state.select(Some(index));
-                self.table_state_changed = true;
-                self.something_changed = true
+                    ui_storage.proxy_history_state.select(Some(index));
+                    self.table_state_changed = true;
+                    self.something_changed = true
+                }
+                else if ui_storage.is_request_active() {
+                    ui_storage.scroll_request(Some(5), None);
+                    self.something_changed = true;
+                }
+                else if ui_storage.is_response_active() {
+                    ui_storage.scroll_response(Some(5), None);
+                    self.something_changed = true;
+                }
             }
             else if let KeyCode::Char('?') = key.code {
                 ui_storage.show_help();

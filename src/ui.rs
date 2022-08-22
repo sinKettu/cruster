@@ -74,6 +74,7 @@ fn run_app<B: Backend>(
                     CrusterWrapper::Response(response) => http_storage.put_response(response, &ctx)
                 }
                 ui_events.something_changed = true;
+                ui_events.table_state_changed = true;
             },
             Err(_) => {
                 // something_changed = true;
@@ -95,9 +96,9 @@ fn run_app<B: Backend>(
 
         if ui_events.something_changed {
             ui_storage.draw_statusbar(&http_storage);
-            ui_storage.update_table(&http_storage);
+            ui_storage.draw_state(&http_storage);
 
-            if ui_events.table_state_changed { ui_storage.draw_state(&http_storage); }
+            if ui_events.table_state_changed { ui_storage.update_table(&http_storage); }
 
             terminal.draw(|f| new_ui(f, &mut ui_storage))?;
 

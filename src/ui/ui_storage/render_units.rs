@@ -39,7 +39,7 @@ pub(crate) struct ParagraphRenderUnit<'pru> {
     pub(crate) widget: Paragraph<'pru>,
     pub(crate) rect_index: usize,
     pub(crate) is_active: bool,
-    pub(crate) scroll: (usize, usize)
+    pub(crate) scroll: (u16, u16)
 }
 
 impl<'a> ParagraphRenderUnit<'a> {
@@ -106,7 +106,7 @@ impl RenderUnit<'_> {
         RenderUnit::TUIBlock(BlockRenderUnit { widget, rect_index, is_active })
     }
 
-    pub(crate) fn new_paragraph(widget: Paragraph<'_>, rect_index: usize, is_active: bool, scroll: (usize, usize)) -> RenderUnit<'_> {
+    pub(crate) fn new_paragraph(widget: Paragraph<'_>, rect_index: usize, is_active: bool, scroll: (u16, u16)) -> RenderUnit<'_> {
         RenderUnit::TUIParagraph(ParagraphRenderUnit { widget, rect_index, is_active, scroll})
     }
 
@@ -158,14 +158,14 @@ impl RenderUnit<'_> {
         };
     }
 
-    pub(crate) fn paragraph_get_scroll(&self) -> Option<(usize, usize)> {
+    pub(crate) fn paragraph_get_scroll(&self) -> Option<(u16, u16)> {
         return match self {
             RenderUnit::TUIParagraph(paragraph) => Some(paragraph.scroll),
             _ => None
         }
     }
 
-    pub(crate) fn paragraph_set_scroll(&mut self, scroll: (usize, usize)) -> Result<(), CrusterError> {
+    pub(crate) fn paragraph_set_scroll(&mut self, scroll: (u16, u16)) -> Result<(), CrusterError> {
         match self {
             RenderUnit::TUIParagraph(paragraph) => paragraph.scroll = scroll,
             _ => return Err(CrusterError::NotParagraphRenderUnit("Cannot assign 'scroll' to not a paragraph".to_string()))

@@ -32,6 +32,14 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> (RenderUnit<'help>, Re
         ]),
         Spans::from(vec![
             Span::styled(
+                "f",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Enter/Quit fullscreen mode for proxy, request, response view")
+        ]),
+        Spans::from(vec![
+            Span::styled(
                 "p",
                 Style::default()
                     .fg(Color::Green)

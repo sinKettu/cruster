@@ -216,12 +216,13 @@ impl UI<'static> {
             .title_alignment(Alignment::Center)
             .borders(Borders::TOP | Borders::BOTTOM);
 
+        let scroll = self.widgets[self.request_block].paragraph_get_scroll().unwrap_or((0, 0));
         let request_paragraph = Paragraph::new(request_list)
             .block(new_block)
-            .wrap(Wrap { trim: true });
+            .wrap(Wrap { trim: true })
+            .scroll(scroll);
 
         let is_active = self.widgets[self.request_block].is_widget_active();
-        let scroll = self.widgets[self.request_block].paragraph_get_scroll().unwrap_or((0, 0));
         self.widgets[self.request_block] =  RenderUnit::new_paragraph(
             request_paragraph,
             self.request_area,
@@ -305,12 +306,13 @@ impl UI<'static> {
             .title_alignment(Alignment::Center)
             .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM);
 
+        let scroll = self.widgets[self.response_block].paragraph_get_scroll().unwrap_or((0, 0));
         let response_paragraph = Paragraph::new(response)
             .block(new_block)
-            .wrap(Wrap { trim: false });
+            .wrap(Wrap { trim: false })
+            .scroll(scroll);
 
         let is_active = self.widgets[self.response_block].is_widget_active();
-        let scroll = self.widgets[self.response_block].paragraph_get_scroll().unwrap_or((0, 0));
         self.widgets[self.response_block] = RenderUnit::new_paragraph(
             response_paragraph,
             self.response_area,
@@ -470,6 +472,18 @@ impl UI<'static> {
         self.active_widget = self.response_block;
     }
 
+    pub(super) fn is_table_active(&self) -> bool {
+        return self.active_widget == self.proxy_block;
+    }
+
+    pub(crate) fn is_request_active(&self) -> bool {
+        return self.active_widget == self.request_block;
+    }
+
+    pub(crate) fn is_response_active(&self) -> bool {
+        return self.active_widget == self.response_block;
+    }
+
     pub(super) fn show_fullscreen(&mut self) {
         let show_routine = |active_widget_index: usize, widgets: &mut Vec<RenderUnit>| {
             for i in 0..widgets.len() {
@@ -526,4 +540,67 @@ impl UI<'static> {
             cancel_routine(self.active_widget, self.request_area, w);
         }
     }
+
+    pub(super) fn scroll_request(&mut self, x: Option<i16>, y: Option<i16>) {
+        let mut request_block = &mut self.widgets[self.request_block];
+        let base_axes = request_block
+            .paragraph_get_scroll()
+            .unwrap_or((0, 0));
+
+        let new_axes = scrolling_paragraph_axes(base_axes, (x, y));
+        debug!("scroll_request: new (x, y) = ({}, {})", new_axes.0, new_axes.1);
+        request_block.paragraph_set_scroll(new_axes);
+    }
+
+    pub(super) fn scroll_response(&mut self, x: Option<i16>, y: Option<i16>) {
+        let mut response_block = self.widgets[self.response_block].borrow_mut();
+        let base_axes = response_block
+            .paragraph_get_scroll()
+            .unwrap_or((0, 0));
+
+        let new_axes = scrolling_paragraph_axes(base_axes, (x, y));
+        debug!("scroll_response: new (x, y) = ({}, {})", new_axes.0, new_axes.1);
+        response_block.paragraph_set_scroll(new_axes);
+    }
+}
+
+fn scrolling_paragraph_axes(base_axes: (u16, u16), arguments: (Option<i16>, Option<i16>)) -> (u16, u16) {
+    let (base_x, base_y) = base_axes;
+    let (x, y) = arguments;
+
+    let new_x = if let Some(x_value) = x {
+        debug!("scrolling_paragraph_axes: x = {}", &x_value);
+        if x_value < 0 {
+            let x_abs = x_value.abs() as u16;
+            if base_x < x_abs {
+                0u16
+            }
+            else {
+                base_x - x_abs
+            }
+        }
+        else {
+            base_x.saturating_add(x_value as u16)
+        }
+    }
+    else {
+        debug!("scrolling_paragraph_axes: x = None");
+        0u16
+    };
+
+    let new_y = if let Some(y_value) = y {
+        debug!("scrolling_paragraph_axes: y = {}", &y_value);
+        if y_value < 0 {
+            base_y.saturating_sub(y_value.abs() as u16)
+        }
+        else {
+            base_y.saturating_add(y_value as u16)
+        }
+    }
+    else {
+        debug!("scrolling_paragraph_axes: y = None");
+        0u16
+    };
+
+    return (new_x, new_y);
 }
