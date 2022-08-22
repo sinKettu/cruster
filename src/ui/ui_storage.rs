@@ -13,7 +13,9 @@ use std::{
     cmp::min,
     collections::HashMap
 };
+use std::borrow::BorrowMut;
 use std::os::macos::raw::stat;
+use log::debug;
 
 use crate::cruster_proxy::request_response::{
     BodyCompressedWith,
@@ -51,6 +53,9 @@ pub(crate) struct UI<'ui_lt> {
 
     // Statusbar area index,
     statusbar_area_index: usize,
+
+    // Position of block for help message in rectangles array
+    help_area_index: usize,
 
     // State of table with proxy history
     pub(crate) proxy_history_state: TableState,
@@ -109,8 +114,6 @@ impl UI<'static> {
         let statusbar_block = Block::default()
             .borders(Borders::ALL);
 
-        let (help_clear_widget, help_paragraph) = make_help_menu(4);
-
         UI {
             widgets: vec![
                 RenderUnit::new_clear(0),
@@ -121,27 +124,33 @@ impl UI<'static> {
                 RenderUnit::new_block(response_block, 2, true),
                 RenderUnit::new_clear(3),
                 RenderUnit::new_block(statusbar_block, 3, true),
-                help_clear_widget,
-                help_paragraph
+                RenderUnit::PLACEHOLDER,
+                RenderUnit::PLACEHOLDER
             ],
+
             proxy_history_index: 0,
             request_area_index: 1,
             response_area_index: 2,
             statusbar_area_index: 3,
+            help_area_index: 4,
+
             proxy_history_state: {
                 let mut table_state = TableState::default();
                 table_state.select(None);
                 table_state
             },
+
             request_block_index: 3,
             response_block_index: 5,
             proxy_block_index: 1,
             status_index: 7,
             help_index: 9,
+
             table_start_index: 0,
-            table_end_index: 24,
-            table_window_size: 25,
+            table_end_index: 34,
+            table_window_size: 35,
             table_step: 5,
+
             active_widget: 1,        // Table,
             active_widget_header_style: Style::default()
                 .bg(Color::White)
@@ -211,11 +220,11 @@ impl UI<'static> {
             .block(new_block)
             .wrap(Wrap { trim: true });
 
-        self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(request_paragraph, self.request_area_index, true);
-
+        let is_active = self.widgets[self.request_block_index].is_widget_active();
+        self.widgets[self.request_block_index] =  RenderUnit::new_paragraph(request_paragraph, self.request_area_index, is_active);
     }
 
-    fn draw_response(&mut self, storage: &HTTPStorage) {
+    pub(crate) fn draw_response(&mut self, storage: &HTTPStorage) {
         let header_style = if self.active_widget == self.request_block_index {
             self.active_widget_header_style
         }
@@ -294,7 +303,8 @@ impl UI<'static> {
             .block(new_block)
             .wrap(Wrap { trim: false });
 
-        self.widgets[self.response_block_index] = RenderUnit::new_paragraph(response_paragraph, self.response_area_index, true);
+        let is_active = self.widgets[self.response_block_index].is_widget_active();
+        self.widgets[self.response_block_index] = RenderUnit::new_paragraph(response_paragraph, self.response_area_index, is_active);
     }
 
     pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
@@ -315,7 +325,7 @@ impl UI<'static> {
         // | Errors: N | Requests: K                                             Type "?" for help |
         // -----------------------------------------------------------------------------------------
         let status_block = Block::default()
-            .borders(Borders::ALL);
+            .borders(Borders::TOP);
         let status_paragraph = Paragraph::new(vec![
             Spans::from(vec![
                 Span::styled("Errors: ", Style::default().add_modifier(Modifier::BOLD)),
@@ -335,17 +345,18 @@ impl UI<'static> {
     }
 
     pub(crate) fn show_help(&mut self) {
+        let (clear, help) = make_help_menu(self.help_area_index);
         // Make RenderUnit::TUIClear active for help's clear widget
-        self.widgets[self.help_index - 1].enable();
+        self.widgets[self.help_index - 1] = clear;
 
-        // Make RenderUnit::TUIParagraph active for help's clear widget
-        self.widgets[self.help_index].enable();
+        // Make RenderUnit::TUIParagraph active for help's paragraph widget
+        self.widgets[self.help_index] = help;
     }
 
     pub(crate) fn hide_help(&mut self) {
         // Just like in show_help()
-        self.widgets[self.help_index - 1].disable();
-        self.widgets[self.help_index].disable();
+        self.widgets[self.help_index - 1] = RenderUnit::PLACEHOLDER;
+        self.widgets[self.help_index] = RenderUnit::PLACEHOLDER;
     }
 
     fn make_table(&mut self, storage: &HTTPStorage) {
@@ -379,11 +390,11 @@ impl UI<'static> {
             .header(Row::new(vec!["№", "Method", "URL", "Response Code", "Address"]))
             .style(Style::default().fg(Color::White))
             .widths(&[
+                Constraint::Length(6),
+                Constraint::Length(8),
+                Constraint::Length(16 * 6 + 27),
                 Constraint::Length(16),
-                Constraint::Length(16),
-                Constraint::Length(16 * 6 + 9),
-                Constraint::Length(16),
-                Constraint::Length(16 * 2)
+                Constraint::Length(16)
             ])
             .highlight_style(
                 Style::default()
@@ -440,5 +451,62 @@ impl UI<'static> {
 
     pub(super) fn activate_response(&mut self) {
         self.active_widget = self.response_block_index;
+    }
+
+    pub(super) fn show_fullscreen(&mut self) {
+        let show_routine = |active_widget_index: usize, widgets: &mut Vec<RenderUnit>| {
+            for i in 0..widgets.len() {
+                // Handling widget and it's clear block
+                if i == active_widget_index || (i + 1) == active_widget_index {
+                    widgets[i].set_rect_index(5);
+                    widgets[i].enable();
+                }
+                else {
+                    widgets[i].disable();
+                }
+            }
+        };
+
+        debug!("show_fullscreen: active - {}", &self.active_widget);
+        let mut w = &mut self.widgets;
+        if self.active_widget == self.proxy_block_index {
+            self.proxy_history_index = 5;
+            show_routine(self.active_widget, w);
+        }
+        else if self.active_widget == self.response_block_index {
+            self.response_area_index = 5;
+            show_routine(self.active_widget, w);
+        }
+        else if self.active_widget == self.request_block_index {
+            self.request_area_index = 5;
+            show_routine(self.active_widget, w);
+        }
+    }
+
+    pub(super) fn cancel_fullscreen(&mut self) {
+        let cancel_routine = |active_widget_index: usize, new_area_index: usize, widgets: &mut Vec<RenderUnit>| {
+            for i in 0..widgets.len() {
+                // Handling widget and it's clear block
+                if i == active_widget_index || (i + 1) == active_widget_index {
+                    widgets[i].set_rect_index(new_area_index);
+                }
+                widgets[i].enable();
+            }
+        };
+
+        debug!("cancel_fullscreen: active - {}", &self.active_widget);
+        let mut w = &mut self.widgets;
+        if self.active_widget == self.proxy_block_index {
+            self.proxy_history_index = 0;
+            cancel_routine(self.active_widget, self.proxy_history_index, w);
+        }
+        else if self.active_widget == self.response_block_index {
+            self.response_area_index = 2;
+            cancel_routine(self.active_widget, self.response_area_index, w);
+        }
+        else if self.active_widget == self.request_block_index {
+            self.request_area_index = 1;
+            cancel_routine(self.active_widget, self.request_area_index, w);
+        }
     }
 }

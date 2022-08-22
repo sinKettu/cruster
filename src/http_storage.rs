@@ -27,10 +27,11 @@ impl Default for HTTPStorage {
 
 impl HTTPStorage {
     pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: usize) {
-        self.storage.push(RequestResponsePair {
-            request: Some(request),
-            response: None
-        }
+        self.storage.push(
+            RequestResponsePair {
+                request: Some(request),
+                response: None
+            }
         );
 
         self.context_reference.insert(addr, self.storage.len() - 1);

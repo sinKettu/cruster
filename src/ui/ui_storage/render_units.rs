@@ -80,9 +80,10 @@ impl<'a> ClearRenderUnit {
 #[derive(Clone, Debug)]
 pub(crate) enum RenderUnit<'ru_lt> {
     TUIBlock(BlockRenderUnit<'ru_lt>),
-    TUIParagraph(ParagraphRenderUnit<'ru_lt>) ,
+    TUIParagraph(ParagraphRenderUnit<'ru_lt>),
     TUITable(TableRenderUnit<'ru_lt>),
     TUIClear(ClearRenderUnit),
+    PLACEHOLDER
 }
 
 impl Default for RenderUnit<'_> {
@@ -140,6 +141,16 @@ impl RenderUnit<'_> {
             RenderUnit::TUIParagraph(paragraph) => paragraph.is_active = false,
             RenderUnit::TUITable(table) => table.is_active = false,
             RenderUnit::TUIClear(clear) => clear.is_active = false,
+            _ => ()
+        };
+    }
+
+    pub(crate) fn set_rect_index(&mut self, new_index: usize) {
+        match self {
+            RenderUnit::TUIBlock(block) => block.rect_index = new_index,
+            RenderUnit::TUIParagraph(paragraph) => paragraph.rect_index = new_index,
+            RenderUnit::TUITable(table) => table.rect_index = new_index,
+            RenderUnit::TUIClear(clear) => clear.rect_index = new_index,
             _ => ()
         };
     }

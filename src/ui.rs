@@ -23,6 +23,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use log::debug;
 use tui::widgets::Widget;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
@@ -62,6 +63,7 @@ fn run_app<B: Backend>(
     let mut something_changed = true;
     let mut table_state_changed = false;
     let mut help_enabled = false;
+    let mut entered_fullscreen = false;
 
     let mut http_storage = HTTPStorage::default();
 
@@ -121,19 +123,47 @@ fn run_app<B: Backend>(
                     something_changed = true;
                 }
                 else if let KeyCode::Char('r') = key.code {
-                    ui_storage.activate_request();
-                    something_changed = true;
-                    table_state_changed = true;
+                    if ! help_enabled {
+                        if entered_fullscreen { ui_storage.cancel_fullscreen() }
+                        ui_storage.activate_request();
+                        something_changed = true;
+                        table_state_changed = true;
+                        if entered_fullscreen { ui_storage.show_fullscreen() }
+                    }
                 }
                 else if let KeyCode::Char('s') = key.code {
-                    ui_storage.activate_response();
-                    something_changed = true;
-                    table_state_changed = true;
+                    if ! help_enabled {
+                        if entered_fullscreen { ui_storage.cancel_fullscreen() }
+                        ui_storage.activate_response();
+                        something_changed = true;
+                        table_state_changed = true;
+                        if entered_fullscreen { ui_storage.show_fullscreen() }
+                    }
                 }
                 else if let KeyCode::Char('p') = key.code {
-                    ui_storage.activate_proxy();
-                    something_changed = true;
-                    table_state_changed = true;
+                    if ! help_enabled {
+                        if entered_fullscreen { ui_storage.cancel_fullscreen() }
+                        ui_storage.activate_proxy();
+                        something_changed = true;
+                        table_state_changed = true;
+                        if entered_fullscreen { ui_storage.show_fullscreen() }
+                    }
+                }
+                else if let KeyCode::Char('f') = key.code {
+                    if ! help_enabled {
+                        if entered_fullscreen {
+                            ui_storage.cancel_fullscreen();
+                            something_changed = true;
+                            table_state_changed = true;
+                            entered_fullscreen = false;
+                        }
+                        else {
+                            ui_storage.show_fullscreen();
+                            something_changed = true;
+                            table_state_changed = true;
+                            entered_fullscreen = true;
+                        }
+                    }
                 }
             }
         }
@@ -164,7 +194,10 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
     // 2 - Rect for responses
     // 3 - Rect for statusbar
     // 4 - Rect for help menu
-    let rects: [Rect; 5] = [
+    // 5 - Rect for Proxy FullScreen
+    // 6 - Rect for Request FullScreen
+    // 7 - Rect for Response FullScreen
+    let rects: [Rect; 8] = [
         Rect::new(
             f.size().x,
             f.size().y,
@@ -175,47 +208,70 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
             f.size().x,
             f.size().y + window_height / 2,
             window_width / 2,
-            window_height / 2 - 3
+            window_height / 2 - 2
         ),
         Rect::new(
             f.size().x + window_width / 2,
             f.size().y + window_height / 2,
             window_width / 2,
-            window_height / 2 - 3
+            window_height / 2 - 2
         ),
         Rect::new(
             f.size().x,
-            f.size().y + window_height - 3,
+            f.size().y + window_height - 2,
             window_width,
-            3
+            2
         ),
         Rect::new(
             f.size().x + 5,
             f.size().y + 5,
             window_width - 10,
             window_height - 10
+        ),
+        Rect::new(
+            f.size().x,
+            f.size().y,
+            window_width - 1,
+            window_height - 2
+        ),
+        Rect::new(
+            f.size().x,
+            f.size().y,
+            window_width / 2,
+            window_height - 2
+        ),
+        Rect::new(
+            f.size().x + window_width / 2,
+            f.size().y,
+            window_width / 2,
+            window_height - 2
         )
     ];
 
     for ruint in uis.widgets.iter() {
+        debug!("Render units handling cycle: {:?}", ruint);
         match ruint {
             render_units::RenderUnit::TUIBlock(block) => {
                 if ! block.is_active { continue; }
                 f.render_widget(block.widget.clone(), rects[block.rect_index]);
+                debug!("Render units handling cycle: handled");
             },
             render_units::RenderUnit::TUIParagraph(paragraph) => {
                 if ! paragraph.is_active { continue; }
                 f.render_widget(paragraph.widget.clone(), rects[paragraph.rect_index]);
+                debug!("Render units handling cycle: handled");
             }
             render_units::RenderUnit::TUIClear(clear) => {
                 if ! clear.is_active { continue; }
                 f.render_widget(clear.widget.clone(), rects[clear.rect_index]);
+                debug!("Render units handling cycle: handled");
             },
             render_units::RenderUnit::TUITable(table) => {
                 if ! table.is_active { continue; }
                 f.render_stateful_widget(table.widget.clone(), rects[table.rect_index], &mut uis.proxy_history_state);
+                debug!("Render units handling cycle: handled");
             },
-            _ => {},
+            _ => {debug!("Render units handling cycle: Skipped")},
         }
     }
 }
