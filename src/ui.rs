@@ -98,7 +98,7 @@ fn run_app<B: Backend>(
             ui_storage.draw_statusbar(&http_storage);
             ui_storage.draw_state(&http_storage);
 
-            if ui_events.table_state_changed { ui_storage.update_table(&http_storage); }
+            if ui_events.table_state_changed { ui_storage.make_table(&http_storage); }
 
             terminal.draw(|f| new_ui(f, &mut ui_storage))?;
 
@@ -136,7 +136,7 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
         Rect::new(
             f.size().x + window_width / 2,
             f.size().y + window_height / 2,
-            window_width / 2,
+            window_width / 2 + 1,
             window_height / 2 - 2
         ),
         Rect::new(

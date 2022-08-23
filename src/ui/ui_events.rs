@@ -1,5 +1,7 @@
+use std::cmp::min;
 use crossterm::event;
 use crossterm::event::{Event, KeyCode};
+use log::debug;
 use crate::http_storage::HTTPStorage;
 use crate::ui::ui_storage::UI;
 
@@ -16,7 +18,7 @@ impl Default for UIEvents {
             something_changed: true,
             table_state_changed: false,
             help_enabled: false,
-            entered_fullscreen: false
+            entered_fullscreen: false,
         }
     }
 }
@@ -36,12 +38,7 @@ impl UIEvents {
             }
             else if let KeyCode::Up = key.code {
                 if ui_storage.is_table_active() {
-                    let index = match ui_storage.proxy_history_state.selected() {
-                        Some(i) => Some(i.saturating_sub(1)),
-                        None => None
-                    };
-
-                    ui_storage.proxy_history_state.select(index);
+                   ui_storage.table_step_up(http_storage);
                     self.table_state_changed = true;
                     self.something_changed = true
                 }
@@ -56,18 +53,7 @@ impl UIEvents {
             }
             else if let KeyCode::Down = key.code {
                 if ui_storage.is_table_active() {
-                    let index = match ui_storage.proxy_history_state.selected() {
-                        Some(i) => Some(
-                            if i == ui_storage.get_table_sliding_window() - 1 {
-                                i
-                            } else {
-                                i + 1
-                            }
-                        ),
-                        None => None
-                    };
-
-                    ui_storage.proxy_history_state.select(index);
+                    ui_storage.table_step_down(http_storage);
                     self.table_state_changed = true;
                     self.something_changed = true
                 }
@@ -93,6 +79,26 @@ impl UIEvents {
                 if ! self.help_enabled {
                     if ui_storage.is_table_active() {
                         ui_storage.table_scroll_page_up(http_storage);
+                        self.something_changed = true;
+                        self.table_state_changed = true;
+                    }
+                }
+            }
+            else if let KeyCode::End = key.code {
+                debug!("process_event: End hit");
+                if ! self.help_enabled {
+                    if ui_storage.is_table_active() {
+                        ui_storage.table_scroll_end(http_storage);
+                        self.something_changed = true;
+                        self.table_state_changed = true;
+                    }
+                }
+            }
+            else if let KeyCode::Home = key.code {
+                debug!("process_event: Home hit");
+                if ! self.help_enabled {
+                    if ui_storage.is_table_active() {
+                        ui_storage.table_scroll_home(http_storage);
                         self.something_changed = true;
                         self.table_state_changed = true;
                     }
