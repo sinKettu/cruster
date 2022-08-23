@@ -176,21 +176,24 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
         match ruint {
             render_units::RenderUnit::TUIBlock(block) => {
                 if ! block.is_active { continue; }
+                f.render_widget(block.clear_widget.clone(), rects[block.rect_index]);
                 f.render_widget(block.widget.clone(), rects[block.rect_index]);
                 debug!("Render units handling cycle: handled");
             },
             render_units::RenderUnit::TUIParagraph(paragraph) => {
                 if ! paragraph.is_active { continue; }
+                f.render_widget(paragraph.clear_widget.clone(), rects[paragraph.rect_index]);
                 f.render_widget(paragraph.widget.clone(), rects[paragraph.rect_index]);
                 debug!("Render units handling cycle: handled");
             }
-            render_units::RenderUnit::TUIClear(clear) => {
-                if ! clear.is_active { continue; }
-                f.render_widget(clear.widget.clone(), rects[clear.rect_index]);
-                debug!("Render units handling cycle: handled");
-            },
+            // render_units::RenderUnit::TUIClear(clear) => {
+            //     if ! clear.is_active { continue; }
+            //     f.render_widget(clear.widget.clone(), rects[clear.rect_index]);
+            //     debug!("Render units handling cycle: handled");
+            // },
             render_units::RenderUnit::TUITable(table) => {
                 if ! table.is_active { continue; }
+                f.render_widget(table.clear_widget.clone(), rects[table.rect_index]);
                 f.render_stateful_widget(table.widget.clone(), rects[table.rect_index], &mut uis.proxy_history_state);
                 debug!("Render units handling cycle: handled");
             },

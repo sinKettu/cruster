@@ -41,11 +41,11 @@ const DEFAULT_RESPONSE_AREA: usize = 2_usize;
 const DEFAULT_STATUSBAR_AREA: usize = 3_usize;
 const DEFAULT_HELP_AREA: usize = 4_usize;
 
-const DEFAULT_PROXY_BLOCK: usize = 1_usize;
-const DEFAULT_REQUEST_BLOCK: usize = 3_usize;
-const DEFAULT_RESPONSE_BLOCK: usize = 5_usize;
-const DEFAULT_STATUSBAR_BLOCK: usize = 7_usize;
-const DEFAULT_HELP_BLOCK: usize = 9_usize;
+const DEFAULT_PROXY_BLOCK: usize = 0_usize;
+const DEFAULT_REQUEST_BLOCK: usize = 1_usize;
+const DEFAULT_RESPONSE_BLOCK: usize = 2_usize;
+const DEFAULT_STATUSBAR_BLOCK: usize = 3_usize;
+const DEFAULT_HELP_BLOCK: usize = 4_usize;
 
 
 pub(crate) struct UI<'ui_lt> {
@@ -135,16 +135,11 @@ impl UI<'static> {
 
         UI {
             widgets: vec![
-                RenderUnit::new_clear(0),
-                RenderUnit::new_block(proxy_history_block, 0, true),
-                RenderUnit::new_clear(1),
-                RenderUnit::new_block(request_block, 1, true),
-                RenderUnit::new_clear(2),
-                RenderUnit::new_block(response_block, 2, true),
-                RenderUnit::new_clear(3),
-                RenderUnit::new_block(statusbar_block, 3, true),
+                RenderUnit::new_block(proxy_history_block, DEFAULT_PROXY_AREA, true),
+                RenderUnit::new_block(request_block, DEFAULT_REQUEST_AREA, true),
+                RenderUnit::new_block(response_block, DEFAULT_RESPONSE_AREA, true),
+                RenderUnit::new_block(statusbar_block, DEFAULT_STATUSBAR_AREA, true),
                 RenderUnit::PLACEHOLDER,
-                RenderUnit::PLACEHOLDER
             ],
 
             proxy_area: DEFAULT_PROXY_AREA,
@@ -170,7 +165,7 @@ impl UI<'static> {
             table_window_size: 60,
             table_step: 5,
 
-            active_widget: 1,        // Table,
+            active_widget: 1,        // Table
             active_widget_header_style: Style::default()
                 .bg(Color::White)
                 .fg(Color::Black),
@@ -395,17 +390,12 @@ impl UI<'static> {
     }
 
     pub(crate) fn show_help(&mut self) {
-        let (clear, help) = make_help_menu(self.help_area);
-        // Make RenderUnit::TUIClear active for help's clear widget
-        self.widgets[self.help_block - 1] = clear;
-
+        let help = make_help_menu(self.help_area);
         // Make RenderUnit::TUIParagraph active for help's paragraph widget
         self.widgets[self.help_block] = help;
     }
 
     pub(crate) fn hide_help(&mut self) {
-        // Just like in show_help()
-        self.widgets[self.help_block - 1] = RenderUnit::PLACEHOLDER;
         self.widgets[self.help_block] = RenderUnit::PLACEHOLDER;
     }
 

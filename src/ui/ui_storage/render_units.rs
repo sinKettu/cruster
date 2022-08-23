@@ -22,6 +22,7 @@ pub(crate) enum RenderUnits {
 #[derive(Clone, Debug)]
 pub(crate) struct BlockRenderUnit<'bru> {
     pub(crate) widget: Block<'bru>,
+    pub(crate) clear_widget: Clear,
     pub(crate) rect_index: usize,
     pub(crate) is_active: bool
 }
@@ -38,6 +39,7 @@ impl<'a> BlockRenderUnit<'a> {
 pub(crate) struct ParagraphRenderUnit<'pru> {
     pub(crate) widget: Paragraph<'pru>,
     pub(crate) rect_index: usize,
+    pub(crate) clear_widget: Clear,
     pub(crate) is_active: bool,
     pub(crate) scroll: (u16, u16)
 }
@@ -53,6 +55,7 @@ impl<'a> ParagraphRenderUnit<'a> {
 #[derive(Clone, Debug)]
 pub(crate) struct TableRenderUnit<'tru> {
     pub(crate) widget: Table<'tru>,
+    pub(crate) clear_widget: Clear,
     pub(crate) rect_index: usize,
     pub(crate) is_active: bool
 }
@@ -94,6 +97,7 @@ impl Default for RenderUnit<'_> {
         RenderUnit::TUIBlock(
             BlockRenderUnit {
                 widget: Block::default(),
+                clear_widget: Clear,
                 rect_index: 0,
                 is_active: true
             }
@@ -103,15 +107,15 @@ impl Default for RenderUnit<'_> {
 
 impl RenderUnit<'_> {
     pub(crate) fn new_block(widget: Block<'_>, rect_index: usize, is_active: bool) -> RenderUnit<'_> {
-        RenderUnit::TUIBlock(BlockRenderUnit { widget, rect_index, is_active })
+        RenderUnit::TUIBlock(BlockRenderUnit { widget, clear_widget: Clear, rect_index, is_active })
     }
 
     pub(crate) fn new_paragraph(widget: Paragraph<'_>, rect_index: usize, is_active: bool, scroll: (u16, u16)) -> RenderUnit<'_> {
-        RenderUnit::TUIParagraph(ParagraphRenderUnit { widget, rect_index, is_active, scroll})
+        RenderUnit::TUIParagraph(ParagraphRenderUnit { widget, clear_widget: Clear, rect_index, is_active, scroll})
     }
 
     pub(crate) fn new_table(widget: Table<'_>, rect_index: usize, is_active: bool) -> RenderUnit<'_> {
-        RenderUnit::TUITable(TableRenderUnit { widget, rect_index, is_active })
+        RenderUnit::TUITable(TableRenderUnit { widget, clear_widget: Clear, rect_index, is_active })
     }
 
     pub(crate) fn new_clear<'ru_lt>(rect_index: usize) -> RenderUnit<'ru_lt> {

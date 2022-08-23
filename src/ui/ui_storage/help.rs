@@ -11,7 +11,7 @@ use tui::{
 
 use super::render_units::*;
 
-pub(super) fn make_help_menu<'help>(rect_index: usize) -> (RenderUnit<'help>, RenderUnit<'help>) {
+pub(super) fn make_help_menu<'help>(rect_index: usize) -> RenderUnit<'help> {
     // abcdefghijklmnopqrstuvwxyz
     let help_text: Vec<Spans> = vec![
         Spans::from(vec![
@@ -81,7 +81,6 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> (RenderUnit<'help>, Re
     let help_paragraph = Paragraph::new(help_text)
         .block(help_block);
 
-    let mut clear = RenderUnit::new_clear(rect_index);
     let help = RenderUnit::new_paragraph(
         help_paragraph,
         rect_index,
@@ -89,5 +88,5 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> (RenderUnit<'help>, Re
         (0, 0)
     );
 
-    return (clear, help);
+    return help;
 }
