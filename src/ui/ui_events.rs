@@ -8,7 +8,7 @@ use crate::ui::ui_storage::UI;
 pub(super) struct UIEvents {
     pub(super) something_changed: bool,
     pub(super) table_state_changed: bool,
-    pub(super) help_enabled: bool,
+    pub(super) popup_enabled: bool,
     pub(super) entered_fullscreen: bool,
 }
 
@@ -17,7 +17,7 @@ impl Default for UIEvents {
         UIEvents {
             something_changed: true,
             table_state_changed: false,
-            help_enabled: false,
+            popup_enabled: false,
             entered_fullscreen: false,
         }
     }
@@ -27,10 +27,12 @@ impl UIEvents {
     pub(super) fn process_event(&mut self, ui_storage: & mut UI<'static>, http_storage: &mut HTTPStorage) -> bool {
         if let Event::Key(key) = event::read().unwrap() {
             if let KeyCode::Char('q') = key.code {
-                if self.help_enabled {
+                if self.popup_enabled {
+                    // TODO make in a beautiful way
                     ui_storage.hide_help();
+                    ui_storage.hide_errors();
                     self.something_changed = true;
-                    self.help_enabled = false;
+                    self.popup_enabled = false;
                 }
                 else {
                     return true;
@@ -67,7 +69,7 @@ impl UIEvents {
                 }
             }
             else if let KeyCode::PageDown = key.code {
-                if !self.help_enabled {
+                if !self.popup_enabled {
                     if ui_storage.is_table_active() {
                         ui_storage.table_scroll_page_down(http_storage);
                         self.something_changed = true;
@@ -76,7 +78,7 @@ impl UIEvents {
                 }
             }
             else if let KeyCode::PageUp = key.code {
-                if ! self.help_enabled {
+                if ! self.popup_enabled {
                     if ui_storage.is_table_active() {
                         ui_storage.table_scroll_page_up(http_storage);
                         self.something_changed = true;
@@ -86,7 +88,7 @@ impl UIEvents {
             }
             else if let KeyCode::End = key.code {
                 debug!("process_event: End hit");
-                if ! self.help_enabled {
+                if ! self.popup_enabled {
                     if ui_storage.is_table_active() {
                         ui_storage.table_scroll_end(http_storage);
                         self.something_changed = true;
@@ -96,7 +98,7 @@ impl UIEvents {
             }
             else if let KeyCode::Home = key.code {
                 debug!("process_event: Home hit");
-                if ! self.help_enabled {
+                if ! self.popup_enabled {
                     if ui_storage.is_table_active() {
                         ui_storage.table_scroll_home(http_storage);
                         self.something_changed = true;
@@ -105,12 +107,21 @@ impl UIEvents {
                 }
             }
             else if let KeyCode::Char('?') = key.code {
-                ui_storage.show_help();
-                self.help_enabled = true;
-                self.something_changed = true;
+                if ! self.popup_enabled {
+                    ui_storage.show_help();
+                    self.popup_enabled = true;
+                    self.something_changed = true;
+                }
+            }
+            else if let KeyCode::Char('e') = key.code {
+                if ! self.popup_enabled {
+                    ui_storage.show_errors();
+                    self.popup_enabled = true;
+                    self.something_changed = true;
+                }
             }
             else if let KeyCode::Char('r') = key.code {
-                if ! self.help_enabled {
+                if ! self.popup_enabled {
                     if self.entered_fullscreen { ui_storage.cancel_fullscreen() }
                     ui_storage.activate_request();
                     self.something_changed = true;
@@ -119,7 +130,7 @@ impl UIEvents {
                 }
             }
             else if let KeyCode::Char('s') = key.code {
-                if ! self.help_enabled {
+                if ! self.popup_enabled {
                     if self.entered_fullscreen { ui_storage.cancel_fullscreen() }
                     ui_storage.activate_response();
                     self.something_changed = true;
@@ -128,7 +139,7 @@ impl UIEvents {
                 }
             }
             else if let KeyCode::Char('p') = key.code {
-                if ! self.help_enabled {
+                if ! self.popup_enabled {
                     if self.entered_fullscreen { ui_storage.cancel_fullscreen() }
                     ui_storage.activate_proxy();
                     self.something_changed = true;
@@ -137,7 +148,7 @@ impl UIEvents {
                 }
             }
             else if let KeyCode::Char('f') = key.code {
-                if ! self.help_enabled {
+                if ! self.popup_enabled {
                     if self.entered_fullscreen {
                         ui_storage.cancel_fullscreen();
                         self.something_changed = true;

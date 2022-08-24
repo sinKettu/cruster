@@ -34,18 +34,21 @@ use tui::{
     // Frame,
     self
 };
+use crate::CrusterError;
 
 const DEFAULT_PROXY_AREA: usize = 0_usize;
 const DEFAULT_REQUEST_AREA: usize = 1_usize;
 const DEFAULT_RESPONSE_AREA: usize = 2_usize;
 const DEFAULT_STATUSBAR_AREA: usize = 3_usize;
 const DEFAULT_HELP_AREA: usize = 4_usize;
+const DEFAULT_ERRORS_AREA: usize = 4_usize;
 
 const DEFAULT_PROXY_BLOCK: usize = 0_usize;
 const DEFAULT_REQUEST_BLOCK: usize = 1_usize;
 const DEFAULT_RESPONSE_BLOCK: usize = 2_usize;
 const DEFAULT_STATUSBAR_BLOCK: usize = 3_usize;
 const DEFAULT_HELP_BLOCK: usize = 4_usize;
+const DEFAULT_ERRORS_BLOCK: usize = 5_usize;
 
 
 pub(crate) struct UI<'ui_lt> {
@@ -55,6 +58,9 @@ pub(crate) struct UI<'ui_lt> {
     // 3 - Rect for statusbar
     // 4 - Rect for help menu
     pub(crate) widgets: Vec<RenderUnit<'ui_lt>>,
+
+    // List of error messages
+    errors: Vec<Spans<'ui_lt>>,
 
     // Position of block with proxy history in rectangles array (see ui/cruster_proxy:new:ui)
     proxy_area: usize,
@@ -68,8 +74,11 @@ pub(crate) struct UI<'ui_lt> {
     // Statusbar area index,
     statusbar_area: usize,
 
-    // Position of block for help message in rectangles array
+    // Position of area for help message in rectangles array
     help_area: usize,
+
+    // Position of area for errors list in rectangles array
+    errors_area: usize,
 
     // State of table with proxy history
     pub(crate) proxy_history_state: TableState,
@@ -88,6 +97,9 @@ pub(crate) struct UI<'ui_lt> {
 
     // Index of help menu in vector above
     help_block: usize,
+
+    // Index of errors block in vector above
+    errors_block: usize,
 
     // Index of request/response in HTTPStorage.ui_storage which is current table's first element
     table_start_index: usize,
@@ -140,13 +152,17 @@ impl UI<'static> {
                 RenderUnit::new_block(response_block, DEFAULT_RESPONSE_AREA, true),
                 RenderUnit::new_block(statusbar_block, DEFAULT_STATUSBAR_AREA, true),
                 RenderUnit::PLACEHOLDER,
+                RenderUnit::PLACEHOLDER,
             ],
+
+            errors: Vec::new(),
 
             proxy_area: DEFAULT_PROXY_AREA,
             request_area: DEFAULT_REQUEST_AREA,
             response_area: DEFAULT_RESPONSE_AREA,
             statusbar_area: DEFAULT_STATUSBAR_AREA,
             help_area: DEFAULT_HELP_AREA,
+            errors_area: DEFAULT_ERRORS_AREA,
 
             proxy_history_state: {
                 let mut table_state = TableState::default();
@@ -159,6 +175,7 @@ impl UI<'static> {
             response_block: DEFAULT_RESPONSE_BLOCK,
             statusbar_block: DEFAULT_STATUSBAR_BLOCK,
             help_block: DEFAULT_HELP_BLOCK,
+            errors_block: DEFAULT_ERRORS_BLOCK,
 
             table_start_index: 0,
             table_end_index: 59,
@@ -369,13 +386,24 @@ impl UI<'static> {
         let status_paragraph = Paragraph::new(vec![
             Spans::from(vec![
                 Span::styled("Errors: ", Style::default().add_modifier(Modifier::BOLD)),
-                // TODO: make it real later
-                Span::from("0".to_string()),
+                Span::styled(
+                    self.errors.len().to_string(),
+                    Style::default()
+                        .fg(Color::LightRed)
+                        .add_modifier(Modifier::BOLD)
+                ),
                 Span::from(" | "),
                 Span::styled("Requests: ", Style::default().add_modifier(Modifier::BOLD)),
                 Span::from(storage.len().to_string()),
                 Span::from(" | "),
-                Span::from("Type '?' for help")
+                Span::from("Type '"),
+                Span::styled(
+                    "?",
+                    Style::default()
+                        .fg(Color::LightGreen)
+                        .add_modifier(Modifier::BOLD)
+                ),
+                Span::from("' for help"),
             ])
         ])
             .block(status_block)
@@ -395,6 +423,40 @@ impl UI<'static> {
 
     pub(crate) fn hide_help(&mut self) {
         self.widgets[self.help_block] = RenderUnit::PLACEHOLDER;
+    }
+
+    pub(crate) fn show_errors(&mut self) {
+        let errors = Paragraph::new(self.errors.clone())
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .title(
+                        Span::styled(
+                            " ERRORS ",
+                            Style::default()
+                                .bg(Color::Red)
+                                .fg(Color::Black)))
+
+                    .title_alignment(Alignment::Center)
+                    .borders(Borders::ALL)
+            );
+
+        self.widgets[self.errors_block] = RenderUnit::new_paragraph(
+            errors,
+            self.errors_area,
+            true,
+            (0, 0)
+        );
+    }
+
+    pub(crate) fn hide_errors(&mut self) {
+        self.widgets[self.errors_block] = RenderUnit::PLACEHOLDER;
+    }
+
+    pub(crate) fn log_error(&mut self, error: CrusterError) {
+        self.errors.push(
+            Spans::from(vec![Span::from(error.to_string())])
+        )
     }
 
     pub(super) fn make_table(&mut self, storage: &HTTPStorage) {

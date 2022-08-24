@@ -3,6 +3,9 @@ use hudsucker::{
     hyper::{Body, Request, Response, self},
 };
 use log::debug;
+use tokio::sync::mpsc::Sender;
+use crate::CrusterError;
+
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -14,7 +17,7 @@ pub(crate) struct HyperRequestWrapper {
 }
 
 impl HyperRequestWrapper {
-    pub(crate) async fn from_hyper(req: Request<Body>) -> (Self, Request<Body>) {
+    pub(crate) async fn from_hyper(req: Request<Body>) -> Result<(Self, Request<Body>), CrusterError> {
         // TODO сделать через parts
         let (parts, body) = req.into_parts();
         let uri = parts.uri.clone().to_string();
@@ -34,12 +37,9 @@ impl HyperRequestWrapper {
         let body = match hyper::body::to_bytes(body).await {
             Ok(body_bytes) => body_bytes,
             Err(e) => {
-                debug!("- CRUSTER - Could not read request body for '{} {}', reason: {:?}", &method, &uri, e);
-                // This is not the best way to do it
-                hyper::body::Bytes::new()
+                return Err(CrusterError::from(e));
             }
         };
-
 
         let reconstructed_request = Request::from_parts(parts, Body::from(body.clone()));
         let request_wrapper = HyperRequestWrapper {
@@ -50,7 +50,7 @@ impl HyperRequestWrapper {
             body: body.to_vec()
         };
 
-        return (request_wrapper, reconstructed_request);
+        return Ok((request_wrapper, reconstructed_request));
     }
 }
 
@@ -73,7 +73,10 @@ pub(crate) struct HyperResponseWrapper {
 }
 
 impl HyperResponseWrapper {
-    pub(crate) async fn from_hyper(rsp: Response<Body>) -> (Self, Response<Body>) {
+    pub(crate) async fn from_hyper(
+            rsp: Response<Body>,
+            err_pipe: Option<& Sender<CrusterError>>) -> Result<(Self, Response<Body>), CrusterError> {
+
         let (rsp_parts, rsp_body) = rsp.into_parts();
         let status = rsp_parts.status.clone().to_string();
 
@@ -100,18 +103,21 @@ impl HyperResponseWrapper {
                             body_compressed = BodyCompressedWith::DEFLATE;
                         }
                     },
-                    Err(_e) => { () }
+                    Err(e) => {
+                        if let Some(err_tx) = err_pipe {
+                            let err_send_result = err_tx.send(e.into()).await;
+                            if let Err(send_err) = err_send_result {
+                                panic!("Cannot send error message to UI thread: {}", send_err.to_string());
+                            }
+                        }
+                    }
                 }
             }
         }
 
         let body = match hyper::body::to_bytes(rsp_body).await {
             Ok(body_bytes) => body_bytes,
-            Err(e) => {
-                debug!("- CRUSTER - Could not read response body, reason: {:?}", e);
-                // This is not the best way to do it
-                hyper::body::Bytes::new()
-            }
+            Err(e) => return Err(e.into())
         };
 
         let reconstructed_body = Body::from(body.clone());
@@ -124,7 +130,7 @@ impl HyperResponseWrapper {
             body_compressed
         };
 
-        return (response_wrapper, reconstructed_response);
+        return Ok((response_wrapper, reconstructed_response));
     }
 }
 

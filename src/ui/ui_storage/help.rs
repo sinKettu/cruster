@@ -32,6 +32,14 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> RenderUnit<'help> {
         ]),
         Spans::from(vec![
             Span::styled(
+                "e",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Show error log")
+        ]),
+        Spans::from(vec![
+            Span::styled(
                 "f",
                 Style::default()
                     .fg(Color::Green)
@@ -73,7 +81,11 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> RenderUnit<'help> {
     ];
 
     let help_block = Block::default()
-        .title("HELP")
+        .title(Span::styled(
+            " HELP ",
+            Style::default()
+                .bg(Color::LightGreen)
+                .fg(Color::Black)))
         .title_alignment(Alignment::Center)
         // .style(Style::default().fg(Color::Green))
         .borders(Borders::ALL);

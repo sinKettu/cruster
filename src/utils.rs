@@ -10,13 +10,16 @@ use std::{
     net::AddrParseError,
     fs
 };
+use std::fmt::format;
 use rcgen::{Certificate, CertificateParams, self, KeyPair, IsCa, BasicConstraints};
 use serde_yaml;
 // use std::time::macros::datetime;
 use time::OffsetDateTime;
 use time::macros::datetime;
+use tokio::sync::mpsc::error::{SendError as tokio_SendError, TryRecvError};
+use crate::CrusterWrapper;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
     IOError(String),
     OpenSSLError(String),
@@ -26,7 +29,11 @@ pub(crate) enum CrusterError {
     ParseAddressError(String),
     // RenderUnitCastError(String),
     UndefinedError(String),
-    NotParagraphRenderUnit(String)
+    NotParagraphRenderUnit(String),
+    SendError(String),
+    HyperBodyParseError(String),
+    HeaderToStringError(String),
+    TryRecvError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -57,6 +64,14 @@ impl From<ParseIntError> for CrusterError {
     }
 }
 
+impl From<http::header::ToStrError> for CrusterError {
+    fn from(e: http::header::ToStrError) -> Self {
+        Self::HeaderToStringError(
+            format!("Unable to parse header value into string: {}", e.to_string())
+        )
+    }
+}
+
 impl From<AddrParseError> for CrusterError {
     fn from(e: AddrParseError) -> Self { Self::ParseAddressError(e.to_string()) }
 }
@@ -65,6 +80,30 @@ impl From<serde_yaml::Error> for CrusterError {
     fn from(e: serde_yaml::Error) -> Self {
         Self::ConfigError(
             format!("Unable to serialize/deserialize YAML data: {}", e.to_string())
+        )
+    }
+}
+
+impl From<tokio_SendError<(CrusterWrapper, usize)>> for CrusterError {
+    fn from(e: tokio_SendError<(CrusterWrapper, usize)>) -> Self {
+        Self::SendError(
+            format!("Unable communicate with other thread: {}", e.to_string())
+        )
+    }
+}
+
+impl From<hyper::Error> for CrusterError {
+    fn from(e: hyper::Error) -> Self {
+        Self::HyperBodyParseError(
+            format!("Unable to parse hyper body: {}", e.to_string())
+        )
+    }
+}
+
+impl From<TryRecvError> for CrusterError {
+    fn from(e: TryRecvError) -> Self {
+        Self::TryRecvError(
+            format!("Could not receive http message from proxy: {}", e.to_string())
         )
     }
 }
@@ -78,7 +117,7 @@ impl fmt::Display for CrusterError {
                        "Enter '-h' for help."
                 )
             },
-            _ => { write!(f, "{}", self) }
+            _ => { write!(f, "{:?}", self) }
         }
     }
 }

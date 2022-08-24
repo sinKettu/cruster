@@ -28,11 +28,14 @@ use crossterm::{
 };
 use log::debug;
 use tui::widgets::Widget;
+use crate::CrusterError;
 use crate::ui::ui_events::UIEvents;
 
 // https://docs.rs/tui/latest/tui/widgets/index.html
 
-pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, usize)>) -> Result<(), io::Error> {
+pub(crate) fn render(
+        ui_rx: Receiver<(CrusterWrapper, usize)>,
+        err_rx: Receiver<CrusterError>) -> Result<(), io::Error> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -41,24 +44,36 @@ pub(crate) fn render(ui_rx: Receiver<(CrusterWrapper, usize)>) -> Result<(), io:
     let tick_rate = Duration::from_millis(0);
     let mut terminal = Terminal::new(backend)?;
 
-    run_app(&mut terminal, tick_rate, ui_rx)?;
-
-    // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    Ok(())
+    return match run_app(&mut terminal, tick_rate, ui_rx, err_rx) {
+        Ok(_) => {
+            // restore terminal
+            disable_raw_mode()?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
+            terminal.show_cursor()?;
+            Ok(())
+        },
+        Err(err) => {
+            disable_raw_mode()?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
+            terminal.show_cursor()?;
+            Err(err.into())
+        }
+    }
 }
 
 fn run_app<B: Backend>(
                     terminal: &mut Terminal<B>,
                     tick_rate: Duration,
-                    mut ui_rx: Receiver<(CrusterWrapper, usize)>
+                    mut ui_rx: Receiver<(CrusterWrapper, usize)>,
+                    mut err_rx: Receiver<CrusterError>,
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
 
@@ -76,7 +91,7 @@ fn run_app<B: Backend>(
                 ui_events.something_changed = true;
                 ui_events.table_state_changed = true;
             },
-            Err(_) => {
+            Err(recv_err) => {
                 // something_changed = true;
             }
         }
@@ -186,11 +201,11 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
                 f.render_widget(paragraph.widget.clone(), rects[paragraph.rect_index]);
                 debug!("Render units handling cycle: handled");
             }
-            // render_units::RenderUnit::TUIClear(clear) => {
-            //     if ! clear.is_active { continue; }
-            //     f.render_widget(clear.widget.clone(), rects[clear.rect_index]);
-            //     debug!("Render units handling cycle: handled");
-            // },
+            render_units::RenderUnit::TUIClear(clear) => {
+                if ! clear.is_active { continue; }
+                f.render_widget(clear.widget.clone(), rects[clear.rect_index]);
+                debug!("Render units handling cycle: handled");
+            },
             render_units::RenderUnit::TUITable(table) => {
                 if ! table.is_active { continue; }
                 f.render_widget(table.clear_widget.clone(), rects[table.rect_index]);
