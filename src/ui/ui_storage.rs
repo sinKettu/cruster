@@ -165,7 +165,7 @@ impl UI<'static> {
             table_window_size: 60,
             table_step: 5,
 
-            active_widget: 1,        // Table
+            active_widget: DEFAULT_PROXY_BLOCK,        // Table
             active_widget_header_style: Style::default()
                 .bg(Color::White)
                 .fg(Color::Black),
@@ -390,9 +390,7 @@ impl UI<'static> {
     }
 
     pub(crate) fn show_help(&mut self) {
-        let help = make_help_menu(self.help_area);
-        // Make RenderUnit::TUIParagraph active for help's paragraph widget
-        self.widgets[self.help_block] = help;
+        self.widgets[self.help_block] = make_help_menu(self.help_area);
     }
 
     pub(crate) fn hide_help(&mut self) {
@@ -546,7 +544,7 @@ impl UI<'static> {
         let show_routine = |active_widget_index: usize, widgets: &mut Vec<RenderUnit>| {
             for i in 0..widgets.len() {
                 // Handling widget and it's clear block
-                if i == active_widget_index || (i + 1) == active_widget_index {
+                if i == active_widget_index {
                     widgets[i].set_rect_index(5);
                     widgets[i].enable();
                 }
@@ -576,7 +574,7 @@ impl UI<'static> {
         let cancel_routine = |active_widget_index: usize, new_area_index: usize, widgets: &mut Vec<RenderUnit>| {
             for i in 0..widgets.len() {
                 // Handling widget and it's clear block
-                if i == active_widget_index || (i + 1) == active_widget_index {
+                if i == active_widget_index {
                     widgets[i].set_rect_index(new_area_index);
                 }
                 widgets[i].enable();
