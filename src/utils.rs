@@ -34,6 +34,8 @@ pub(crate) enum CrusterError {
     HyperBodyParseError(String),
     HeaderToStringError(String),
     TryRecvError(String),
+    UnknownResponseBodyEncoding(String),
+    NotImplementedError(String),
 }
 
 impl From<io::Error> for CrusterError {

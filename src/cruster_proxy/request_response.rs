@@ -1,3 +1,4 @@
+use std::fmt::format;
 use http::HeaderMap;
 use hudsucker::{
     hyper::{Body, Request, Response, self},
@@ -60,6 +61,7 @@ impl HyperRequestWrapper {
 pub(crate) enum BodyCompressedWith {
     GZIP,
     DEFLATE,
+    BR,
     NONE
 }
 
@@ -99,8 +101,24 @@ impl HyperResponseWrapper {
                     Ok(s) => {
                         if s.contains("gzip") {
                             body_compressed = BodyCompressedWith::GZIP;
-                        } else if s.contains("deflate") {
+                        }
+                        else if s.contains("deflate") {
                             body_compressed = BodyCompressedWith::DEFLATE;
+                        }
+                        else if s.contains("br") {
+                            body_compressed = BodyCompressedWith::BR;
+                        }
+                        else {
+                            if let Some(err_tx) = err_pipe {
+                                let err_send_result = err_tx
+                                    .send(CrusterError::UnknownResponseBodyEncoding(
+                                        format!("Found unknown encoding for response body: {}", s))
+                                    )
+                                    .await;
+                                if let Err(send_err) = err_send_result {
+                                    panic!("Cannot send error about encoding to UI: {}", send_err.to_string());
+                                }
+                            }
                         }
                     },
                     Err(e) => {

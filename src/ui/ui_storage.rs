@@ -320,8 +320,11 @@ impl UI<'static> {
         };
 
         let response: String = format!(
+            // template
             "{} {}\n{}\n{}",
+            // Status and version, like '200 OK HTTP/2'
             response.status, response.version,
+            // headers
             {
                 let mut headers_string: String = "".to_string();
                 for (k, v) in response.headers.iter() {
@@ -332,15 +335,34 @@ impl UI<'static> {
                 }
                 headers_string
             },
+            // body
             match response.body_compressed {
-                BodyCompressedWith::NONE => String::from_utf8_lossy(response.body.as_slice()).to_string(),
+                BodyCompressedWith::NONE => {
+                    match response.body.as_slice().to_str() {
+                        Ok(s) => s.to_string(),
+                        Err(e) => {
+                            self.log_error(
+                                CrusterError::UndefinedError(
+                                    "Could not parse response body to string".to_string()
+                                )
+                            );
+                            String::from_utf8_lossy(response.body.as_slice()).to_string()
+                        }
+                    }
+                },
                 BodyCompressedWith::GZIP => {
                     let writer = Vec::new();
                     let mut decoder = GzDecoder::new(writer);
                     decoder.write_all(response.body.as_slice()).unwrap();
                     decoder.finish().unwrap().to_str_lossy().to_string()
+                },
+                BodyCompressedWith::DEFLATE => { todo!() },
+                BodyCompressedWith::BR => {
+                    // TODO: remove err when will support 'br'
+                    let result = "'Brotli' encoding is not implemented yet".to_string();
+                    self.log_error(CrusterError::NotImplementedError(result.clone()));
+                    result
                 }
-                BodyCompressedWith::DEFLATE => { todo!() }
             }
         );
 
