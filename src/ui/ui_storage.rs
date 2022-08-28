@@ -525,9 +525,11 @@ impl UI<'static> {
         let storage_len = storage.len();
         match self.proxy_history_state.selected() {
             Some(i) => {
+                let initial_index = i;
                 if storage_len < window && i == storage_len - 1 {
                     self.proxy_history_state.select(
-                        Some(storage_len.saturating_sub(1)));
+                        Some(storage_len.saturating_sub(1))
+                    );
                 }
                 else if i == window - 1 && end >= storage_len - 1 {
                     self.table_end_index = storage_len.saturating_sub(1);
@@ -540,6 +542,10 @@ impl UI<'static> {
                 }
                 else {
                     self.proxy_history_state.select(Some(i + 1));
+                }
+                let final_index = self.proxy_history_state.selected().unwrap();
+                if final_index != initial_index {
+                    self.reset_scrolling();
                 }
             },
             None => {
@@ -558,6 +564,7 @@ impl UI<'static> {
         let storage_len = storage.len();
         match self.proxy_history_state.selected() {
             Some(i) => {
+                let initial_index = i;
                 if i == 0 && start == 0 {
                     self.table_end_index = window - 1;
                 }
@@ -567,6 +574,10 @@ impl UI<'static> {
                 }
                 else {
                     self.proxy_history_state.select(Some(i.saturating_sub(1)));
+                }
+                let final_index = self.proxy_history_state.selected().unwrap();
+                if initial_index != final_index {
+                    self.reset_scrolling();
                 }
             },
             None => {
@@ -734,6 +745,7 @@ impl UI<'static> {
         self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
         let new_state = min(self.table_window_size, storage.len()).saturating_sub(1);
         self.proxy_history_state.select(Some(new_state));
+        self.reset_scrolling();
 
         debug!(
             "table_scroll_end_2: storage_len - {}, end_index -  {}, selected - {:?}",
@@ -756,12 +768,25 @@ impl UI<'static> {
         self.table_start_index = 0;
         self.table_end_index = self.table_window_size - 1;
         self.proxy_history_state.select(Some(0));
+        self.reset_scrolling();
 
         debug!(
             "table_scroll_home_2: storage_len - {}, end_index -  {}, selected - {:?}",
             storage.len(),
             self.table_end_index,
             self.proxy_history_state.selected());
+    }
+
+    fn reset_scrolling(&mut self) {
+        match self.widgets[self.response_block].paragraph_reset_scroll() {
+            Ok(_) => {},
+            Err(e) => self.log_error(e)
+        }
+
+        match self.widgets[self.request_block].paragraph_reset_scroll() {
+            Ok(_) => {},
+            Err(e) => self.log_error(e)
+        }
     }
 }
 

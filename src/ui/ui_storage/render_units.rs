@@ -177,4 +177,8 @@ impl RenderUnit<'_> {
 
         Ok(())
     }
+
+    pub(crate) fn paragraph_reset_scroll(&mut self) -> Result<(), CrusterError> {
+        self.paragraph_set_scroll((0, 0))
+    }
 }
