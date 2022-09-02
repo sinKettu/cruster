@@ -13,7 +13,7 @@ use std::{
     cmp::min,
     collections::HashMap
 };
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::cmp::max;
 use std::os::macos::raw::stat;
 use log::debug;
@@ -319,33 +319,43 @@ impl UI<'static> {
             }
         };
 
-        let response: String = format!(
-            // template
-            "{} {}\n{}\n{}",
-            // Status and version, like '200 OK HTTP/2'
-            response.status, response.version,
-            // headers
-            {
-                let mut headers_string: String = "".to_string();
-                for (k, v) in response.headers.iter() {
-                    headers_string.push_str(k.as_str());
-                    headers_string.push_str(": ");
-                    headers_string.push_str(v.to_str().unwrap());
-                    headers_string.push_str("\n");
-                }
-                headers_string
-            },
-            // body
+        let mut response_content: Vec<Spans> = vec![];
+        // Status and version, like '200 OK HTTP/2'
+        let first_line = Spans::from(vec![
+            Span::styled(
+                response.status.clone(),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
+            ),
+            Span::from(" "),
+            Span::from(response.version.clone())
+        ]);
+        response_content.push(first_line);
+
+        // Response Headers
+        for (k, v) in &response.headers {
+            let header_line = Spans::from(vec![
+                Span::styled(
+                    k.clone().to_string(),
+                    Style::default().fg(Color::Yellow)
+                ),
+                Span::from(": "),
+                Span::from(v.clone().to_str().unwrap().to_string())
+            ]);
+            response_content.push(header_line)
+        }
+
+        // Empty line
+        response_content.push(Spans::default());
+
+        // Body
+        let body = Spans::from(
             match response.body_compressed {
                 BodyCompressedWith::NONE => {
                     match response.body.as_slice().to_str() {
                         Ok(s) => s.to_string(),
                         Err(e) => {
-                            self.log_error(
-                                CrusterError::UndefinedError(
-                                    "Could not parse response body to string".to_string()
-                                )
-                            );
                             String::from_utf8_lossy(response.body.as_slice()).to_string()
                         }
                     }
@@ -356,15 +366,17 @@ impl UI<'static> {
                     decoder.write_all(response.body.as_slice()).unwrap();
                     decoder.finish().unwrap().to_str_lossy().to_string()
                 },
-                BodyCompressedWith::DEFLATE => { todo!() },
+                BodyCompressedWith::DEFLATE => {
+                    todo!()
+                },
                 BodyCompressedWith::BR => {
                     // TODO: remove err when will support 'br'
                     let result = "'Brotli' encoding is not implemented yet".to_string();
                     self.log_error(CrusterError::NotImplementedError(result.clone()));
                     result
                 }
-            }
-        );
+        });
+        response_content.push(body);
 
         let new_block = Block::default()
             .title(Span::styled("RESPONSE", header_style))
@@ -372,7 +384,7 @@ impl UI<'static> {
             .borders(Borders::ALL);
 
         let scroll = self.widgets[self.response_block].paragraph_get_scroll().unwrap_or((0, 0));
-        let response_paragraph = Paragraph::new(response)
+        let response_paragraph = Paragraph::new(response_content)
             .block(new_block)
             .wrap(Wrap { trim: false })
             .scroll(scroll);
@@ -477,7 +489,10 @@ impl UI<'static> {
 
     pub(crate) fn log_error(&mut self, error: CrusterError) {
         self.errors.push(
-            Spans::from(vec![Span::from(error.to_string())])
+            Spans::from(vec![
+                Span::styled("[ERROR] ", Style::default().fg(Color::Red)),
+                Span::from(error.to_string())
+            ])
         )
     }
 

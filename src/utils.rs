@@ -119,6 +119,15 @@ impl fmt::Display for CrusterError {
                        "Enter '-h' for help."
                 )
             },
+            CrusterError::UndefinedError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::NotImplementedError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::UnknownResponseBodyEncoding(s) => {
+                write!(f, "{}", s)
+            }
             _ => { write!(f, "{:?}", self) }
         }
     }
