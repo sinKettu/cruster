@@ -82,6 +82,13 @@ fn run_app<B: Backend>(
     let mut http_storage = HTTPStorage::default();
 
     loop {
+        match err_rx.try_recv() {
+            Ok(error) => {
+                ui_storage.log_error(error);
+            }
+            Err(_) => {}
+        }
+
         match ui_rx.try_recv() {
             Ok((wrapper, ctx)) => {
                 match wrapper {
@@ -91,7 +98,7 @@ fn run_app<B: Backend>(
                 ui_events.something_changed = true;
                 ui_events.table_state_changed = true;
             },
-            Err(recv_err) => {
+            Err(_) => {
                 // something_changed = true;
             }
         }
@@ -113,8 +120,9 @@ fn run_app<B: Backend>(
             ui_storage.draw_statusbar(&http_storage);
             ui_storage.draw_state(&http_storage);
 
-            if ui_events.table_state_changed { ui_storage.make_table(&http_storage); }
+            if ui_events.table_state_changed { ui_storage.make_table(&http_storage, terminal.get_frame().size()); }
 
+            terminal.
             terminal.draw(|f| new_ui(f, &mut ui_storage))?;
 
             ui_events.something_changed = false;

@@ -34,6 +34,7 @@ use tui::{
     // Frame,
     self
 };
+use tui::layout::Rect;
 use crate::CrusterError;
 
 const DEFAULT_PROXY_AREA: usize = 0_usize;
@@ -488,10 +489,12 @@ impl UI<'static> {
         )
     }
 
-    pub(super) fn make_table(&mut self, storage: &HTTPStorage) {
+    pub(super) fn make_table(&mut self, storage: &HTTPStorage, size: Rect) {
         if storage.len() == 0 {
             return
         }
+
+        debug!("Making table with width {} and height {}", size.width, size.height);
 
         let mut rows: Vec<Row> = Vec::new();
         for (index, pair) in storage.storage
@@ -536,15 +539,27 @@ impl UI<'static> {
         };
 
         let proxy_history_table = Table::new(rows)
-            .header(Row::new(vec!["№", "Method", "Host", "Path", "Code", "Rsp Length"]))
+            .header(Row::new(vec!["№", "Method", "Host", "Path", "Code", "Length"]))
             .style(Style::default().fg(Color::White))
             .widths(&[
-                Constraint::Length(5),
-                Constraint::Length(8),
-                Constraint::Length(32),
-                Constraint::Length(16 * 6 + 1),
-                Constraint::Length(16),
-                Constraint::Length(10)
+                // Index
+                Constraint::Percentage(5),
+                // Constraint::Length(size.width / 20),
+                // Method
+                Constraint::Percentage(5),
+                // Constraint::Length(size.width / 20),
+                // Host
+                Constraint::Percentage(10),
+                // Constraint::Length(size.width / 10),
+                // Path
+                Constraint::Percentage(60),
+                // Constraint::Length(size.width / 20 * 13 + size.width % 20),
+                // Status Code
+                Constraint::Percentage(10),
+                // Constraint::Length(size.width / 10),
+                // Length
+                Constraint::Percentage(5)
+                // Constraint::Length(size.width / 20)
             ])
             .highlight_style(
                 Style::default()
