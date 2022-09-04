@@ -122,7 +122,6 @@ fn run_app<B: Backend>(
 
             if ui_events.table_state_changed { ui_storage.make_table(&http_storage, terminal.get_frame().size()); }
 
-            terminal.
             terminal.draw(|f| new_ui(f, &mut ui_storage))?;
 
             ui_events.something_changed = false;
