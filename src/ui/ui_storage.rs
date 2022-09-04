@@ -397,16 +397,10 @@ impl UI<'static> {
     }
 
     pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
-        if storage.len() == 0 { return; }
-
-        // if let None = self.proxy_history_state.selected() {
-        //     if storage.storage.len() > 0 {
-        //         self.proxy_history_state.select(Some(0));
-        //     }
-        // }
-
-        self.draw_request(storage);
-        self.draw_response(storage);
+        if storage.len() > 0 {
+            self.draw_request(storage);
+            self.draw_response(storage);
+        }
     }
 
     pub(crate) fn draw_statusbar(&mut self, storage: &HTTPStorage) {
@@ -507,13 +501,29 @@ impl UI<'static> {
             .enumerate()
         {
             let request = pair.request.as_ref().unwrap();
-            let response = pair.response.as_ref();
+
+            let (code, length) = match pair.response.as_ref() {
+                Some(response) => {
+                    (response.status.clone(), response.get_length())
+                }
+                None => {
+                    ("".to_string(), "".to_string())
+                }
+            };
+
             let row = vec![
+                // Number of record in table
                 (index + self.table_start_index + 1).to_string(),
+                // Method
                 request.method.clone(),
-                request.uri.clone(),
-                if let Some(rsp) = response {rsp.status.clone()} else {"".to_string()},
-                "TODO".to_string()
+                // Host
+                request.get_host(),
+                // Path
+                request.get_request_path(),
+                // HTTP Status Code
+                code,
+                // Response Body Length
+                length
             ];
             rows.push(Row::new(row));
         }
@@ -526,14 +536,15 @@ impl UI<'static> {
         };
 
         let proxy_history_table = Table::new(rows)
-            .header(Row::new(vec!["№", "Method", "URL", "Response Code", "Address"]))
+            .header(Row::new(vec!["№", "Method", "Host", "Path", "Code", "Rsp Length"]))
             .style(Style::default().fg(Color::White))
             .widths(&[
-                Constraint::Length(6),
+                Constraint::Length(5),
                 Constraint::Length(8),
-                Constraint::Length(16 * 6 + 27),
+                Constraint::Length(32),
+                Constraint::Length(16 * 6 + 1),
                 Constraint::Length(16),
-                Constraint::Length(16)
+                Constraint::Length(10)
             ])
             .highlight_style(
                 Style::default()

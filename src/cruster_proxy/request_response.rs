@@ -61,6 +61,26 @@ impl HyperRequestWrapper {
             .collect::<Vec<&str>>();
         format!("/{}", path_list.join("/"))
     }
+
+    pub(crate) fn get_host(&self) -> String {
+        match self.headers.get("Host") {
+            Some(h) => {
+                h
+                    .clone()
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            },
+            None => {
+                self.uri
+                    .split("/")
+                    .skip(2)
+                    .take(1)
+                    .collect::<Vec<&str>>()[0]
+                    .to_string()
+            }
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------------------------//
@@ -157,6 +177,20 @@ impl HyperResponseWrapper {
         };
 
         return Ok((response_wrapper, reconstructed_response));
+    }
+
+    pub(crate) fn get_length(&self) -> String {
+        match self.headers.get("Content-Length") {
+            Some(length) => {
+                length
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            }
+            None => {
+                self.body.len().to_string()
+            }
+        }
     }
 }
 
