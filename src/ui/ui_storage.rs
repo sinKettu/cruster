@@ -50,6 +50,8 @@ const DEFAULT_STATUSBAR_BLOCK: usize = 3_usize;
 const DEFAULT_HELP_BLOCK: usize = 4_usize;
 const DEFAULT_ERRORS_BLOCK: usize = 5_usize;
 
+const HEADER_NAME_COLOR: Color = Color::LightBlue;
+
 
 pub(crate) struct UI<'ui_lt> {
     // 0 - Rect for requests log,
@@ -225,15 +227,17 @@ impl UI<'static> {
         let request = storage.storage[selected_index].request.as_ref().unwrap();
         let mut request_list: Vec<Spans> = Vec::new();
         let tmp: Vec<Span> = vec![
-            Span::from(format!("{} ", request.method)),
-            Span::from(format!("{} ", request.uri)),
+            Span::styled(request.method.clone(), Style::default().add_modifier(Modifier::BOLD)),
+            Span::from(" "),
+            Span::from(request.get_request_path()),
+            Span::from(" "),
             Span::from(format!("{}", request.version)),
         ];
         request_list.push(Spans::from(tmp));
 
         for (k, v) in request.headers.iter() {
             let mut tmp: Vec<Span> = Vec::new();
-            tmp.push(Span::from(format!("{}", k)));
+            tmp.push(Span::styled(k.to_string(), Style::default().fg(HEADER_NAME_COLOR)));
             tmp.push(Span::from(": ".to_string()));
             tmp.push(Span::from(format!("{}", v.to_str().unwrap())));
             request_list.push(Spans::from(tmp));
@@ -241,15 +245,9 @@ impl UI<'static> {
 
         request_list.push(Spans::from(Span::from("")));
 
-        let tmp: Vec<Span> = request
-            .body
-            .clone()
-            .to_str_lossy()
-            .split("\n")
-            .map(|s| Span::from(s.to_string()))
-            .collect();
-
-        request_list.push(Spans::from(tmp));
+        for line in request.body.to_str_lossy().split("\n") {
+            request_list.push(Spans::from(line.to_string()));
+        }
 
         let new_block = Block::default()
             .title(Span::styled("REQUEST", header_style))
@@ -338,7 +336,7 @@ impl UI<'static> {
             let header_line = Spans::from(vec![
                 Span::styled(
                     k.clone().to_string(),
-                    Style::default().fg(Color::Yellow)
+                    Style::default().fg(HEADER_NAME_COLOR)
                 ),
                 Span::from(": "),
                 Span::from(v.clone().to_str().unwrap().to_string())

@@ -53,6 +53,14 @@ impl HyperRequestWrapper {
 
         return Ok((request_wrapper, reconstructed_request));
     }
+
+    pub(crate) fn get_request_path(&self) -> String {
+        let path_list = self.uri
+            .split("/")
+            .skip(3)
+            .collect::<Vec<&str>>();
+        format!("/{}", path_list.join("/"))
+    }
 }
 
 // -----------------------------------------------------------------------------------------------//
