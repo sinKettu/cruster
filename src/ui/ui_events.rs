@@ -164,7 +164,14 @@ impl UIEvents {
                 }
             }
         }
+        else {
+            return false;
+        }
 
         return false;
+    }
+
+    pub(super) fn something_changed(&mut self) {
+        self.something_changed = true;
     }
 }

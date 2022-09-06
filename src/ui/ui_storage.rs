@@ -44,6 +44,8 @@ const DEFAULT_STATUSBAR_AREA: usize = 3_usize;
 const DEFAULT_HELP_AREA: usize = 4_usize;
 const DEFAULT_ERRORS_AREA: usize = 4_usize;
 
+const DEFAULT_FULLSCREEN_AREA: usize = 5_usize;
+
 const DEFAULT_PROXY_BLOCK: usize = 0_usize;
 const DEFAULT_REQUEST_BLOCK: usize = 1_usize;
 const DEFAULT_RESPONSE_BLOCK: usize = 2_usize;
@@ -679,7 +681,7 @@ impl UI<'static> {
             for i in 0..widgets.len() {
                 // Handling widget and it's clear block
                 if i == active_widget_index {
-                    widgets[i].set_rect_index(5);
+                    widgets[i].set_rect_index(DEFAULT_FULLSCREEN_AREA);
                     widgets[i].enable();
                 }
                 else {
@@ -691,15 +693,15 @@ impl UI<'static> {
         debug!("show_fullscreen: active - {}", &self.active_widget);
         let mut w = &mut self.widgets;
         if self.active_widget == self.proxy_block {
-            self.proxy_area = 5;
+            self.proxy_area = DEFAULT_FULLSCREEN_AREA;
             show_routine(self.active_widget, w);
         }
         else if self.active_widget == self.response_block {
-            self.response_area = 5;
+            self.response_area = DEFAULT_FULLSCREEN_AREA;
             show_routine(self.active_widget, w);
         }
         else if self.active_widget == self.request_block {
-            self.request_area = 5;
+            self.request_area = DEFAULT_FULLSCREEN_AREA;
             show_routine(self.active_widget, w);
         }
     }

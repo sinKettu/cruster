@@ -1,8 +1,9 @@
 mod ui_storage;
 mod ui_events;
+mod ui_layout;
 
 use std::{io, time::{Duration, Instant}};
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use tokio::sync::mpsc::Receiver;
 
@@ -12,11 +13,11 @@ use super::http_storage::*;
 
 use tui::{
     backend::{CrosstermBackend, Backend},
-    // widgets::{Widget, Block, Borders, Paragraph, Wrap, Table, Row},
+    widgets::{Paragraph, Widget, Wrap},
     layout::{Rect/*, Alignment*/},
-    // layout::{Layout, Constraint, Direction, Rect},
     Terminal,
-    // text,
+    text::{Span, Spans},
+    style::{Style, Color},
     Frame,
     self
 };
@@ -26,8 +27,8 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+
 use log::debug;
-use tui::widgets::Widget;
 use crate::CrusterError;
 use crate::ui::ui_events::UIEvents;
 
@@ -41,10 +42,9 @@ pub(crate) fn render(
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
-    let tick_rate = Duration::from_millis(0);
     let mut terminal = Terminal::new(backend)?;
 
-    return match run_app(&mut terminal, tick_rate, ui_rx, err_rx) {
+    return match run_app(&mut terminal, ui_rx, err_rx) {
         Ok(_) => {
             // restore terminal
             disable_raw_mode()?;
@@ -71,12 +71,9 @@ pub(crate) fn render(
 
 fn run_app<B: Backend>(
                     terminal: &mut Terminal<B>,
-                    tick_rate: Duration,
                     mut ui_rx: Receiver<(CrusterWrapper, usize)>,
                     mut err_rx: Receiver<CrusterError>,
 ) -> io::Result<()> {
-    let mut last_tick = Instant::now();
-
     let mut ui_storage = ui_storage::UI::new();
     let mut ui_events = UIEvents::default();
     let mut http_storage = HTTPStorage::default();
@@ -103,36 +100,60 @@ fn run_app<B: Backend>(
             }
         }
 
-        let timeout = tick_rate
-            .checked_sub(last_tick.elapsed())
-            .unwrap_or_else(|| Duration::from_secs(0));
-
-        if crossterm::event::poll(timeout)? {
+        if crossterm::event::poll(Duration::from_nanos(0))? {
             if ui_events.process_event(&mut ui_storage, &mut http_storage) {
                 return Ok(());
             }
         }
-        if last_tick.elapsed() >= tick_rate {
-            last_tick = Instant::now();
+
+        ui_storage.draw_statusbar(&http_storage);
+        ui_storage.draw_state(&http_storage);
+        if ui_events.table_state_changed {
+            ui_storage.make_table(&http_storage, terminal.get_frame().size());
         }
 
-        if ui_events.something_changed {
-            ui_storage.draw_statusbar(&http_storage);
-            ui_storage.draw_state(&http_storage);
+        terminal.draw(|f| new_ui(f, &mut ui_storage))?;
 
-            if ui_events.table_state_changed { ui_storage.make_table(&http_storage, terminal.get_frame().size()); }
-
-            terminal.draw(|f| new_ui(f, &mut ui_storage))?;
-
-            ui_events.something_changed = false;
-            ui_events.table_state_changed = false;
-        }
+        // -= legacy comment, remove later =-
+        //
+        // if ui_events.something_changed {
+        //     ui_storage.draw_statusbar(&http_storage);
+        //     ui_storage.draw_state(&http_storage);
+        //
+        //     if ui_events.table_state_changed { ui_storage.make_table(&http_storage, terminal.get_frame().size()); }
+        //
+        //     terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+        //
+        //     ui_events.something_changed = false;
+        //     ui_events.table_state_changed = false;
+        // }
     }
 }
 
 fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
-    let window_width = f.size().width;
-    let window_height = f.size().height;
+    // Show only warning if terminal size too small
+    if f.size().width < 60u16 || f.size().height < 20u16 {
+        let width = f.size().width;
+        let height = f.size().height;
+
+        let rect = Rect::new(
+            0u16,
+            0u16,
+            width - 1,
+            height - 1
+        );
+
+        let too_small_message = Paragraph::new(Spans::from(vec![
+            Span::from("Terminal size must be not less then "),
+            Span::styled("60 x 20", Style::default().fg(Color::LightGreen)),
+            Span::from(", the current is "),
+            Span::styled(format!("{} x {}", width, height), Style::default().fg(Color::LightRed)),
+        ]))
+            .wrap(Wrap { trim: true });
+
+        f.render_widget(too_small_message, rect);
+        return;
+    }
 
     // 0 - Rect for requests log,
     // 1 - Rect for requests
@@ -140,58 +161,7 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
     // 3 - Rect for statusbar
     // 4 - Rect for help menu
     // 5 - Rect for Proxy FullScreen
-    // 6 - Rect for Request FullScreen
-    // 7 - Rect for Response FullScreen
-    let rects: [Rect; 8] = [
-        Rect::new(
-            f.size().x,
-            f.size().y,
-            window_width,
-            window_height / 2
-        ),
-        Rect::new(
-            f.size().x,
-            f.size().y + window_height / 2,
-            window_width / 2,
-            window_height / 2 - 2
-        ),
-        Rect::new(
-            f.size().x + window_width / 2,
-            f.size().y + window_height / 2,
-            window_width / 2 + 1,
-            window_height / 2 - 2
-        ),
-        Rect::new(
-            f.size().x,
-            f.size().y + window_height - 2,
-            window_width,
-            2
-        ),
-        Rect::new(
-            f.size().x + 5,
-            f.size().y + 5,
-            window_width - 10,
-            window_height - 10
-        ),
-        Rect::new(
-            f.size().x,
-            f.size().y,
-            window_width,
-            window_height - 2
-        ),
-        Rect::new(
-            f.size().x,
-            f.size().y,
-            window_width / 2,
-            window_height - 2
-        ),
-        Rect::new(
-            f.size().x + window_width / 2,
-            f.size().y,
-            window_width / 2,
-            window_height - 2
-        )
-    ];
+    let rects = ui_layout::CrusterLayout::new(f.size().borrow());
 
     for ruint in uis.widgets.iter() {
         debug!("Render units handling cycle: {:?}", ruint);
