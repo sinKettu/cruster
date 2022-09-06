@@ -65,6 +65,14 @@ async fn start_proxy(
     }
 }
 
+/// # TODO:
+///
+/// - Confirmation windows
+/// - Filtering proxy table content
+/// - Sorting proxy table content
+/// - Manual requests crafting (repeating)
+///
+
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
     let config = config::handle_user_input()?;

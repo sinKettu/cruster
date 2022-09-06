@@ -760,7 +760,7 @@ impl UI<'static> {
     }
 
     pub(super) fn table_scroll_page_down(&mut self, storage: &HTTPStorage) {
-        debug!("table_scroll_page_down_1: start_index - {}, end_index - {}, state - {}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected().unwrap());
+        debug!("table_scroll_page_down_1: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
         if self.table_end_index == storage.len() - 1 {
             let new_state = min(self.table_window_size - 1, storage.len() - 1);
             self.proxy_history_state.select(Some(new_state));
@@ -774,11 +774,11 @@ impl UI<'static> {
             self.table_start_index += self.table_window_size;
             self.table_end_index += self.table_window_size;
         }
-        debug!("table_scroll_page_down_2: start_index - {}, end_index - {}, state - {}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected().unwrap());
+        debug!("table_scroll_page_down_2: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
     }
 
     pub(super) fn table_scroll_page_up(&mut self, storage: &HTTPStorage) {
-        debug!("table_scroll_page_up_1: start_index - {}, end_index - {}, state - {}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected().unwrap());
+        debug!("table_scroll_page_up_1: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
         if self.table_start_index == 0 {
             self.proxy_history_state.select(Some(0));
             self.table_end_index = min(self.table_window_size, storage.len()).saturating_sub(1);
@@ -790,7 +790,7 @@ impl UI<'static> {
             self.table_start_index -= self.table_window_size;
             self.table_end_index -= self.table_window_size;
         }
-        debug!("table_scroll_page_up_2: start_index - {}, end_index - {}, state - {}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected().unwrap());
+        debug!("table_scroll_page_up_2: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
     }
 
     pub(super) fn table_scroll_end(&mut self, storage: &HTTPStorage) {

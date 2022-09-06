@@ -89,8 +89,12 @@ fn run_app<B: Backend>(
         match ui_rx.try_recv() {
             Ok((wrapper, ctx)) => {
                 match wrapper {
-                    CrusterWrapper::Request(request) => http_storage.put_request(request, ctx),
-                    CrusterWrapper::Response(response) => http_storage.put_response(response, &ctx)
+                    CrusterWrapper::Request(request) => {
+                        http_storage.put_request(request, ctx)
+                    },
+                    CrusterWrapper::Response(response) => {
+                        http_storage.put_response(response, &ctx)
+                    }
                 }
                 // ui_events.something_changed = true;
                 ui_events.table_state_changed = true;
@@ -189,7 +193,9 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
                 f.render_stateful_widget(table.widget.clone(), rects[table.rect_index], &mut uis.proxy_history_state);
                 debug!("Render units handling cycle: handled");
             },
-            _ => {debug!("Render units handling cycle: Skipped")},
+            _ => {
+                debug!("Render units handling cycle: Skipped")
+            },
         }
     }
 }
