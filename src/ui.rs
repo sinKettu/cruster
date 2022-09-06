@@ -92,7 +92,7 @@ fn run_app<B: Backend>(
                     CrusterWrapper::Request(request) => http_storage.put_request(request, ctx),
                     CrusterWrapper::Response(response) => http_storage.put_response(response, &ctx)
                 }
-                ui_events.something_changed = true;
+                // ui_events.something_changed = true;
                 ui_events.table_state_changed = true;
             },
             Err(_) => {
