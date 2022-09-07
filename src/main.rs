@@ -67,7 +67,8 @@ async fn start_proxy(
 
 /// # TODO:
 ///
-/// - Confirmation windows
+/// - DONE -- **Confirmation windows**
+/// - Hide large bodies without confirmation to show
 /// - Filtering proxy table content
 /// - Sorting proxy table content
 /// - Manual requests crafting (repeating)

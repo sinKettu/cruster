@@ -15,7 +15,9 @@ use std::{
 };
 use std::borrow::{Borrow, BorrowMut};
 use std::cmp::max;
+use std::env::{temp_dir, var};
 use std::os::macos::raw::stat;
+use crossterm::style::style;
 use log::debug;
 
 use crate::cruster_proxy::request_response::{
@@ -35,6 +37,7 @@ use tui::{
     self
 };
 use tui::layout::Rect;
+use tui::text::Text;
 use crate::CrusterError;
 
 const DEFAULT_PROXY_AREA: usize = 0_usize;
@@ -43,6 +46,7 @@ const DEFAULT_RESPONSE_AREA: usize = 2_usize;
 const DEFAULT_STATUSBAR_AREA: usize = 3_usize;
 const DEFAULT_HELP_AREA: usize = 4_usize;
 const DEFAULT_ERRORS_AREA: usize = 4_usize;
+const DEFAULT_CONFIRMATION_AREA: usize = 6_usize;
 
 const DEFAULT_FULLSCREEN_AREA: usize = 5_usize;
 
@@ -52,6 +56,7 @@ const DEFAULT_RESPONSE_BLOCK: usize = 2_usize;
 const DEFAULT_STATUSBAR_BLOCK: usize = 3_usize;
 const DEFAULT_HELP_BLOCK: usize = 4_usize;
 const DEFAULT_ERRORS_BLOCK: usize = 5_usize;
+const DEFAULT_CONFIRMATION_BLOCK: usize = 4_usize;
 
 const HEADER_NAME_COLOR: Color = Color::LightBlue;
 
@@ -85,6 +90,9 @@ pub(crate) struct UI<'ui_lt> {
     // Position of area for errors list in rectangles array
     errors_area: usize,
 
+    // Position of confirm window (rect)
+    confirm_area: usize,
+
     // State of table with proxy history
     pub(crate) proxy_history_state: TableState,
 
@@ -106,6 +114,9 @@ pub(crate) struct UI<'ui_lt> {
     // Index of errors block in vector above
     errors_block: usize,
 
+    // Index of confirm widget
+    confirm_block: usize,
+
     // Index of request/response in HTTPStorage.ui_storage which is current table's first element
     table_start_index: usize,
 
@@ -125,7 +136,10 @@ pub(crate) struct UI<'ui_lt> {
     default_widget_header_style: Style,
 
     // Active widget header style
-    active_widget_header_style: Style
+    active_widget_header_style: Style,
+
+    // Additional message to print in statusbar
+    statusbar_message: Option<Text<'ui_lt>>,
 }
 
 impl UI<'static> {
@@ -148,7 +162,7 @@ impl UI<'static> {
             .borders(Borders::ALL);
 
         let statusbar_block = Block::default()
-            .borders(Borders::ALL);
+            .borders(Borders::TOP);
 
         UI {
             widgets: vec![
@@ -168,6 +182,7 @@ impl UI<'static> {
             statusbar_area: DEFAULT_STATUSBAR_AREA,
             help_area: DEFAULT_HELP_AREA,
             errors_area: DEFAULT_ERRORS_AREA,
+            confirm_area: DEFAULT_CONFIRMATION_AREA,
 
             proxy_history_state: {
                 let mut table_state = TableState::default();
@@ -181,6 +196,7 @@ impl UI<'static> {
             statusbar_block: DEFAULT_STATUSBAR_BLOCK,
             help_block: DEFAULT_HELP_BLOCK,
             errors_block: DEFAULT_ERRORS_BLOCK,
+            confirm_block: DEFAULT_CONFIRMATION_BLOCK,
 
             table_start_index: 0,
             table_end_index: 59,
@@ -191,11 +207,13 @@ impl UI<'static> {
             active_widget_header_style: Style::default()
                 .bg(Color::White)
                 .fg(Color::Black),
-            default_widget_header_style: Style::default()
+            default_widget_header_style: Style::default(),
+
+            statusbar_message: None
         }
     }
 
-    pub(crate) fn draw_request(&mut self, storage: &HTTPStorage) {
+    fn draw_request(&mut self, storage: &HTTPStorage) {
         let header_style = if self.active_widget == self.request_block {
             self.active_widget_header_style
         }
@@ -272,7 +290,7 @@ impl UI<'static> {
         );
     }
 
-    pub(crate) fn draw_response(&mut self, storage: &HTTPStorage) {
+    fn draw_response(&mut self, storage: &HTTPStorage) {
         let header_style = if self.active_widget == self.response_block {
             self.active_widget_header_style
         }
@@ -399,42 +417,48 @@ impl UI<'static> {
         );
     }
 
-    pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
-        if storage.len() > 0 {
-            self.draw_request(storage);
-            self.draw_response(storage);
-        }
-    }
-
-    pub(crate) fn draw_statusbar(&mut self, storage: &HTTPStorage) {
+    fn draw_statusbar(&mut self, storage: &HTTPStorage) {
+        // TODO: seaprate messages to left and right
+        //
         // -----------------------------------------------------------------------------------------
         // | Errors: N | Requests: K                                             Type "?" for help |
         // -----------------------------------------------------------------------------------------
         let status_block = Block::default()
             .borders(Borders::TOP);
-        let status_paragraph = Paragraph::new(vec![
-            Spans::from(vec![
-                Span::styled("Errors: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::styled(
-                    self.errors.len().to_string(),
-                    Style::default()
-                        .fg(Color::LightRed)
-                        .add_modifier(Modifier::BOLD)
-                ),
-                Span::from(" | "),
-                Span::styled("Requests: ", Style::default().add_modifier(Modifier::BOLD)),
-                Span::from(storage.len().to_string()),
-                Span::from(" | "),
-                Span::from("Type '"),
-                Span::styled(
-                    "?",
-                    Style::default()
-                        .fg(Color::LightGreen)
-                        .add_modifier(Modifier::BOLD)
-                ),
-                Span::from("' for help"),
-            ])
-        ])
+
+        let raw_status = vec![
+            Span::styled("Errors: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                self.errors.len().to_string(),
+                Style::default()
+                    .fg(Color::LightRed)
+                    .add_modifier(Modifier::BOLD)
+            ),
+            Span::from(" | "),
+            Span::styled("Requests: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::from(storage.len().to_string()),
+            Span::from(" | "),
+            Span::from("Type '"),
+            Span::styled(
+                "?",
+                Style::default()
+                    .fg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD)
+            ),
+            Span::from("' for help"),
+        ];
+
+        let status = match &self.statusbar_message {
+            Some(message) => {
+                let mut tmp = message.lines[0].0.clone();
+                tmp.push(Span::from(" | "));
+                tmp.extend(raw_status);
+                Spans::from(tmp)
+            },
+            None => { Spans::from(raw_status) }
+        };
+
+        let status_paragraph = Paragraph::new(status)
             .block(status_block)
             .alignment(Alignment::Right);
 
@@ -444,6 +468,21 @@ impl UI<'static> {
             true,
             (0, 0)
         );
+    }
+
+    pub(crate) fn draw_state(&mut self, storage: & HTTPStorage) {
+        self.draw_request(storage);
+        self.draw_response(storage);
+        self.draw_statusbar(storage);
+    }
+
+    pub(crate) fn set_statusbar_message<T: Into<Text<'static>>>(&mut self, message: Option<T>) {
+        self.statusbar_message = match message {
+            Some(m) => {
+                Some(m.into())
+            },
+            None =>  { None }
+        };
     }
 
     pub(crate) fn show_help(&mut self) {
@@ -489,6 +528,79 @@ impl UI<'static> {
                 Span::from(error.to_string())
             ])
         )
+    }
+
+    pub(crate) fn show_confirmation(&mut self, text: &str) {
+        let confirm_paragraph = Paragraph::new(
+            vec![
+                // \n
+                Spans::from(
+                    Span::from("")
+                ),
+                // The thing to confirm,
+                Spans::from(
+                    Span::styled(
+                    text.to_string(),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD))
+                ),
+                // \n
+                Spans::from(
+                    Span::from("")
+                ),
+                // Enter [y]es or [n]o.
+                Spans::from(
+                    vec![
+                        Span::styled(
+                            "Enter ",
+                            Style::default().add_modifier(Modifier::UNDERLINED)
+                        ),
+                        Span::styled(
+                            "y",
+                            Style::default().add_modifier(Modifier::UNDERLINED | Modifier::BOLD).fg(Color::LightYellow)
+                        ),
+                        Span::styled(
+                            "es or ",
+                            Style::default().add_modifier(Modifier::UNDERLINED)
+                        ),
+                        Span::styled(
+                            "n",
+                            Style::default().add_modifier(Modifier::UNDERLINED | Modifier::BOLD).fg(Color::LightYellow)
+                        ),
+                        Span::styled(
+                            "o.",
+                            Style::default().add_modifier(Modifier::UNDERLINED)
+                        ),
+                    ]
+                ),
+            ]
+        )
+            .alignment(Alignment::Center)
+            .wrap(Wrap {trim: true})
+            .block(
+                Block::default()
+                    .title(
+                        Span::styled(
+                            " CONFIRM ",
+                            Style::default()
+                                .bg(Color::Yellow)
+                                .fg(Color::Black)))
+                    .title_alignment(Alignment::Center)
+                    .borders(Borders::ALL));
+
+        let confirmation = RenderUnit::new_paragraph(
+            confirm_paragraph,
+            self.confirm_area,
+            true,
+            (0, 0)
+        );
+
+        self.widgets[self.confirm_block] = confirmation;
+    }
+
+    pub(crate) fn hide_confirmation(&mut self) {
+        self.widgets[self.confirm_block] = RenderUnit::PLACEHOLDER;
     }
 
     pub(super) fn make_table(&mut self, storage: &HTTPStorage, size: Rect) {
@@ -546,22 +658,16 @@ impl UI<'static> {
             .widths(&[
                 // Index
                 Constraint::Percentage(5),
-                // Constraint::Length(size.width / 20),
                 // Method
                 Constraint::Percentage(5),
-                // Constraint::Length(size.width / 20),
                 // Host
                 Constraint::Percentage(10),
-                // Constraint::Length(size.width / 10),
                 // Path
                 Constraint::Percentage(60),
-                // Constraint::Length(size.width / 20 * 13 + size.width % 20),
                 // Status Code
                 Constraint::Percentage(10),
-                // Constraint::Length(size.width / 10),
                 // Length
                 Constraint::Percentage(5)
-                // Constraint::Length(size.width / 20)
             ])
             .highlight_style(
                 Style::default()

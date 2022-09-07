@@ -110,7 +110,7 @@ fn run_app<B: Backend>(
             }
         }
 
-        ui_storage.draw_statusbar(&http_storage);
+        // ui_storage.draw_statusbar(&http_storage);
         ui_storage.draw_state(&http_storage);
         if ui_events.table_state_changed {
             ui_storage.make_table(&http_storage, terminal.get_frame().size());
