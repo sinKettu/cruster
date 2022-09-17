@@ -16,6 +16,22 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> RenderUnit<'help> {
     let help_text: Vec<Spans> = vec![
         Spans::from(vec![
             Span::styled(
+                "[Enter]",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Save edited text")
+        ]),
+        Spans::from(vec![
+            Span::styled(
+                "[Esc]",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Stop editing text")
+        ]),
+        Spans::from(vec![
+            Span::styled(
                 "?",
                 Style::default()
                     .fg(Color::Green)
@@ -36,7 +52,7 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> RenderUnit<'help> {
                 Style::default()
                     .fg(Color::Green)
                     .add_modifier(Modifier::BOLD)),
-            Span::raw(" - Show error log")
+            Span::raw(" - Show error log (on main screen) / Start editing text")
         ]),
         Spans::from(vec![
             Span::styled(
@@ -45,6 +61,14 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> RenderUnit<'help> {
                     .fg(Color::Green)
                     .add_modifier(Modifier::BOLD)),
             Span::raw(" - Enter/Quit fullscreen mode for proxy, request, response view")
+        ]),
+        Spans::from(vec![
+            Span::styled(
+                "F",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Set filter for proxy data")
         ]),
         Spans::from(vec![
             Span::styled(
