@@ -116,7 +116,13 @@ fn run_app<B: Backend>(
             ui_storage.make_table(&http_storage, terminal.get_frame().size());
         }
 
-        terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+        if ui_events.input_mode {
+            terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+        }
+        else {
+            terminal.draw(|f| new_ui(f, &mut ui_storage))?;
+        }
+
 
         // -= legacy comment, remove later =-
         //
@@ -166,6 +172,15 @@ fn new_ui<B: Backend>(f: &mut Frame<B>, uis: &mut ui_storage::UI<'static>) {
     // 4 - Rect for help menu
     // 5 - Rect for Proxy FullScreen
     let rects = ui_layout::CrusterLayout::new(f.size().borrow());
+
+    // Show cursor when user edit some text
+    if let Some(editable_area) = uis.get_currently_edited_area() {
+        let (x_offset, y_offset) = uis.get_cursor_relative_position();
+        f.set_cursor(
+            rects[editable_area].x + x_offset as u16,
+            rects[editable_area].y + y_offset as u16
+        );
+    }
 
     for ruint in uis.widgets.iter() {
         debug!("Render units handling cycle: {:?}", ruint);

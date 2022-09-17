@@ -38,6 +38,7 @@ use tui::{
 };
 use tui::layout::Rect;
 use tui::text::Text;
+use tui::widgets::BorderType;
 use crate::CrusterError;
 
 const DEFAULT_PROXY_AREA: usize = 0_usize;
@@ -47,6 +48,7 @@ const DEFAULT_STATUSBAR_AREA: usize = 3_usize;
 const DEFAULT_HELP_AREA: usize = 4_usize;
 const DEFAULT_ERRORS_AREA: usize = 4_usize;
 const DEFAULT_CONFIRMATION_AREA: usize = 6_usize;
+pub(super) const DEFAULT_FILTER_AREA: usize = 7_usize;
 
 const DEFAULT_FULLSCREEN_AREA: usize = 5_usize;
 
@@ -57,8 +59,10 @@ const DEFAULT_STATUSBAR_BLOCK: usize = 3_usize;
 const DEFAULT_HELP_BLOCK: usize = 4_usize;
 const DEFAULT_ERRORS_BLOCK: usize = 5_usize;
 const DEFAULT_CONFIRMATION_BLOCK: usize = 4_usize;
+const DEFAULT_FILTER_BLOCK: usize = 4_usize;
 
 const HEADER_NAME_COLOR: Color = Color::LightBlue;
+const FILTER_MAIN_COLOR: Color = Color::LightYellow;
 
 
 pub(crate) struct UI<'ui_lt> {
@@ -93,6 +97,9 @@ pub(crate) struct UI<'ui_lt> {
     // Position of confirm window (rect)
     confirm_area: usize,
 
+    // Position of filter window (rect)
+    filter_area: usize,
+
     // State of table with proxy history
     pub(crate) proxy_history_state: TableState,
 
@@ -117,6 +124,9 @@ pub(crate) struct UI<'ui_lt> {
     // Index of confirm widget
     confirm_block: usize,
 
+    // Index of filter widget
+    filter_block: usize,
+
     // Index of request/response in HTTPStorage.ui_storage which is current table's first element
     table_start_index: usize,
 
@@ -140,6 +150,15 @@ pub(crate) struct UI<'ui_lt> {
 
     // Additional message to print in statusbar
     statusbar_message: Option<Text<'ui_lt>>,
+
+    // Buffer to store user's input from keyboard
+    input_buffer: String,
+
+    // Position of cursor in a string user typed - index of next entered symbol
+    input_cursor: usize,
+
+    // Index of area (rect) that is currently edited
+    editable_area: Option<usize>,
 }
 
 impl UI<'static> {
@@ -183,6 +202,7 @@ impl UI<'static> {
             help_area: DEFAULT_HELP_AREA,
             errors_area: DEFAULT_ERRORS_AREA,
             confirm_area: DEFAULT_CONFIRMATION_AREA,
+            filter_area: DEFAULT_FILTER_AREA,
 
             proxy_history_state: {
                 let mut table_state = TableState::default();
@@ -197,6 +217,7 @@ impl UI<'static> {
             help_block: DEFAULT_HELP_BLOCK,
             errors_block: DEFAULT_ERRORS_BLOCK,
             confirm_block: DEFAULT_CONFIRMATION_BLOCK,
+            filter_block: DEFAULT_FILTER_BLOCK,
 
             table_start_index: 0,
             table_end_index: 59,
@@ -209,7 +230,11 @@ impl UI<'static> {
                 .fg(Color::Black),
             default_widget_header_style: Style::default(),
 
-            statusbar_message: None
+            statusbar_message: None,
+
+            input_buffer: String::with_capacity(1000_usize),
+            input_cursor: 0_usize,
+            editable_area: None,
         }
     }
 
@@ -603,6 +628,73 @@ impl UI<'static> {
         self.widgets[self.confirm_block] = RenderUnit::PLACEHOLDER;
     }
 
+    pub(crate) fn show_filter(&mut self) {
+        let filter_text: Vec<Spans> = vec![
+            Spans::from(""),
+            Spans::from(
+                Span::styled("  >> ", Style::default().fg(FILTER_MAIN_COLOR))
+            )
+        ];
+
+        let filter_paragraph = Paragraph::new(
+            filter_text
+        ).block(
+            Block::default()
+                .title(" Filter ")
+                .title_alignment(Alignment::Center)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(FILTER_MAIN_COLOR))
+                .border_type(BorderType::Double)
+        );
+
+        let filter = RenderUnit::new_paragraph(
+            filter_paragraph,
+            self.filter_area,
+            true,
+            (0, 0)
+        );
+
+        self.widgets[self.filter_block] = filter;
+        self.editable_area = Some(self.filter_area);
+    }
+
+    pub(crate) fn hide_filter(&mut self) {
+        self.widgets[self.filter_block] = RenderUnit::PLACEHOLDER;
+        self.editable_area = None;
+    }
+
+    pub(crate) fn update_filter(&mut self) {
+        let filter_text: Vec<Spans> = vec![
+            Spans::from(""),
+            Spans::from(
+                vec![
+                    Span::styled("  >> ", Style::default().fg(FILTER_MAIN_COLOR)),
+                    Span::from(self.input_buffer.clone())
+                ]
+            )
+        ];
+
+        let filter_paragraph = Paragraph::new(
+            filter_text
+        ).block(
+            Block::default()
+                .title(" Filter ")
+                .title_alignment(Alignment::Center)
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(FILTER_MAIN_COLOR))
+                .border_type(BorderType::Double)
+        );
+
+        let filter = RenderUnit::new_paragraph(
+            filter_paragraph,
+            self.filter_area,
+            true,
+            (0, 0)
+        );
+
+        self.widgets[self.filter_block] = filter;
+    }
+
     pub(super) fn make_table(&mut self, storage: &HTTPStorage, size: Rect) {
         if storage.len() == 0 {
             return
@@ -956,6 +1048,60 @@ impl UI<'static> {
             Ok(_) => {},
             Err(e) => self.log_error(e)
         }
+    }
+
+    // INPUTS
+
+    pub(crate) fn handle_char_input(&mut self, chr: char) {
+        let mut left = self.input_buffer[0..self.input_cursor].to_string();
+        left.push(chr);
+        let right = &self.input_buffer[self.input_cursor..];
+        left.push_str(right);
+        self.input_buffer = left;
+
+        // TODO: length limitation
+        self.input_cursor += 1;
+    }
+
+    pub(crate) fn handle_backspace_input(&mut self) {
+        if self.input_cursor > 0 {
+            self.input_cursor = self.input_cursor.saturating_sub(1);
+            self.input_buffer.remove(self.input_cursor);
+        }
+    }
+
+    pub(crate) fn handle_delete_input(&mut self) {
+        if self.input_cursor < self.input_buffer.len() {
+            self.input_buffer.remove(self.input_cursor);
+            self.input_cursor -= 1;
+        }
+    }
+
+    pub(crate) fn handle_move_cursor_left(&mut self) {
+        self.input_cursor = self.input_cursor.saturating_sub(1);
+    }
+
+    pub(crate) fn handle_move_cursor_right(&mut self) {
+        self.input_cursor = min(self.input_cursor + 1, self.input_buffer.len());
+    }
+
+    pub(crate) fn handle_move_cursor_home(&mut self) {
+        self.input_cursor = 0_usize;
+    }
+
+    pub(crate) fn handle_move_cursor_end(&mut self) {
+        self.input_cursor = self.input_buffer.len();
+    }
+
+    pub(crate) fn get_cursor_relative_position(&mut self) -> (usize, usize) {
+        let x = 6_usize + self.input_cursor;
+        let y = 2_usize;
+
+        return (x, y);
+    }
+
+    pub(crate) fn get_currently_edited_area(&mut self) -> Option<usize> {
+        self.editable_area
     }
 }
 
