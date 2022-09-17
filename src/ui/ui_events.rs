@@ -38,15 +38,15 @@ impl UIEvents {
                     match key.code {
                         KeyCode::Char(c) => {
                             ui_storage.handle_char_input(c);
-                            ui_storage.update_filter();
+                            ui_storage.show_filter();
                         },
                         KeyCode::Backspace => {
                             ui_storage.handle_backspace_input();
-                            ui_storage.update_filter();
+                            ui_storage.show_filter();
                         },
                         KeyCode::Delete => {
                             ui_storage.handle_delete_input();
-                            ui_storage.update_filter();
+                            ui_storage.show_filter();
                         },
                         KeyCode::Esc => {
                             self.input_mode = false;

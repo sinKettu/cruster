@@ -1,5 +1,7 @@
 pub(crate) mod render_units;
 pub(crate) mod help;
+mod input;
+mod filter;
 
 use render_units::*;
 use help::make_help_menu;
@@ -628,73 +630,6 @@ impl UI<'static> {
         self.widgets[self.confirm_block] = RenderUnit::PLACEHOLDER;
     }
 
-    pub(crate) fn show_filter(&mut self) {
-        let filter_text: Vec<Spans> = vec![
-            Spans::from(""),
-            Spans::from(
-                Span::styled("  >> ", Style::default().fg(FILTER_MAIN_COLOR))
-            )
-        ];
-
-        let filter_paragraph = Paragraph::new(
-            filter_text
-        ).block(
-            Block::default()
-                .title(" Filter ")
-                .title_alignment(Alignment::Center)
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(FILTER_MAIN_COLOR))
-                .border_type(BorderType::Double)
-        );
-
-        let filter = RenderUnit::new_paragraph(
-            filter_paragraph,
-            self.filter_area,
-            true,
-            (0, 0)
-        );
-
-        self.widgets[self.filter_block] = filter;
-        self.editable_area = Some(self.filter_area);
-    }
-
-    pub(crate) fn hide_filter(&mut self) {
-        self.widgets[self.filter_block] = RenderUnit::PLACEHOLDER;
-        self.editable_area = None;
-    }
-
-    pub(crate) fn update_filter(&mut self) {
-        let filter_text: Vec<Spans> = vec![
-            Spans::from(""),
-            Spans::from(
-                vec![
-                    Span::styled("  >> ", Style::default().fg(FILTER_MAIN_COLOR)),
-                    Span::from(self.input_buffer.clone())
-                ]
-            )
-        ];
-
-        let filter_paragraph = Paragraph::new(
-            filter_text
-        ).block(
-            Block::default()
-                .title(" Filter ")
-                .title_alignment(Alignment::Center)
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(FILTER_MAIN_COLOR))
-                .border_type(BorderType::Double)
-        );
-
-        let filter = RenderUnit::new_paragraph(
-            filter_paragraph,
-            self.filter_area,
-            true,
-            (0, 0)
-        );
-
-        self.widgets[self.filter_block] = filter;
-    }
-
     pub(super) fn make_table(&mut self, storage: &HTTPStorage, size: Rect) {
         if storage.len() == 0 {
             return
@@ -1048,60 +983,6 @@ impl UI<'static> {
             Ok(_) => {},
             Err(e) => self.log_error(e)
         }
-    }
-
-    // INPUTS
-
-    pub(crate) fn handle_char_input(&mut self, chr: char) {
-        let mut left = self.input_buffer[0..self.input_cursor].to_string();
-        left.push(chr);
-        let right = &self.input_buffer[self.input_cursor..];
-        left.push_str(right);
-        self.input_buffer = left;
-
-        // TODO: length limitation
-        self.input_cursor += 1;
-    }
-
-    pub(crate) fn handle_backspace_input(&mut self) {
-        if self.input_cursor > 0 {
-            self.input_cursor = self.input_cursor.saturating_sub(1);
-            self.input_buffer.remove(self.input_cursor);
-        }
-    }
-
-    pub(crate) fn handle_delete_input(&mut self) {
-        if self.input_cursor < self.input_buffer.len() {
-            self.input_buffer.remove(self.input_cursor);
-            self.input_cursor -= 1;
-        }
-    }
-
-    pub(crate) fn handle_move_cursor_left(&mut self) {
-        self.input_cursor = self.input_cursor.saturating_sub(1);
-    }
-
-    pub(crate) fn handle_move_cursor_right(&mut self) {
-        self.input_cursor = min(self.input_cursor + 1, self.input_buffer.len());
-    }
-
-    pub(crate) fn handle_move_cursor_home(&mut self) {
-        self.input_cursor = 0_usize;
-    }
-
-    pub(crate) fn handle_move_cursor_end(&mut self) {
-        self.input_cursor = self.input_buffer.len();
-    }
-
-    pub(crate) fn get_cursor_relative_position(&mut self) -> (usize, usize) {
-        let x = 6_usize + self.input_cursor;
-        let y = 2_usize;
-
-        return (x, y);
-    }
-
-    pub(crate) fn get_currently_edited_area(&mut self) -> Option<usize> {
-        self.editable_area
     }
 }
 
