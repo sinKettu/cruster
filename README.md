@@ -1,6 +1,6 @@
 # Cruster
 
-> Current working branch is `ui_improvements`
+> Current working branch is [ui_improvements](https://github.com/sinKettu/cruster/tree/ui_improvements)
 
 `v0.3.1`
 
