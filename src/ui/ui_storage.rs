@@ -2,6 +2,7 @@ pub(crate) mod render_units;
 pub(crate) mod help;
 mod input;
 mod filter;
+pub(super) mod messages;
 
 use render_units::*;
 use help::make_help_menu;

@@ -4,6 +4,7 @@ use crossterm::event::{Event, KeyCode};
 use log::debug;
 use crate::http_storage::HTTPStorage;
 use crate::ui::ui_storage::UI;
+use super::ui_storage::messages;
 
 pub(super) struct UIEvents {
     something_changed: bool,
@@ -50,6 +51,7 @@ impl UIEvents {
                         },
                         KeyCode::Esc => {
                             self.input_mode = false;
+                            ui_storage.set_statusbar_message(Some(messages::filter_chown()));
                         }
                         KeyCode::Enter => {
                             self.input_mode = false;
@@ -78,9 +80,11 @@ impl UIEvents {
                                 self.filter_enabled = false;
                                 self.something_changed = true;
                                 ui_storage.hide_filter();
+                                ui_storage.set_statusbar_message::<&str>(None);
                             }
                             else if c == 'e' {
                                 self.input_mode = true;
+                                ui_storage.set_statusbar_message(Some(messages::editing_tips()));
                             }
                         },
                         KeyCode::Enter => {
@@ -128,7 +132,7 @@ impl UIEvents {
                             else {
                                 ui_storage.show_confirmation("Are you sure you want to exit?");
                                 self.confirmation = true;
-                                ui_storage.set_statusbar_message(Some("Press [y] or [n]"));
+                                ui_storage.set_statusbar_message(Some(messages::confirmation_tips()));
                             }
                         }
                         // Show help popup if no popups shown
@@ -183,6 +187,7 @@ impl UIEvents {
                         }
                         else if c == 'F' && ! self.popup_enabled {
                             ui_storage.show_filter();
+                            ui_storage.set_statusbar_message(Some(messages::filter_chown()));
                             self.popup_enabled = true;
                             self.filter_enabled = true;
                         }
