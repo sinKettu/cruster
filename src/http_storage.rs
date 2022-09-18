@@ -98,45 +98,45 @@ impl HTTPStorage {
             }
         };
 
-        self.cache_key = current_cache_key;
-        self.cache_buffer = self.storage
-            .iter()
-            .enumerate()
-            .filter(|(idx, elem)| {
-                match &filter_re {
-                    Some(re) => {
-                        self.filter(re, elem)
-                    }
-                    None => {
-                        true
-                    }
-                }
-            })
-            .skip(self.cache_key.skip)
-            .take(self.cache_key.take)
-            .map(|(idx, elem)| { idx })
-            .collect();
-
-        // if current_cache_key != self.cache_key || force {
-        //     self.cache_key = current_cache_key;
-        //     self.cache_buffer = self.storage
-        //         .iter()
-        //         .enumerate()
-        //         .filter(|(idx, elem)| {
-        //             match &filter_re {
-        //                 Some(re) => {
-        //                     self.filter(re, elem)
-        //                 }
-        //                 None => {
-        //                     true
-        //                 }
+        // self.cache_key = current_cache_key;
+        // self.cache_buffer = self.storage
+        //     .iter()
+        //     .enumerate()
+        //     .filter(|(idx, elem)| {
+        //         match &filter_re {
+        //             Some(re) => {
+        //                 self.filter(re, elem)
         //             }
-        //         })
-        //         .skip(self.cache_key.skip)
-        //         .take(self.cache_key.take)
-        //         .map(|(idx, elem)| { idx })
-        //         .collect();
-        // }
+        //             None => {
+        //                 true
+        //             }
+        //         }
+        //     })
+        //     .skip(self.cache_key.skip)
+        //     .take(self.cache_key.take)
+        //     .map(|(idx, elem)| { idx })
+        //     .collect();
+
+        if current_cache_key != self.cache_key || force {
+            self.cache_key = current_cache_key;
+            self.cache_buffer = self.storage
+                .iter()
+                .enumerate()
+                .filter(|(idx, elem)| {
+                    match &filter_re {
+                        Some(re) => {
+                            self.filter(re, elem)
+                        }
+                        None => {
+                            true
+                        }
+                    }
+                })
+                .skip(self.cache_key.skip)
+                .take(self.cache_key.take)
+                .map(|(idx, elem)| { idx })
+                .collect();
+        }
 
         return self.cache_buffer
             .iter()

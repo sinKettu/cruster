@@ -141,6 +141,10 @@ impl UI<'static> {
                         self.table_start_index += 1;
                         self.table_end_index += 1;
                     }
+                    else {
+                        self.table_end_index = storage_len - 1;
+                        self.table_start_index = storage_len - self.table_window_size;
+                    }
                 }
                 //
                 //
@@ -196,6 +200,10 @@ impl UI<'static> {
                     if start > 0 {
                         self.table_start_index -= 1;
                         self.table_end_index -= 1;
+                    }
+                    else {
+                        self.table_end_index = window - 1;
+                        self.table_start_index = 0;
                     }
                 }
                 //
