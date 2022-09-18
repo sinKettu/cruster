@@ -63,7 +63,7 @@ impl UI<'static> {
 
             let row = vec![
                 // Number of record in table
-                (index + self.table_start_index + 1).to_string(),
+                (index + 1).to_string(),
                 // Method
                 request.method.clone(),
                 // Host
@@ -125,30 +125,47 @@ impl UI<'static> {
         let end = self.table_end_index.clone();
         let window = self.table_window_size.clone();
         let storage_len = storage.len();
+        let cache_len = storage.cache_len();
         match self.proxy_history_state.selected() {
             Some(i) => {
                 let initial_index = i;
-                if storage_len < window && i == storage_len - 1 {
-                    self.proxy_history_state.select(
-                        Some(storage_len.saturating_sub(1))
-                    );
+
+                if cache_len == 0 {
+                    self.proxy_history_state.select(None);
                 }
-                else if i == window - 1 && end >= storage_len - 1 {
-                    self.table_end_index = storage_len.saturating_sub(1);
-                    self.table_start_index = (self.table_end_index + 1).saturating_sub(window);
-                    self.proxy_history_state.select(Some(min(storage_len, window).saturating_sub(1)));
-                }
-                else if i == window - 1 && end < storage_len - 1 {
-                    self.table_end_index += 1;
-                    self.table_start_index += 1;
+                else if initial_index < cache_len - 1 {
+                    self.proxy_history_state.select(Some(initial_index + 1))
                 }
                 else {
-                    self.proxy_history_state.select(Some(i + 1));
+                    if self.table_end_index + 1 < storage_len {
+                        self.table_start_index += 1;
+                        self.table_end_index += 1;
+                    }
                 }
-                let final_index = self.proxy_history_state.selected().unwrap();
-                if final_index != initial_index {
-                    self.reset_scrolling();
-                }
+                //
+                //
+                //
+                // if storage_len < window && i == storage_len - 1 {
+                //     self.proxy_history_state.select(
+                //         Some(storage_len.saturating_sub(1))
+                //     );
+                // }
+                // else if i == window - 1 && end >= storage_len - 1 {
+                //     self.table_end_index = storage_len.saturating_sub(1);
+                //     self.table_start_index = (self.table_end_index + 1).saturating_sub(window);
+                //     self.proxy_history_state.select(Some(min(storage_len, window).saturating_sub(1)));
+                // }
+                // else if i == window - 1 && end < storage_len - 1 {
+                //     self.table_end_index += 1;
+                //     self.table_start_index += 1;
+                // }
+                // else {
+                //     self.proxy_history_state.select(Some(i + 1));
+                // }
+                // let final_index = self.proxy_history_state.selected().unwrap();
+                // if final_index != initial_index {
+                //     self.reset_scrolling();
+                // }
             },
             None => {
                 if storage.len() > 0 {
@@ -164,23 +181,40 @@ impl UI<'static> {
         let start = self.table_start_index.clone();
         let window = self.table_window_size.clone();
         let storage_len = storage.len();
+        let cache_len = storage.cache_len();
         match self.proxy_history_state.selected() {
             Some(i) => {
                 let initial_index = i;
-                if i == 0 && start == 0 {
-                    self.table_end_index = window - 1;
+
+                if cache_len == 0 {
+                    self.proxy_history_state.select(None);
                 }
-                else if i == 0 && start > 0 {
-                    self.table_end_index -= 1;
-                    self.table_start_index -= 1;
+                else if initial_index > 0 {
+                    self.proxy_history_state.select(Some(initial_index.saturating_sub(1)));
                 }
                 else {
-                    self.proxy_history_state.select(Some(i.saturating_sub(1)));
+                    if start > 0 {
+                        self.table_start_index -= 1;
+                        self.table_end_index -= 1;
+                    }
                 }
-                let final_index = self.proxy_history_state.selected().unwrap();
-                if initial_index != final_index {
-                    self.reset_scrolling();
-                }
+                //
+                //
+                //
+                // if i == 0 && start == 0 {
+                //     self.table_end_index = window - 1;
+                // }
+                // else if i == 0 && start > 0 {
+                //     self.table_end_index -= 1;
+                //     self.table_start_index -= 1;
+                // }
+                // else {
+                //     self.proxy_history_state.select(Some(i.saturating_sub(1)));
+                // }
+                // let final_index = self.proxy_history_state.selected().unwrap();
+                // if initial_index != final_index {
+                //     self.reset_scrolling();
+                // }
             },
             None => {
                 if storage.len() > 0 {

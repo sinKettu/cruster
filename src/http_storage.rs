@@ -56,11 +56,12 @@ impl Default for HTTPStorage {
 
 impl HTTPStorage {
     pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: usize) {
+        let l = self.storage.len();
         self.storage.push(
             RequestResponsePair {
                 request: Some(request),
                 response: None,
-                index: self.storage.len(),
+                index: l,
             }
         );
 
@@ -77,6 +78,10 @@ impl HTTPStorage {
 
     pub(crate) fn len(&self) -> usize {
         return self.storage.len().clone();
+    }
+
+    pub(crate) fn cache_len(&self) -> usize {
+        return self.cache_buffer.len().clone();
     }
 
     pub(crate) fn get_cached_data(&mut self, skip_count: usize, take_count: usize, filter_re: Option<regex::Regex>, force: bool) -> Vec<RequestResponsePair> {

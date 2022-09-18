@@ -69,7 +69,7 @@ const DEFAULT_ERRORS_BLOCK: usize = 5_usize;
 const DEFAULT_CONFIRMATION_BLOCK: usize = 4_usize;
 const DEFAULT_FILTER_BLOCK: usize = 4_usize;
 
-pub(crate) const DEFAULT_TABLE_WINDOW_SIZE: usize = 60_usize;
+pub(crate) const DEFAULT_TABLE_WINDOW_SIZE: usize = 4_usize;
 
 const HEADER_NAME_COLOR: Color = Color::LightBlue;
 const FILTER_MAIN_COLOR: Color = Color::LightYellow;
@@ -233,7 +233,7 @@ impl UI<'static> {
             filter_block: DEFAULT_FILTER_BLOCK,
 
             table_start_index: 0,
-            table_end_index: 59,
+            table_end_index: DEFAULT_TABLE_WINDOW_SIZE - 1,
             table_window_size: DEFAULT_TABLE_WINDOW_SIZE,
             table_step: 5,
 
