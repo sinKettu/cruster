@@ -678,21 +678,36 @@ impl UI<'static> {
             return None;
         };
 
-        let mut rows: Vec<Row> = Vec::new();
+        let re = match self.filter.as_ref() {
+            // Try to create regex if there is some filter
+            Some(f) => {
+                match regex::Regex::new(f) {
+                    // Save regex option if creation was successful
+                    Ok(re) => {
+                        Some(re)
+                    },
+                    // Otherwise log error, clear filter and set None as filter
+                    Err(e) => {
+                        self.log_error(e.into());
+                        self.filter = None;
+                        None
+                    }
+                }
+            }
+            // No regex if no filter string
+            None => {
+                None
+            }
+        };
+
         let cache = storage.get_cached_data(
             self.table_start_index,
             self.table_window_size,
-            match self.filter.as_ref() {
-                Some(f) => {
-                    Some(f.clone())
-                }
-                None => {
-                    None
-                }
-            },
+            re,
             storage.len() <= self.table_window_size
         );
 
+        let mut rows: Vec<Row> = Vec::new();
         for pair in cache {
             let index = pair.index;
             let request = pair.request.as_ref().unwrap();

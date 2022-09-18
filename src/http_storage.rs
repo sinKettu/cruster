@@ -1,7 +1,12 @@
+use std::cmp::min;
 use std::collections::HashMap;
+use http::header::HeaderName;
+use http::HeaderValue;
 
 use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 use super::ui::ui_storage::DEFAULT_TABLE_WINDOW_SIZE;
+
+use regex;
 
 #[derive(Clone, Debug)]
 pub(super) struct RequestResponsePair {
@@ -74,24 +79,59 @@ impl HTTPStorage {
         return self.storage.len().clone();
     }
 
-    pub(crate) fn get_cached_data(&mut self, skip_count: usize, take_count: usize, filter: Option<String>, force: bool) -> Vec<RequestResponsePair> {
+    pub(crate) fn get_cached_data(&mut self, skip_count: usize, take_count: usize, filter_re: Option<regex::Regex>, force: bool) -> Vec<RequestResponsePair> {
         let current_cache_key = CacheKey {
             skip: skip_count,
             take: take_count,
-            filter
+            filter: match &filter_re {
+                Some(f) => {
+                    Some(f.to_string())
+                },
+                None => {
+                    None
+                }
+            }
         };
 
-        if current_cache_key != self.cache_key || force {
-            self.cache_key = current_cache_key;
-            self.cache_buffer = self.storage
-                .iter()
-                .enumerate()
-                .filter(|(idx, elem)| { true })
-                .skip(self.cache_key.skip)
-                .take(self.cache_key.take)
-                .map(|(idx, elem)| { idx })
-                .collect();
-        }
+        self.cache_key = current_cache_key;
+        self.cache_buffer = self.storage
+            .iter()
+            .enumerate()
+            .filter(|(idx, elem)| {
+                match &filter_re {
+                    Some(re) => {
+                        self.filter(re, elem)
+                    }
+                    None => {
+                        true
+                    }
+                }
+            })
+            .skip(self.cache_key.skip)
+            .take(self.cache_key.take)
+            .map(|(idx, elem)| { idx })
+            .collect();
+
+        // if current_cache_key != self.cache_key || force {
+        //     self.cache_key = current_cache_key;
+        //     self.cache_buffer = self.storage
+        //         .iter()
+        //         .enumerate()
+        //         .filter(|(idx, elem)| {
+        //             match &filter_re {
+        //                 Some(re) => {
+        //                     self.filter(re, elem)
+        //                 }
+        //                 None => {
+        //                     true
+        //                 }
+        //             }
+        //         })
+        //         .skip(self.cache_key.skip)
+        //         .take(self.cache_key.take)
+        //         .map(|(idx, elem)| { idx })
+        //         .collect();
+        // }
 
         return self.cache_buffer
             .iter()
@@ -99,5 +139,67 @@ impl HTTPStorage {
                 self.storage[elem.clone()].clone()
             })
             .collect::<Vec<RequestResponsePair>>();
+    }
+
+    fn decision_on_header(&self, k: &HeaderName, v: &HeaderValue, re: &regex::Regex) -> bool {
+        let header_string = format!(
+            "{}: {}",
+            k.as_str(),
+            v.to_str().unwrap()
+        );
+        let re_match = re.find(&header_string);
+        if let Some(_) = re_match {
+            return true;
+        }
+
+        return false;
+    }
+
+    fn filter(&self, re: &regex::Regex, pair: &RequestResponsePair) -> bool {
+        // Check request w/out body
+        if let Some(request) = &pair.request {
+            let first_line = format!(
+                "{} {} {}",
+                &request.method,
+                &request.uri,
+                &request.version
+            );
+
+            if let Some(_) = re.find(&first_line) {
+                return true;
+            }
+
+            for (k, v) in &request.headers {
+                if self.decision_on_header(k, v, &re) {
+                    return true
+                }
+            }
+        }
+
+        // Check response w/out body
+        if let Some(response) = &pair.response {
+            let first_line = format!(
+                "{} {}",
+                &response.status,
+                &response.version
+            );
+
+            if let Some(_) = re.find(&first_line) {
+                return true;
+            }
+
+            for (k, v) in &response.headers {
+                if self.decision_on_header(k, v, &re) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    pub(crate) fn get_pair(&self, idx: usize) -> &RequestResponsePair {
+        let index = min(idx, self.cache_buffer.len() - 1);
+        return &self.storage[self.cache_buffer[index]];
     }
 }
