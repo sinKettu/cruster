@@ -21,7 +21,11 @@ use std::cmp::max;
 use std::env::{temp_dir, var};
 use std::os::macos::raw::stat;
 use crossterm::style::style;
+use http::header::HeaderName;
+use http::HeaderValue;
 use log::debug;
+use regex;
+use regex::Regex;
 
 use crate::cruster_proxy::request_response::{
     BodyCompressedWith,
@@ -63,6 +67,8 @@ const DEFAULT_HELP_BLOCK: usize = 4_usize;
 const DEFAULT_ERRORS_BLOCK: usize = 5_usize;
 const DEFAULT_CONFIRMATION_BLOCK: usize = 4_usize;
 const DEFAULT_FILTER_BLOCK: usize = 4_usize;
+
+pub(crate) const DEFAULT_TABLE_WINDOW_SIZE: usize = 60_usize;
 
 const HEADER_NAME_COLOR: Color = Color::LightBlue;
 const FILTER_MAIN_COLOR: Color = Color::LightYellow;
@@ -162,6 +168,9 @@ pub(crate) struct UI<'ui_lt> {
 
     // Index of area (rect) that is currently edited
     editable_area: Option<usize>,
+
+    // Regex to filter proxy data
+    filter: Option<String>
 }
 
 impl UI<'static> {
@@ -224,7 +233,7 @@ impl UI<'static> {
 
             table_start_index: 0,
             table_end_index: 59,
-            table_window_size: 60,
+            table_window_size: DEFAULT_TABLE_WINDOW_SIZE,
             table_step: 5,
 
             active_widget: DEFAULT_PROXY_BLOCK,        // Table
@@ -238,6 +247,8 @@ impl UI<'static> {
             input_buffer: String::with_capacity(1000_usize),
             input_cursor: 0_usize,
             editable_area: None,
+
+            filter: None
         }
     }
 
@@ -631,20 +642,59 @@ impl UI<'static> {
         self.widgets[self.confirm_block] = RenderUnit::PLACEHOLDER;
     }
 
-    pub(super) fn make_table(&mut self, storage: &HTTPStorage, size: Rect) {
+    pub(super) fn make_table(&mut self, storage: &mut HTTPStorage, size: Rect) {
         if storage.len() == 0 {
             return
         }
 
         debug!("Making table with width {} and height {}", size.width, size.height);
 
+        let regex = if let Some(filter_string) = &self.filter {
+            match regex::Regex::new(filter_string) {
+                Ok(re) => {
+                    Some(re)
+                },
+                Err(re_err) => {
+                    self.log_error(re_err.into());
+                    None
+                }
+            }
+        }
+        else {
+            None
+        };
+
+        let decision_on_header = |k: &HeaderName, v: &HeaderValue, re: &regex::Regex| -> Option<()> {
+            let header_string = format!(
+                "{}: {}",
+                k.as_str(),
+                v.to_str().unwrap()
+            );
+            let re_match = re.find(&header_string);
+            if let Some(_) = re_match {
+                return Some(());
+            }
+
+            return None;
+        };
+
         let mut rows: Vec<Row> = Vec::new();
-        for (index, pair) in storage.storage
-            .iter()
-            .skip(self.table_start_index)
-            .take(self.table_window_size)
-            .enumerate()
-        {
+        let cache = storage.get_cached_data(
+            self.table_start_index,
+            self.table_window_size,
+            match self.filter.as_ref() {
+                Some(f) => {
+                    Some(f.clone())
+                }
+                None => {
+                    None
+                }
+            },
+            storage.len() <= self.table_window_size
+        );
+
+        for pair in cache {
+            let index = pair.index;
             let request = pair.request.as_ref().unwrap();
 
             let (code, length) = match pair.response.as_ref() {

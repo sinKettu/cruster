@@ -51,11 +51,19 @@ impl UIEvents {
                         },
                         KeyCode::Esc => {
                             self.input_mode = false;
-                            ui_storage.set_statusbar_message(Some(messages::filter_chown()));
+                            self.popup_enabled = false;
+                            self.filter_enabled = false;
+                            ui_storage.hide_filter();
+                            ui_storage.clear_input();
+                            ui_storage.set_statusbar_message::<&str>(None);
                         }
                         KeyCode::Enter => {
                             self.input_mode = false;
-                            todo!("Store data");
+                            self.popup_enabled = false;
+                            self.filter_enabled = false;
+                            ui_storage.save_filter();
+                            ui_storage.hide_filter();
+                            ui_storage.set_statusbar_message::<&str>(None);
                         },
                         KeyCode::Left => {
                             ui_storage.handle_move_cursor_left();
@@ -73,6 +81,7 @@ impl UIEvents {
                     }
                 }
                 else {
+                    // Possibly unused branch
                     match key.code {
                         KeyCode::Char(c) => {
                             if c == 'q' {
@@ -90,7 +99,7 @@ impl UIEvents {
                         KeyCode::Enter => {
                             self.popup_enabled = false;
                             self.filter_enabled = false;
-                            todo!("Save changes");
+                            ui_storage.save_filter();
                         },
                         _ => {}
                     }
@@ -187,9 +196,10 @@ impl UIEvents {
                         }
                         else if c == 'F' && ! self.popup_enabled {
                             ui_storage.show_filter();
-                            ui_storage.set_statusbar_message(Some(messages::filter_chown()));
+                            ui_storage.set_statusbar_message(Some(messages::filter_shown()));
                             self.popup_enabled = true;
                             self.filter_enabled = true;
+                            self.input_mode = true;
                         }
                     }
                     KeyCode::Up => {

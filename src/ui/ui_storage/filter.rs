@@ -51,4 +51,13 @@ impl<'ui_lt> UI<'ui_lt> {
         self.widgets[self.filter_block] = RenderUnit::PLACEHOLDER;
         self.editable_area = None;
     }
+
+    pub(crate) fn save_filter(&mut self) {
+        if self.input_buffer.len() == 0 {
+            self.filter = None;
+        }
+        else {
+            self.filter = Some(self.input_buffer.clone());
+        }
+    }
 }

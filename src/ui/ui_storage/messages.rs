@@ -9,7 +9,7 @@ use tui::style::Color;
 use tui::text::{Span, Spans};
 
 
-pub(crate) fn filter_chown() -> Span<'static> {
+pub(crate) fn filter_shown() -> Span<'static> {
     Span::styled(
         "'e' to start editing  |  'Esc' to exit  |  'Enter' to save  ",
         Style::default().fg(FILTER_MAIN_COLOR)

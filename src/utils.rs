@@ -18,6 +18,7 @@ use time::OffsetDateTime;
 use time::macros::datetime;
 use tokio::sync::mpsc::error::{SendError as tokio_SendError, TryRecvError};
 use crate::CrusterWrapper;
+use regex::Error as regex_error;
 
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
@@ -36,6 +37,7 @@ pub(crate) enum CrusterError {
     TryRecvError(String),
     UnknownResponseBodyEncoding(String),
     NotImplementedError(String),
+    UnacceptableFilter(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -110,6 +112,14 @@ impl From<TryRecvError> for CrusterError {
     }
 }
 
+impl From<regex_error> for CrusterError {
+    fn from(e: regex_error) -> Self {
+        Self::UnacceptableFilter(
+            format!("Could not set filter because of error: {}", e.to_string())
+        )
+    }
+}
+
 impl fmt::Display for CrusterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -126,6 +136,9 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::UnknownResponseBodyEncoding(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::UnacceptableFilter(s) => {
                 write!(f, "{}", s)
             }
             _ => { write!(f, "{:?}", self) }
