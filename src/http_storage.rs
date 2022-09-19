@@ -7,6 +7,7 @@ use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseW
 use super::ui::ui_storage::DEFAULT_TABLE_WINDOW_SIZE;
 
 use regex;
+use crate::CrusterError;
 
 #[derive(Clone, Debug)]
 pub(super) struct RequestResponsePair {
@@ -203,8 +204,20 @@ impl HTTPStorage {
         return false;
     }
 
-    pub(crate) fn get_pair(&self, idx: usize) -> &RequestResponsePair {
-        let index = min(idx, self.cache_buffer.len() - 1);
-        return &self.storage[self.cache_buffer[index]];
+    pub(crate) fn get_pair_from_cache(&self, idx: usize) -> Result<&RequestResponsePair, CrusterError> {
+        return if idx < self.cache_buffer.len() {
+            Ok(&self.storage[self.cache_buffer[idx]])
+        }
+        else {
+            Err(
+                CrusterError::ProxyTableIndexOutOfRange(
+                    format!(
+                        "Requested element with number {} from table cache buffer with length {}",
+                        idx,
+                        self.cache_buffer.len()
+                    )
+                )
+            )
+        }
     }
 }

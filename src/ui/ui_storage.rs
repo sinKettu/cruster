@@ -273,19 +273,42 @@ impl UI<'static> {
         };
 
         let selected_index = match self.proxy_history_state.selected() {
-            Some(index) => index + self.table_start_index,
+            Some(index) => index,
             None => {
                 request_placeholder();
                 return;
             }
         };
 
-        if selected_index >= storage.len() {
-            request_placeholder();
-            return;
-        }
+        // if selected_index >= storage.len() {
+        //     request_placeholder();
+        //     self.proxy_history_state.select(Some(self.table_end_index));
+        //     return;
+        // }
 
-        let request = storage.storage[selected_index].request.as_ref().unwrap();
+        let request = match storage.get_pair_from_cache(selected_index) {
+            Ok(pair) => {
+                match &pair.request {
+                    Some(request) => {
+                        request
+                    },
+                    // Hopefully unreachable
+                    None => {
+                        request_placeholder();
+                        self.log_error(CrusterError::EmptyRequest(format!("Selected proxy record has empty request: {}", selected_index)));
+                        self.proxy_history_state.select(Some(self.table_end_index));
+                        return;
+                    }
+                }
+            },
+            Err(e) => {
+                request_placeholder();
+                self.log_error(e);
+                self.proxy_history_state.select(Some(self.table_end_index));
+                return;
+            }
+        };
+
         let mut request_list: Vec<Spans> = Vec::new();
         let tmp: Vec<Span> = vec![
             Span::styled(request.method.clone(), Style::default().add_modifier(Modifier::BOLD)),
@@ -338,42 +361,47 @@ impl UI<'static> {
             self.default_widget_header_style
         };
 
-        let mut response_placeholder = || {
+        let is_active = self.widgets[self.response_block].is_widget_active();
+        let mut response_placeholder = | is_active: bool | {
             self.widgets[self.response_block] = RenderUnit::new_block(
                 Block::default()
                     .title(Span::styled("RESPONSE", header_style))
                     .borders(Borders::ALL)
                     .title_alignment(Alignment::Center),
                 self.response_area,
-                true
+                is_active
             );
         };
 
         let selected_index = match self.proxy_history_state.selected() {
-            Some(index) => index + self.table_start_index,
+            Some(index) => index,
             None => {
-                response_placeholder();
+                response_placeholder(true);
                 return;
             }
         };
 
-        if selected_index >= storage.len() {
-            response_placeholder();
-            return;
-        }
+        // if selected_index >= storage.len() {
+        //     response_placeholder();
+        //     return;
+        // }
 
-        let response = match storage.storage[selected_index].response.as_ref() {
-            Some(rsp) => rsp,
-            None => {
-                let is_active = self.widgets[self.response_block].is_widget_active();
-                self.widgets[self.response_block] = RenderUnit::new_block(
-                    Block::default()
-                        .title(Span::styled("RESPONSE", header_style))
-                        .borders(Borders::ALL)
-                        .title_alignment(Alignment::Center),
-                    self.response_area,
-                    is_active
-                );
+        let response = match storage.get_pair_from_cache(selected_index) {
+            Ok(pair) => {
+                match &pair.response {
+                    Some(response) => {
+                        response
+                    },
+                    None => {
+                        response_placeholder(is_active);
+                        return;
+                    }
+                }
+            },
+            Err(e) => {
+                response_placeholder(true);
+                self.log_error(e);
+                self.proxy_history_state.select(Some(self.table_end_index));
                 return;
             }
         };

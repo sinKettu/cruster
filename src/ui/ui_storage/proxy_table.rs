@@ -143,7 +143,7 @@ impl UI<'static> {
                     }
                     else {
                         self.table_end_index = storage_len - 1;
-                        self.table_start_index = storage_len - self.table_window_size;
+                        self.table_start_index = storage_len.saturating_sub(self.table_window_size);
                     }
                 }
                 //

@@ -38,6 +38,8 @@ pub(crate) enum CrusterError {
     UnknownResponseBodyEncoding(String),
     NotImplementedError(String),
     UnacceptableFilter(String),
+    ProxyTableIndexOutOfRange(String),
+    EmptyRequest(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -140,7 +142,13 @@ impl fmt::Display for CrusterError {
             },
             CrusterError::UnacceptableFilter(s) => {
                 write!(f, "{}", s)
-            }
+            },
+            CrusterError::ProxyTableIndexOutOfRange(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::EmptyRequest(s) => {
+                write!(f, "{}", s)
+            },
             _ => { write!(f, "{:?}", self) }
         }
     }
