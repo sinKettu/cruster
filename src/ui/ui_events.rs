@@ -63,6 +63,7 @@ impl UIEvents {
                             self.filter_enabled = false;
                             ui_storage.save_filter();
                             ui_storage.hide_filter();
+                            ui_storage.reset_table_state();
                             ui_storage.set_statusbar_message::<&str>(None);
                         },
                         KeyCode::Left => {

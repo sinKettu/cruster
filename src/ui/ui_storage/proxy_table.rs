@@ -7,6 +7,7 @@ use tui::style::{Color, Modifier, Style};
 use tui::text::Span;
 use tui::widgets::{Block, Borders, Row, Table};
 use crate::http_storage::HTTPStorage;
+use crate::ui::ui_storage::DEFAULT_TABLE_WINDOW_SIZE;
 use crate::ui::ui_storage::render_units::RenderUnit;
 use super::UI;
 
@@ -44,7 +45,7 @@ impl UI<'static> {
             self.table_start_index,
             self.table_window_size,
             re,
-            storage.len() <= self.table_window_size
+            storage.actual_len() <= self.table_window_size
         );
 
         let mut rows: Vec<Row> = Vec::new();
@@ -121,11 +122,12 @@ impl UI<'static> {
     }
 
     pub(crate) fn table_step_down(&mut self, storage: &HTTPStorage) {
-        debug!("table_step_down_1: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
         let end = self.table_end_index.clone();
+        let start = self.table_start_index;
         let window = self.table_window_size.clone();
         let storage_len = storage.len();
         let cache_len = storage.cache_len();
+        let actual_len = storage.actual_len();
         match self.proxy_history_state.selected() {
             Some(i) => {
                 let initial_index = i;
@@ -137,60 +139,35 @@ impl UI<'static> {
                     self.proxy_history_state.select(Some(initial_index + 1))
                 }
                 else {
-                    if self.table_end_index + 1 < storage_len {
+                    if start + cache_len + 1 < actual_len {
                         self.table_start_index += 1;
                         self.table_end_index += 1;
                     }
                     else {
-                        self.table_end_index = storage_len - 1;
-                        self.table_start_index = storage_len.saturating_sub(self.table_window_size);
+                        self.table_end_index = actual_len - 1;
+                        self.table_start_index = actual_len.saturating_sub(self.table_window_size);
                     }
                 }
-                //
-                //
-                //
-                // if storage_len < window && i == storage_len - 1 {
-                //     self.proxy_history_state.select(
-                //         Some(storage_len.saturating_sub(1))
-                //     );
-                // }
-                // else if i == window - 1 && end >= storage_len - 1 {
-                //     self.table_end_index = storage_len.saturating_sub(1);
-                //     self.table_start_index = (self.table_end_index + 1).saturating_sub(window);
-                //     self.proxy_history_state.select(Some(min(storage_len, window).saturating_sub(1)));
-                // }
-                // else if i == window - 1 && end < storage_len - 1 {
-                //     self.table_end_index += 1;
-                //     self.table_start_index += 1;
-                // }
-                // else {
-                //     self.proxy_history_state.select(Some(i + 1));
-                // }
-                // let final_index = self.proxy_history_state.selected().unwrap();
-                // if final_index != initial_index {
-                //     self.reset_scrolling();
-                // }
             },
             None => {
-                if storage.len() > 0 {
+                if actual_len > 0 {
                     self.proxy_history_state.select(Some(0));
                 }
             }
         }
-        debug!("table_step_down_2: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
     }
 
     pub(crate) fn table_step_up(&mut self, storage: &HTTPStorage) {
-        debug!("table_step_up_1: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
         let start = self.table_start_index.clone();
         let window = self.table_window_size.clone();
         let storage_len = storage.len();
         let cache_len = storage.cache_len();
+        let actual_len = storage.actual_len();
         match self.proxy_history_state.selected() {
             Some(i) => {
                 let initial_index = i;
 
-                if cache_len == 0 {
+                if actual_len == 0 {
                     self.proxy_history_state.select(None);
                 }
                 else if initial_index > 0 {
@@ -202,35 +179,17 @@ impl UI<'static> {
                         self.table_end_index -= 1;
                     }
                     else {
-                        self.table_end_index = window - 1;
+                        self.table_end_index = min(window, actual_len).saturating_sub(1);
                         self.table_start_index = 0;
                     }
                 }
-                //
-                //
-                //
-                // if i == 0 && start == 0 {
-                //     self.table_end_index = window - 1;
-                // }
-                // else if i == 0 && start > 0 {
-                //     self.table_end_index -= 1;
-                //     self.table_start_index -= 1;
-                // }
-                // else {
-                //     self.proxy_history_state.select(Some(i.saturating_sub(1)));
-                // }
-                // let final_index = self.proxy_history_state.selected().unwrap();
-                // if initial_index != final_index {
-                //     self.reset_scrolling();
-                // }
             },
             None => {
-                if storage.len() > 0 {
+                if actual_len > 0 {
                     self.proxy_history_state.select(Some(0));
                 }
             }
         }
-        debug!("table_step_up_2: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
     }
 
     pub(crate) fn table_scroll_page_down(&mut self, storage: &HTTPStorage) {
@@ -312,5 +271,12 @@ impl UI<'static> {
             storage.len(),
             self.table_end_index,
             self.proxy_history_state.selected());
+    }
+
+    pub(crate) fn reset_table_state(&mut self) {
+        self.proxy_history_state.select(None);
+        self.table_start_index = 0_usize;
+        self.table_end_index = DEFAULT_TABLE_WINDOW_SIZE - 1;
+        self.table_window_size = DEFAULT_TABLE_WINDOW_SIZE;
     }
 }

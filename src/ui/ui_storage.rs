@@ -296,7 +296,7 @@ impl UI<'static> {
                     None => {
                         request_placeholder();
                         self.log_error(CrusterError::EmptyRequest(format!("Selected proxy record has empty request: {}", selected_index)));
-                        self.proxy_history_state.select(Some(self.table_end_index));
+                        // self.proxy_history_state.select(Some(self.table_end_index));
                         return;
                     }
                 }
@@ -304,7 +304,7 @@ impl UI<'static> {
             Err(e) => {
                 request_placeholder();
                 self.log_error(e);
-                self.proxy_history_state.select(Some(self.table_end_index));
+                self.proxy_history_state.select(None);
                 return;
             }
         };
