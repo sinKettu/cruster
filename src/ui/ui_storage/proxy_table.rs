@@ -176,7 +176,7 @@ impl UI<'static> {
                 else {
                     if start > 0 {
                         self.table_start_index -= 1;
-                        self.table_end_index -= 1;
+                        self.table_end_index = self.table_start_index + window;
                     }
                     else {
                         self.table_end_index = min(window, actual_len).saturating_sub(1);
@@ -193,37 +193,86 @@ impl UI<'static> {
     }
 
     pub(crate) fn table_scroll_page_down(&mut self, storage: &HTTPStorage) {
-        debug!("table_scroll_page_down_1: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
-        if self.table_end_index == storage.len() - 1 {
-            let new_state = min(self.table_window_size - 1, storage.len() - 1);
-            self.proxy_history_state.select(Some(new_state));
-            self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
-        } else if self.table_end_index + self.table_window_size >= storage.len() - 1 {
-            self.table_end_index = storage.len() - 1;
-            self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
-            // let new_state = min(self.table_window_size - 1, storage.len() - 1);
-            // self.proxy_history_state.select(Some(new_state));
-        } else {
-            self.table_start_index += self.table_window_size;
-            self.table_end_index += self.table_window_size;
+        let start = self.table_start_index;
+        let cache_len = storage.cache_len();
+        let actual_len = storage.actual_len();
+        let window = self.table_window_size;
+        let index = self.proxy_history_state.selected();
+
+        match index {
+            Some(idx) => {
+                if start + window >= actual_len - 1 {
+                    self.table_start_index = actual_len.saturating_sub(window);
+                    if start == actual_len.saturating_sub(window) {
+                        self.proxy_history_state.select(Some(cache_len - 1));
+                    }
+                    else if idx > cache_len {
+                        self.proxy_history_state.select(Some(cache_len - 1));
+                    }
+                }
+                else {
+                    self.table_start_index += window;
+                }
+            },
+            None => {
+                if actual_len > 0 {
+                    self.proxy_history_state.select(Some(0));
+                }
+            }
         }
-        debug!("table_scroll_page_down_2: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
+
+
+        // if self.table_end_index == storage.len() - 1 {
+        //     let new_state = min(self.table_window_size - 1, storage.len() - 1);
+        //     self.proxy_history_state.select(Some(new_state));
+        //     self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
+        // } else if self.table_end_index + self.table_window_size >= storage.len() - 1 {
+        //     self.table_end_index = storage.len() - 1;
+        //     self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
+        //     // let new_state = min(self.table_window_size - 1, storage.len() - 1);
+        //     // self.proxy_history_state.select(Some(new_state));
+        // } else {
+        //     self.table_start_index += self.table_window_size;
+        //     self.table_end_index += self.table_window_size;
+        // }
     }
 
     pub(crate) fn table_scroll_page_up(&mut self, storage: &HTTPStorage) {
-        debug!("table_scroll_page_up_1: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
-        if self.table_start_index == 0 {
-            self.proxy_history_state.select(Some(0));
-            self.table_end_index = min(self.table_window_size, storage.len()).saturating_sub(1);
-        } else if self.table_start_index.saturating_sub(self.table_window_size) == 0 {
-            self.table_start_index = 0;
-            self.table_end_index = min(self.table_window_size, storage.len()).saturating_sub(1);
-            // self.proxy_history_state.select(Some(0));
-        } else {
-            self.table_start_index -= self.table_window_size;
-            self.table_end_index -= self.table_window_size;
+        let start = self.table_start_index;
+        let actual_len = storage.actual_len();
+        let window = self.table_window_size;
+        let index = self.proxy_history_state.selected();
+
+        match index {
+            Some(idx) => {
+                if start.saturating_sub(window) == 0 {
+                    self.table_start_index = 0;
+                    if start == 0 {
+                        self.proxy_history_state.select(Some(0));
+                    }
+                }
+                else {
+                    self.table_start_index -= window;
+                }
+            },
+            None => {
+                if actual_len > 0 {
+                    self.proxy_history_state.select(Some(0));
+                }
+            }
         }
-        debug!("table_scroll_page_up_2: start_index - {}, end_index - {}, state - {:?}", self.table_start_index, self.table_end_index, self.proxy_history_state.selected());
+
+        // if self.table_start_index == 0 {
+        //     self.proxy_history_state.select(Some(0));
+        //     self.table_end_index = min(self.table_window_size, storage.len()).saturating_sub(1);
+        // } else if self.table_start_index.saturating_sub(self.table_window_size) == 0 {
+        //     self.table_start_index = 0;
+        //     self.table_end_index = min(self.table_window_size, storage.len()).saturating_sub(1);
+        //     // self.proxy_history_state.select(Some(0));
+        // } else {
+        //     self.table_start_index -= self.table_window_size;
+        //     self.table_end_index -= self.table_window_size;
+        // }
     }
 
     pub(crate) fn table_scroll_end(&mut self, storage: &HTTPStorage) {

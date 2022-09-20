@@ -304,7 +304,7 @@ impl UI<'static> {
             Err(e) => {
                 request_placeholder();
                 self.log_error(e);
-                self.proxy_history_state.select(None);
+                self.proxy_history_state.select(Some(storage.cache_len() - 1));
                 return;
             }
         };
@@ -401,7 +401,7 @@ impl UI<'static> {
             Err(e) => {
                 response_placeholder(true);
                 self.log_error(e);
-                self.proxy_history_state.select(Some(self.table_end_index));
+                self.proxy_history_state.select(Some(storage.cache_len() - 1));
                 return;
             }
         };
