@@ -220,21 +220,6 @@ impl UI<'static> {
                 }
             }
         }
-
-
-        // if self.table_end_index == storage.len() - 1 {
-        //     let new_state = min(self.table_window_size - 1, storage.len() - 1);
-        //     self.proxy_history_state.select(Some(new_state));
-        //     self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
-        // } else if self.table_end_index + self.table_window_size >= storage.len() - 1 {
-        //     self.table_end_index = storage.len() - 1;
-        //     self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
-        //     // let new_state = min(self.table_window_size - 1, storage.len() - 1);
-        //     // self.proxy_history_state.select(Some(new_state));
-        // } else {
-        //     self.table_start_index += self.table_window_size;
-        //     self.table_end_index += self.table_window_size;
-        // }
     }
 
     pub(crate) fn table_scroll_page_up(&mut self, storage: &HTTPStorage) {
@@ -261,65 +246,27 @@ impl UI<'static> {
                 }
             }
         }
-
-        // if self.table_start_index == 0 {
-        //     self.proxy_history_state.select(Some(0));
-        //     self.table_end_index = min(self.table_window_size, storage.len()).saturating_sub(1);
-        // } else if self.table_start_index.saturating_sub(self.table_window_size) == 0 {
-        //     self.table_start_index = 0;
-        //     self.table_end_index = min(self.table_window_size, storage.len()).saturating_sub(1);
-        //     // self.proxy_history_state.select(Some(0));
-        // } else {
-        //     self.table_start_index -= self.table_window_size;
-        //     self.table_end_index -= self.table_window_size;
-        // }
     }
 
     pub(crate) fn table_scroll_end(&mut self, storage: &HTTPStorage) {
-        debug!(
-            "table_scroll_end_1: storage_len - {}, end_index -  {}, selected - {:?}",
-            storage.len(),
-            self.table_end_index,
-            self.proxy_history_state.selected());
 
         if self.proxy_history_state.selected().is_none() {
             return;
         }
 
-        self.table_end_index = max(storage.len(), self.table_window_size).saturating_sub(1);
-        self.table_start_index = (self.table_end_index + 1).saturating_sub(self.table_window_size);
-        let new_state = min(self.table_window_size, storage.len()).saturating_sub(1);
-        self.proxy_history_state.select(Some(new_state));
+        self.table_start_index = storage.actual_len().saturating_sub(self.table_window_size);
+        self.proxy_history_state.select(Some(storage.cache_len() - 1));
         self.reset_scrolling();
-
-        debug!(
-            "table_scroll_end_2: storage_len - {}, end_index -  {}, selected - {:?}",
-            storage.len(),
-            self.table_end_index,
-            self.proxy_history_state.selected());
     }
 
     pub(crate) fn table_scroll_home(&mut self, storage: &HTTPStorage) {
-        debug!(
-            "table_scroll_home_1: storage_len - {}, end_index -  {}, selected - {:?}",
-            storage.len(),
-            self.table_end_index,
-            self.proxy_history_state.selected());
-
         if self.proxy_history_state.selected().is_none() {
             return;
         }
 
         self.table_start_index = 0;
-        self.table_end_index = self.table_window_size - 1;
         self.proxy_history_state.select(Some(0));
         self.reset_scrolling();
-
-        debug!(
-            "table_scroll_home_2: storage_len - {}, end_index -  {}, selected - {:?}",
-            storage.len(),
-            self.table_end_index,
-            self.proxy_history_state.selected());
     }
 
     pub(crate) fn reset_table_state(&mut self) {
