@@ -171,7 +171,12 @@ pub(crate) struct UI<'ui_lt> {
     editable_area: Option<usize>,
 
     // Regex to filter proxy data
-    filter: Option<String>
+    filter: Option<String>,
+
+    // Flags (this and following) to show if needed a body from request/response
+    // if it's too large to show it by default
+    reveal_current_request: bool,
+    reveal_current_response: bool,
 }
 
 impl UI<'static> {
@@ -249,7 +254,10 @@ impl UI<'static> {
             input_cursor: 0_usize,
             editable_area: None,
 
-            filter: None
+            filter: None,
+
+            reveal_current_request: false,
+            reveal_current_response: false,
         }
     }
 
@@ -279,12 +287,6 @@ impl UI<'static> {
                 return;
             }
         };
-
-        // if selected_index >= storage.len() {
-        //     request_placeholder();
-        //     self.proxy_history_state.select(Some(self.table_end_index));
-        //     return;
-        // }
 
         let request = match storage.get_pair_from_cache(selected_index) {
             Ok(pair) => {
@@ -381,11 +383,6 @@ impl UI<'static> {
             }
         };
 
-        // if selected_index >= storage.len() {
-        //     response_placeholder();
-        //     return;
-        // }
-
         let response = match storage.get_pair_from_cache(selected_index) {
             Ok(pair) => {
                 match &pair.response {
@@ -441,26 +438,47 @@ impl UI<'static> {
             match response.body_compressed {
                 BodyCompressedWith::NONE => {
                     match response.body.as_slice().to_str() {
-                        Ok(s) => s.to_string(),
+                        Ok(s) => Span::from(s.to_string()),
                         Err(e) => {
-                            String::from_utf8_lossy(response.body.as_slice()).to_string()
+                            if response.body.len() > 2 * 1024 * 1024 /* 2 Mb */ && ! self.reveal_current_response {
+                                Span::styled(
+                                    "Response body too large, too see it  select (activate) response square (default key is [s]) ".to_owned() +
+                                    "and press [u] to unhide",
+                                    Style::default().fg(Color::DarkGray)
+                                )
+                            }
+                            else {
+                                Span::from(String::from_utf8_lossy(response.body.as_slice()).to_string())
+                            }
                         }
                     }
                 },
                 BodyCompressedWith::GZIP => {
-                    let writer = Vec::new();
-                    let mut decoder = GzDecoder::new(writer);
-                    decoder.write_all(response.body.as_slice()).unwrap();
-                    decoder.finish().unwrap().to_str_lossy().to_string()
+                    if response.body.len() > 1024 * 1024 /* 1 Mb */ && ! self.reveal_current_response {
+                        Span::styled(
+                            "Response body too large, too see it select (activate) response square (default key is [s])",
+                            Style::default().fg(Color::DarkGray)
+                        )
+                    }
+                    else {
+                        let writer = Vec::new();
+                        let mut decoder = GzDecoder::new(writer);
+                        decoder.write_all(response.body.as_slice()).unwrap();
+                        Span::from(decoder.finish().unwrap().to_str_lossy().to_string())
+                    }
                 },
                 BodyCompressedWith::DEFLATE => {
+                    self.log_error(CrusterError::UndefinedError("Decoding 'deflate' is not implemented yet".to_string()));
                     todo!()
                 },
                 BodyCompressedWith::BR => {
                     // TODO: remove err when will support 'br'
-                    let result = "'Brotli' encoding is not implemented yet".to_string();
-                    self.log_error(CrusterError::NotImplementedError(result.clone()));
-                    result
+                    let error_string = "'Brotli' encoding is not implemented yet.";
+                    self.log_error(CrusterError::NotImplementedError(error_string.to_string()));
+                    Span::styled(
+                        error_string,
+                        Style::default().fg(Color::DarkGray)
+                    )
                 }
         });
         response_content.push(body);
@@ -788,6 +806,20 @@ impl UI<'static> {
             Ok(_) => {},
             Err(e) => self.log_error(e)
         }
+    }
+
+    pub(crate) fn reveal_body(&mut self) {
+        if self.is_request_active() {
+            self.reveal_current_request = true;
+        }
+        if self.is_response_active() {
+            self.reveal_current_response = true;
+        }
+    }
+
+    fn cancel_revealing(&mut self) {
+        self.reveal_current_request = false;
+        self.reveal_current_response = false;
     }
 }
 

@@ -122,12 +122,13 @@ impl UI<'static> {
     }
 
     pub(crate) fn table_step_down(&mut self, storage: &HTTPStorage) {
-        let end = self.table_end_index.clone();
         let start = self.table_start_index;
-        let window = self.table_window_size.clone();
-        let storage_len = storage.len();
         let cache_len = storage.cache_len();
         let actual_len = storage.actual_len();
+
+        self.cancel_revealing();
+        self.reset_scrolling();
+
         match self.proxy_history_state.selected() {
             Some(i) => {
                 let initial_index = i;
@@ -160,9 +161,11 @@ impl UI<'static> {
     pub(crate) fn table_step_up(&mut self, storage: &HTTPStorage) {
         let start = self.table_start_index.clone();
         let window = self.table_window_size.clone();
-        let storage_len = storage.len();
-        let cache_len = storage.cache_len();
         let actual_len = storage.actual_len();
+
+        self.cancel_revealing();
+        self.reset_scrolling();
+
         match self.proxy_history_state.selected() {
             Some(i) => {
                 let initial_index = i;
@@ -199,6 +202,9 @@ impl UI<'static> {
         let window = self.table_window_size;
         let index = self.proxy_history_state.selected();
 
+        self.cancel_revealing();
+        self.reset_scrolling();
+
         match index {
             Some(idx) => {
                 if start + window >= actual_len - 1 {
@@ -228,6 +234,9 @@ impl UI<'static> {
         let window = self.table_window_size;
         let index = self.proxy_history_state.selected();
 
+        self.cancel_revealing();
+        self.reset_scrolling();
+
         match index {
             Some(idx) => {
                 if start.saturating_sub(window) == 0 {
@@ -249,14 +258,15 @@ impl UI<'static> {
     }
 
     pub(crate) fn table_scroll_end(&mut self, storage: &HTTPStorage) {
-
         if self.proxy_history_state.selected().is_none() {
             return;
         }
 
+        self.cancel_revealing();
+        self.reset_scrolling();
+
         self.table_start_index = storage.actual_len().saturating_sub(self.table_window_size);
         self.proxy_history_state.select(Some(storage.cache_len() - 1));
-        self.reset_scrolling();
     }
 
     pub(crate) fn table_scroll_home(&mut self, storage: &HTTPStorage) {
@@ -264,9 +274,11 @@ impl UI<'static> {
             return;
         }
 
+        self.cancel_revealing();
+        self.reset_scrolling();
+
         self.table_start_index = 0;
         self.proxy_history_state.select(Some(0));
-        self.reset_scrolling();
     }
 
     pub(crate) fn reset_table_state(&mut self) {

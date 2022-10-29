@@ -110,10 +110,14 @@ fn run_app<B: Backend>(
             }
         }
 
-        // ui_storage.draw_statusbar(&http_storage);
-        ui_storage.draw_state(&http_storage);
+        if ui_events.something_changed {
+            ui_storage.draw_state(&http_storage);
+            ui_events.something_changed = false;
+        }
+
         if ui_events.table_state_changed {
             ui_storage.make_table(&mut http_storage, terminal.get_frame().size());
+            ui_events.table_state_changed = false;
         }
 
         terminal.draw(|f| new_ui(f, &mut ui_storage, ui_events.input_mode))?;

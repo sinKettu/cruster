@@ -7,7 +7,7 @@ use crate::ui::ui_storage::UI;
 use super::ui_storage::messages;
 
 pub(super) struct UIEvents {
-    something_changed: bool,
+    pub(super) something_changed: bool,
     pub(super) table_state_changed: bool,
     popup_enabled: bool,
     entered_fullscreen: bool,
@@ -53,6 +53,8 @@ impl UIEvents {
                             self.input_mode = false;
                             self.popup_enabled = false;
                             self.filter_enabled = false;
+                            self.table_state_changed = true;
+                            self.something_changed = true;
                             ui_storage.hide_filter();
                             ui_storage.clear_input();
                             ui_storage.set_statusbar_message::<&str>(None);
@@ -61,6 +63,8 @@ impl UIEvents {
                             self.input_mode = false;
                             self.popup_enabled = false;
                             self.filter_enabled = false;
+                            self.table_state_changed = true;
+                            self.something_changed = true;
                             ui_storage.save_filter();
                             ui_storage.hide_filter();
                             ui_storage.reset_table_state();
@@ -201,6 +205,11 @@ impl UIEvents {
                             self.popup_enabled = true;
                             self.filter_enabled = true;
                             self.input_mode = true;
+                            self.something_changed = true;
+                        }
+                        else if c == 'u' && (ui_storage.is_response_active() || ui_storage.is_request_active()) {
+                            ui_storage.reveal_body();
+                            self.something_changed = true;
                         }
                     }
                     KeyCode::Up => {

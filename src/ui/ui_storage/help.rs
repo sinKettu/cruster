@@ -102,6 +102,14 @@ pub(super) fn make_help_menu<'help>(rect_index: usize) -> RenderUnit<'help> {
                     .add_modifier(Modifier::BOLD)),
             Span::raw(" - Select (activate) response screen")
         ]),
+        Spans::from(vec![
+            Span::styled(
+                "u",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)),
+            Span::raw(" - Reveal hidden body")
+        ]),
     ];
 
     let help_block = Block::default()
