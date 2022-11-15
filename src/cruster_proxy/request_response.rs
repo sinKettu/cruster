@@ -5,7 +5,13 @@ use hudsucker::{
 };
 use log::debug;
 use tokio::sync::mpsc::Sender;
+use tui::style::{Color, Modifier, Style};
+use tui::text::{Span, Spans};
 use crate::CrusterError;
+use crate::ui::ui_storage::HEADER_NAME_COLOR;
+use flate2::write::GzDecoder;
+use std::io::prelude::*;
+use bstr::ByteSlice;
 
 
 #[derive(Clone, Debug)]
@@ -80,6 +86,57 @@ impl HyperRequestWrapper {
                     .to_string()
             }
         }
+    }
+
+    pub fn to_vec_of_spans(&self) -> Vec<Spans<'static>> {
+        let mut request_list: Vec<Spans> = Vec::new();
+        let tmp: Vec<Span> = vec![
+            Span::styled(self.method.clone(), Style::default().add_modifier(Modifier::BOLD)),
+            Span::from(" "),
+            Span::from(self.get_request_path()),
+            Span::from(" "),
+            Span::from(format!("{}", self.version)),
+        ];
+        request_list.push(Spans::from(tmp));
+
+        for (k, v) in self.headers.iter() {
+            let mut tmp: Vec<Span> = Vec::new();
+            tmp.push(Span::styled(k.to_string(), Style::default().fg(HEADER_NAME_COLOR)));
+            tmp.push(Span::from(": ".to_string()));
+            tmp.push(Span::from(format!("{}", v.to_str().unwrap())));
+            request_list.push(Spans::from(tmp));
+        }
+
+        request_list.push(Spans::from(Span::from("")));
+
+        // TODO: requests body hiding
+        for line in self.body.to_str_lossy().split("\n") {
+            request_list.push(Spans::from(line.to_string()));
+        }
+
+        return request_list;
+    }
+
+    pub fn to_string(&self) -> String {
+        let mut result = format!(
+            "{} {} {}\r\n",
+            self.method.as_str(),
+            self.get_request_path().as_str(),
+            self.version.as_str()
+        );
+
+        for (k, v) in self.headers.iter() {
+            result = format!(
+                "{}{}: {}\r\n",
+                result,
+                k.as_str(),
+                v.to_str().unwrap()
+            );
+        }
+
+        result = format!("{}\r\n{}", result, self.body.to_str_lossy().to_string());
+
+        return result;
     }
 }
 
@@ -191,6 +248,90 @@ impl HyperResponseWrapper {
                 self.body.len().to_string()
             }
         }
+    }
+
+    pub fn to_vec_of_spans(&self, reveal_body: bool) -> Result<Vec<Spans<'static>>, CrusterError> {
+        let mut response_content: Vec<Spans> = vec![];
+
+        // Status and version, like '200 OK HTTP/2'
+        let first_line = Spans::from(vec![
+            Span::styled(
+                self.status.clone(),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
+            ),
+            Span::from(" "),
+            Span::from(self.version.clone())
+        ]);
+        response_content.push(first_line);
+
+        // Response Headers
+        for (k, v) in &self.headers {
+            let header_line = Spans::from(vec![
+                Span::styled(
+                    k.clone().to_string(),
+                    Style::default().fg(HEADER_NAME_COLOR)
+                ),
+                Span::from(": "),
+                Span::from(v.clone().to_str().unwrap().to_string())
+            ]);
+            response_content.push(header_line)
+        }
+
+        // Empty line
+        response_content.push(Spans::default());
+
+        // Body
+        let body = Spans::from(
+            match self.body_compressed {
+                BodyCompressedWith::NONE => {
+                    match self.body.as_slice().to_str() {
+                        Ok(s) => Span::from(s.to_string()),
+                        Err(e) => {
+                            if self.body.len() > 2 * 1024 * 1024 /* 2 Mb */ && ! reveal_body {
+                                Span::styled(
+                                    "Response body too large, too see it  select (activate) response square (default key is [s]) ".to_owned() +
+                                        "and press [u] to reveal",
+                                    Style::default().fg(Color::DarkGray)
+                                )
+                            }
+                            else {
+                                Span::from(String::from_utf8_lossy(self.body.as_slice()).to_string())
+                            }
+                        }
+                    }
+                },
+                BodyCompressedWith::GZIP => {
+                    if self.body.len() > 1024 * 1024 /* 1 Mb */ && ! reveal_body {
+                        Span::styled(
+                            "Response body too large, too see it select (activate) response square (default key is [s])",
+                            Style::default().fg(Color::DarkGray)
+                        )
+                    }
+                    else {
+                        let writer = Vec::new();
+                        let mut decoder = GzDecoder::new(writer);
+                        decoder.write_all(self.body.as_slice()).unwrap();
+                        Span::from(decoder.finish().unwrap().to_str_lossy().to_string())
+                    }
+                },
+                BodyCompressedWith::DEFLATE => {
+                    return Err(CrusterError::UndefinedError("Decoding 'deflate' is not implemented yet".to_string()));
+                },
+                BodyCompressedWith::BR => {
+                    // TODO: remove err when will support 'br'
+                    let error_string = "'Brotli' encoding is not implemented yet.";
+                    // self.log_error(CrusterError::NotImplementedError(error_string.to_string()));
+                    Span::styled(
+                        error_string,
+                        Style::default().fg(Color::DarkGray)
+                    )
+                }
+            });
+
+        response_content.push(body);
+        return Ok(response_content);
     }
 }
 

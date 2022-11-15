@@ -2,7 +2,7 @@ use std::ops::Index;
 use tui::layout::Rect;
 
 pub(super) struct CrusterLayout {
-    rects: [Rect; 8]
+    rects: [Rect; 10]
 }
 
 impl CrusterLayout {
@@ -19,6 +19,8 @@ impl CrusterLayout {
             // 5 - Rect for Proxy FullScreen
             // 6 - Rect for confirmation window
             // 7 - Filter window
+            // 8 - Repeater's request
+            // 9 - Repeater's response
             rects: [
                 // 0
                 Rect::new(
@@ -75,6 +77,20 @@ impl CrusterLayout {
                     f.y + window_height / 2 - 3,
                     window_width - 20,
                     5
+                ),
+                // 8
+                Rect::new(
+                    f.x,
+                    f.y,
+                    window_width / 2 - 1,
+                    window_height
+                ),
+                // 9
+                Rect::new(
+                    f.x + window_width / 2,
+                    f.y,
+                    window_width / 2,
+                    window_height
                 ),
             ]
         }

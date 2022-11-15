@@ -3,7 +3,7 @@ use super::UI;
 use super::filter::DEFAULT_MESSAGE_LENGTH;
 
 ///
-/// # Inputs
+/// Inputs
 /// The part of UI's implementation responsible for
 /// converting input from user's keyboard to UI objects' changes
 ///
@@ -93,6 +93,6 @@ impl<'ui_lt> UI<'ui_lt> {
     /// 
     pub(crate) fn clear_input(&mut self) {
         self.input_cursor = 0_usize;
-        self.input_buffer = String::default();
+        self.input_buffer.clear();
     }
 }

@@ -4,6 +4,7 @@ mod input;
 mod filter;
 pub(super) mod messages;
 pub(crate) mod proxy_table;
+mod repeater;
 
 use render_units::*;
 use help::make_help_menu;
@@ -20,7 +21,7 @@ use std::{
 use std::borrow::{Borrow, BorrowMut};
 use std::cmp::max;
 use std::env::{temp_dir, var};
-use std::os::macos::raw::stat;
+// use std::os::macos::raw::stat;
 use crossterm::style::style;
 use http::header::HeaderName;
 use http::HeaderValue;
@@ -57,6 +58,8 @@ const DEFAULT_HELP_AREA: usize = 4_usize;
 const DEFAULT_ERRORS_AREA: usize = 4_usize;
 const DEFAULT_CONFIRMATION_AREA: usize = 6_usize;
 pub(super) const DEFAULT_FILTER_AREA: usize = 7_usize;
+const DEFAULT_REPEATER_REQ_AREA: usize = 8_usize;
+const DEFAULT_REPEATER_RES_AREA: usize = 9_usize;
 
 const DEFAULT_FULLSCREEN_AREA: usize = 5_usize;
 
@@ -68,10 +71,12 @@ const DEFAULT_HELP_BLOCK: usize = 4_usize;
 const DEFAULT_ERRORS_BLOCK: usize = 5_usize;
 const DEFAULT_CONFIRMATION_BLOCK: usize = 4_usize;
 const DEFAULT_FILTER_BLOCK: usize = 4_usize;
+const DEFAULT_REPEATER_REQ_BLOCK: usize = 4_usize;
+const DEFAULT_REPEATER_RES_BLOCK: usize = 5_usize;
 
 pub(crate) const DEFAULT_TABLE_WINDOW_SIZE: usize = 4_usize;
 
-const HEADER_NAME_COLOR: Color = Color::LightBlue;
+pub(crate) const HEADER_NAME_COLOR: Color = Color::LightBlue;
 const FILTER_MAIN_COLOR: Color = Color::LightYellow;
 
 
@@ -177,6 +182,18 @@ pub(crate) struct UI<'ui_lt> {
     // if it's too large to show it by default
     reveal_current_request: bool,
     reveal_current_response: bool,
+
+    // Index of layout area for 'Request' block in repeater view
+    repeater_req_area: usize,
+
+    // Index of layout area for 'Response' block in repeater view
+    repeater_res_area: usize,
+
+    // Index of UI's block for 'Request' block in repeater view
+    repeater_req_block: usize,
+
+    // Index of UI's block for 'Request' block in repeater view
+    repeater_res_block: usize,
 }
 
 impl UI<'static> {
@@ -209,6 +226,7 @@ impl UI<'static> {
                 RenderUnit::new_block(statusbar_block, DEFAULT_STATUSBAR_AREA, true),
                 RenderUnit::PLACEHOLDER,
                 RenderUnit::PLACEHOLDER,
+                RenderUnit::PLACEHOLDER,
             ],
 
             errors: Vec::new(),
@@ -221,6 +239,8 @@ impl UI<'static> {
             errors_area: DEFAULT_ERRORS_AREA,
             confirm_area: DEFAULT_CONFIRMATION_AREA,
             filter_area: DEFAULT_FILTER_AREA,
+            repeater_req_area: DEFAULT_REPEATER_REQ_AREA,
+            repeater_res_area: DEFAULT_REPEATER_RES_AREA,
 
             proxy_history_state: {
                 let mut table_state = TableState::default();
@@ -236,6 +256,8 @@ impl UI<'static> {
             errors_block: DEFAULT_ERRORS_BLOCK,
             confirm_block: DEFAULT_CONFIRMATION_BLOCK,
             filter_block: DEFAULT_FILTER_BLOCK,
+            repeater_req_block: DEFAULT_REPEATER_REQ_BLOCK,
+            repeater_res_block: DEFAULT_REPEATER_RES_BLOCK,
 
             table_start_index: 0,
             table_end_index: DEFAULT_TABLE_WINDOW_SIZE - 1,
@@ -311,30 +333,7 @@ impl UI<'static> {
             }
         };
 
-        let mut request_list: Vec<Spans> = Vec::new();
-        let tmp: Vec<Span> = vec![
-            Span::styled(request.method.clone(), Style::default().add_modifier(Modifier::BOLD)),
-            Span::from(" "),
-            Span::from(request.get_request_path()),
-            Span::from(" "),
-            Span::from(format!("{}", request.version)),
-        ];
-        request_list.push(Spans::from(tmp));
-
-        for (k, v) in request.headers.iter() {
-            let mut tmp: Vec<Span> = Vec::new();
-            tmp.push(Span::styled(k.to_string(), Style::default().fg(HEADER_NAME_COLOR)));
-            tmp.push(Span::from(": ".to_string()));
-            tmp.push(Span::from(format!("{}", v.to_str().unwrap())));
-            request_list.push(Spans::from(tmp));
-        }
-
-        request_list.push(Spans::from(Span::from("")));
-
-        for line in request.body.to_str_lossy().split("\n") {
-            request_list.push(Spans::from(line.to_string()));
-        }
-
+        let mut request_list: Vec<Spans> = request.to_vec_of_spans();
         let new_block = Block::default()
             .title(Span::styled("REQUEST", header_style))
             .title_alignment(Alignment::Center)
@@ -403,85 +402,14 @@ impl UI<'static> {
             }
         };
 
-        let mut response_content: Vec<Spans> = vec![];
-        // Status and version, like '200 OK HTTP/2'
-        let first_line = Spans::from(vec![
-            Span::styled(
-                response.status.clone(),
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD)
-            ),
-            Span::from(" "),
-            Span::from(response.version.clone())
-        ]);
-        response_content.push(first_line);
-
-        // Response Headers
-        for (k, v) in &response.headers {
-            let header_line = Spans::from(vec![
-                Span::styled(
-                    k.clone().to_string(),
-                    Style::default().fg(HEADER_NAME_COLOR)
-                ),
-                Span::from(": "),
-                Span::from(v.clone().to_str().unwrap().to_string())
-            ]);
-            response_content.push(header_line)
-        }
-
-        // Empty line
-        response_content.push(Spans::default());
-
-        // Body
-        let body = Spans::from(
-            match response.body_compressed {
-                BodyCompressedWith::NONE => {
-                    match response.body.as_slice().to_str() {
-                        Ok(s) => Span::from(s.to_string()),
-                        Err(e) => {
-                            if response.body.len() > 2 * 1024 * 1024 /* 2 Mb */ && ! self.reveal_current_response {
-                                Span::styled(
-                                    "Response body too large, too see it  select (activate) response square (default key is [s]) ".to_owned() +
-                                    "and press [u] to unhide",
-                                    Style::default().fg(Color::DarkGray)
-                                )
-                            }
-                            else {
-                                Span::from(String::from_utf8_lossy(response.body.as_slice()).to_string())
-                            }
-                        }
-                    }
-                },
-                BodyCompressedWith::GZIP => {
-                    if response.body.len() > 1024 * 1024 /* 1 Mb */ && ! self.reveal_current_response {
-                        Span::styled(
-                            "Response body too large, too see it select (activate) response square (default key is [s])",
-                            Style::default().fg(Color::DarkGray)
-                        )
-                    }
-                    else {
-                        let writer = Vec::new();
-                        let mut decoder = GzDecoder::new(writer);
-                        decoder.write_all(response.body.as_slice()).unwrap();
-                        Span::from(decoder.finish().unwrap().to_str_lossy().to_string())
-                    }
-                },
-                BodyCompressedWith::DEFLATE => {
-                    self.log_error(CrusterError::UndefinedError("Decoding 'deflate' is not implemented yet".to_string()));
-                    todo!()
-                },
-                BodyCompressedWith::BR => {
-                    // TODO: remove err when will support 'br'
-                    let error_string = "'Brotli' encoding is not implemented yet.";
-                    self.log_error(CrusterError::NotImplementedError(error_string.to_string()));
-                    Span::styled(
-                        error_string,
-                        Style::default().fg(Color::DarkGray)
-                    )
-                }
-        });
-        response_content.push(body);
+        let response_content = match response.to_vec_of_spans(self.reveal_current_response) {
+            Ok(content) => content,
+            Err(e) => {
+                response_placeholder(is_active);
+                self.log_error(e);
+                return
+            }
+        };
 
         let new_block = Block::default()
             .title(Span::styled("RESPONSE", header_style))

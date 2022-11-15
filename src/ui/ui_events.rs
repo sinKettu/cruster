@@ -140,6 +140,7 @@ impl UIEvents {
                                 ui_storage.hide_help();
                                 ui_storage.hide_errors();
                                 ui_storage.hide_filter();
+                                ui_storage.hide_repeater();
                                 self.something_changed = true;
                                 self.popup_enabled = false;
                             }
@@ -210,6 +211,14 @@ impl UIEvents {
                         else if c == 'u' && (ui_storage.is_response_active() || ui_storage.is_request_active()) {
                             ui_storage.reveal_body();
                             self.something_changed = true;
+                        }
+                        else if c == 'S' {
+                            // ui_storage.sort_table()
+                        }
+                        else if c == 'R' && ! self.popup_enabled {
+                            self.something_changed = true;
+                            self.popup_enabled = true;
+                            ui_storage.show_repeater(http_storage);
                         }
                     }
                     KeyCode::Up => {
