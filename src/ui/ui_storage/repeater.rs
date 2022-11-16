@@ -44,6 +44,10 @@ impl UI<'static> {
             return;
         }
 
+        self.input_buffer = request_content.as_ref().unwrap().clone();
+        self.input_cursor = 0;
+        self.editable_area = Some(self.repeater_req_area);
+
         let request_paragrpah = Paragraph::new(request_content.unwrap())
             .block(
                 Block::default()
@@ -75,5 +79,6 @@ impl UI<'static> {
     pub(crate) fn hide_repeater(&mut self) {
         self.widgets[self.repeater_req_block] = RenderUnit::PLACEHOLDER;
         self.widgets[self.repeater_res_block] = RenderUnit::PLACEHOLDER;
+        self.editable_area = None;
     }
 }

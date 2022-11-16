@@ -169,8 +169,11 @@ pub(crate) struct UI<'ui_lt> {
     // Buffer to store user's input from keyboard
     input_buffer: String,
 
-    // Position of cursor in a string user typed - index of next entered symbol
-    input_cursor: usize,
+    // Position of cursor in a string user typed - line number, index of next entered symbol
+    input_cursor: (usize, usize),
+
+    // Relative start of cursor for current editable area
+    cursor_relative_start: Option<(usize, usize)>,
 
     // Index of area (rect) that is currently edited
     editable_area: Option<usize>,
@@ -273,7 +276,8 @@ impl UI<'static> {
             statusbar_message: None,
 
             input_buffer: String::with_capacity(1000_usize),
-            input_cursor: 0_usize,
+            input_cursor: (0_usize, 0_usize),
+            cursor_relative_start: None,
             editable_area: None,
 
             filter: None,

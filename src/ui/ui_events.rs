@@ -14,6 +14,7 @@ pub(super) struct UIEvents {
     confirmation: bool,
     pub(super) input_mode: bool,
     filter_enabled: bool,
+    repeater_enabled: bool,
 }
 
 impl Default for UIEvents {
@@ -26,6 +27,7 @@ impl Default for UIEvents {
             confirmation: false,
             input_mode: false,
             filter_enabled: false,
+            repeater_enabled: false,
         }
     }
 }
@@ -34,7 +36,55 @@ impl UIEvents {
     pub(super) fn process_event(&mut self, ui_storage: & mut UI<'static>, http_storage: &mut HTTPStorage) -> bool {
         // Get key pressed in event
         if let Event::Key(key) = event::read().unwrap() {
-            if self.filter_enabled {
+            if self.repeater_enabled {
+                if self.input_mode {
+                    match key.code {
+                        KeyCode::Char(c) => {
+                            ui_storage.handle_char_input(c);
+                            ui_storage.show_repeater(http_storage);
+                        },
+                        KeyCode::Backspace => {
+                            ui_storage.handle_backspace_input();
+                            ui_storage.show_repeater(http_storage);
+                        },
+                        KeyCode::Delete => {
+                            ui_storage.handle_delete_input();
+                            ui_storage.show_repeater(http_storage);
+                        },
+                        KeyCode::Esc => {
+                            self.input_mode = false;
+                            self.popup_enabled = false;
+                            self.filter_enabled = false;
+                            self.table_state_changed = true;
+                            self.something_changed = true;
+                            ui_storage.hide_repeater();
+                            ui_storage.clear_input();
+                            ui_storage.set_statusbar_message::<&str>(None);
+                        }
+                        KeyCode::Enter => {
+                            // self.input_mode = false;
+                            // self.popup_enabled = false;
+                            // self.filter_enabled = false;
+                            // self.table_state_changed = true;
+                            // self.something_changed = true;
+                        },
+                        KeyCode::Left => {
+                            ui_storage.handle_move_cursor_left();
+                        },
+                        KeyCode::Right => {
+                            ui_storage.handle_move_cursor_right();
+                        },
+                        KeyCode::End => {
+                            ui_storage.handle_move_cursor_end();
+                        }
+                        KeyCode::Home => {
+                            ui_storage.handle_move_cursor_home();
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            else if self.filter_enabled {
                 if self.input_mode {
                     match key.code {
                         KeyCode::Char(c) => {
@@ -104,6 +154,7 @@ impl UIEvents {
                         KeyCode::Enter => {
                             self.popup_enabled = false;
                             self.filter_enabled = false;
+                            self.input_mode = true;
                             ui_storage.save_filter();
                         },
                         _ => {}
@@ -218,6 +269,8 @@ impl UIEvents {
                         else if c == 'R' && ! self.popup_enabled {
                             self.something_changed = true;
                             self.popup_enabled = true;
+                            self.repeater_enabled = true;
+                            self.input_mode = true;
                             ui_storage.show_repeater(http_storage);
                         }
                     }
