@@ -1,8 +1,8 @@
 mod utils;
 mod cruster_proxy;
-mod ui;
 mod config;
 mod http_storage;
+mod siv_ui;
 
 use std::net::{IpAddr, SocketAddr};
 use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority};
@@ -15,6 +15,10 @@ use cruster_proxy::{CrusterHandler, CrusterWSHandler, request_response::CrusterW
 use std::thread;
 use utils::CrusterError;
 
+use cursive::{Cursive, CbSink};
+use hyper::Body;
+use crossbeam_channel::Sender as CB_Sender;
+
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
@@ -26,6 +30,7 @@ async fn start_proxy(
         ca: OpensslAuthority,
         tx: Sender<(CrusterWrapper, usize)>,
         err_tx: Sender<CrusterError>,
+        cursive_sink: CbSink,
         dump_mode: bool) {
 
     let proxy = ProxyBuilder::new()
@@ -37,6 +42,7 @@ async fn start_proxy(
                 proxy_tx: tx,
                 err_tx: err_tx.clone(),
                 dump: dump_mode,
+                cursive_sink,
                 request_hash: 0
             }
         )
@@ -65,16 +71,6 @@ async fn start_proxy(
     }
 }
 
-/// # TODO:
-///
-/// - ...
-///     - DONE -- **Confirmation windows**
-///     - DONE??? -- Hide large bodies without confirmation to show
-///     - DONE -- **Filtering proxy table content**
-/// - Sorting proxy table content
-/// - Manual requests crafting (repeating)
-///
-
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
     let config = config::handle_user_input()?;
@@ -89,8 +85,10 @@ async fn main() -> Result<(), utils::CrusterError> {
     ));
 
     let (proxy_tx, ui_rx) = channel(10);
-    // let(ws_tx, ws_rx) = channel(10);
     let (err_tx, err_rx) = channel(10);
+
+    let mut siv = Cursive::default();
+    let cb_sink: CB_Sender<Box<dyn FnOnce(&mut Cursive)+Send>> = siv.cb_sink().clone();
 
     tokio::task::spawn(
         async move {
@@ -98,7 +96,9 @@ async fn main() -> Result<(), utils::CrusterError> {
                 socket_addr,
                 ca,
                 proxy_tx,
-                err_tx,config.dump_mode
+                err_tx,
+                cb_sink,
+                config.dump_mode
             ).await
         });
 
@@ -111,14 +111,7 @@ async fn main() -> Result<(), utils::CrusterError> {
         }
     }
     else {
-        let ui_thread = thread::spawn(move || { ui::render(ui_rx, err_rx) });
-
-        match ui_thread.join() {
-            Ok(result) => match result {
-                Ok(_) => Ok(()),
-                Err(err) => Err(CrusterError::from(err))
-            },
-            Err(e) => panic!("Error when exiting: {:?}", e)
-        }
+        siv_ui::bootstrap_ui(siv, ui_rx, err_rx);
+        Ok(())
     }
 }

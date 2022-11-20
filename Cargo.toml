@@ -23,6 +23,11 @@ hudsucker = { version = "0.17.2", features = ["full"] }
 tui = "0.18.0"
 crossterm = "0.23.2"
 # ---------------------------------------------------------------------
+# Cursive
+cursive = "0.*"
+cursive_table_view = "0.*"
+crossbeam-channel = "0.5.6"
+# ---------------------------------------------------------------------
 # Configuration
 shellexpand = "2.1.0"
 clap = "2.34.0"
