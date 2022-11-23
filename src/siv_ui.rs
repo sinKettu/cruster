@@ -1,27 +1,21 @@
 mod error_view;
 mod help_view;
+mod http_table;
 
 use std::cmp::Ordering;
-use cursive::{traits::*, XY};
-use cursive::{CursiveExt, Vec2};
-use cursive::{Cursive, Printer};
-use std::collections::VecDeque;
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
+use cursive::{traits::*, };
+use cursive::{CursiveExt, };
+use cursive::{Cursive, };
 
-use cursive::event::Event;
-use cursive::theme::{BaseColor, BorderStyle, Color, Palette, PaletteColor};
-use cursive::view::scroll::required_size;
-use cursive::views::{Dialog, LinearLayout, TextContent, TextContentRef, TextView, StackView, LayerPosition};
+use cursive::theme::{BaseColor, BorderStyle, Palette, };
+use cursive::views::{Dialog, LinearLayout, TextContent, TextView, StackView, };
 use cursive_table_view::{TableView, TableViewItem};
 
-use tokio::sync::mpsc::{Sender, Receiver, channel};
+use tokio::sync::mpsc::{Receiver, };
 
-use crate::cruster_proxy::request_response::{CrusterWrapper, HyperRequestWrapper};
+use crate::cruster_proxy::request_response::{CrusterWrapper, };
 use crate::utils::CrusterError;
-use crate::http_storage::{HTTPStorage, RequestResponsePair};
-use cursive::view::Offset;
+use crate::http_storage::{HTTPStorage, };
 use std::rc::Rc;
 
 struct SivUserData {
@@ -30,6 +24,8 @@ struct SivUserData {
     http_storage: HTTPStorage,
     request_view_content: TextContent,
     response_view_content: TextContent,
+    active_http_table_name: &'static str,
+    errors: Vec<CrusterError>,
 }
 
 impl SivUserData {
@@ -39,10 +35,14 @@ impl SivUserData {
                 Some(received_data)
             },
             Err(e) => {
-                // TODO: Log error
+                self.errors.push(e.into());
                 None
             }
         }
+    }
+
+    fn push_error(&mut self, err: CrusterError) {
+        self.errors.push(err);
     }
 }
 
@@ -97,6 +97,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
     siv.add_global_callback('q', |s| s.quit());
     siv.add_global_callback('e', |s| error_view::draw_error_view(s));
     siv.add_global_callback('?',  move |s| help_view::draw_help_view(s, &help_message));
+    siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
 
     siv.set_theme(cursive::theme::Theme {
         shadow: false,
@@ -126,20 +127,14 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
             http_storage: HTTPStorage::default(),
             request_view_content: request_view_content.clone(),
             response_view_content: response_view_content.clone(),
+            active_http_table_name: "proxy-table",
+            errors: Vec::new(),
         }
     );
 
-    let main_table = TableView::<ProxyDataForTable, BasicColumn>::new()
-        .on_select(|siv, _, item| { draw_request_and_response(siv, item) })
-        .column(BasicColumn::ID, "ID", |c| c.width(8).ordering(Ordering::Less))
-        .column(BasicColumn::Method, "Method", |c| c.width(10))
-        .column(BasicColumn::Hostname, "Hostname", |c| {c.width(30)})
-        .column(BasicColumn::Path, "Path", |c| {c})
-        .column(BasicColumn::StatusCode, "Status", |c| {c.width(16)})
-        .column(BasicColumn::ResponseLength, "Length", |c| {c.width(12)})
-        .with_name("proxy-table");
-
+    let main_table = http_table::new_table(true).with_name("proxy-table");
     let mut views_stack = StackView::new();
+
     views_stack.add_fullscreen_layer(
         LinearLayout::vertical()
             .child(
@@ -173,7 +168,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
 
 pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
     let mut rx: SivUserData = siv.take_user_data().unwrap();
-    siv.screen_mut().call_on_name("proxy-table", |table: &mut TableView<ProxyDataForTable, BasicColumn>| {
+    siv.screen_mut().call_on_name(rx.active_http_table_name, |table: &mut TableView<ProxyDataForTable, BasicColumn>| {
         let result = rx.receive_data_from_proxy();
         if let Some((request_or_response, hash)) = result {
             match request_or_response {
@@ -206,16 +201,27 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
 }
 
 fn get_pair_id_from_table_record(siv: &mut Cursive, item: usize) -> Option<usize> {
-    siv.screen_mut().call_on_name("proxy-table", |table: &mut TableView<ProxyDataForTable, BasicColumn>| {
-        match table.borrow_item(item) {
-            Some(data) => {
-                Some(data.id.clone())
+    let table_name = siv.with_user_data(|ud: &mut SivUserData| { ud.active_http_table_name } ).unwrap();
+    let id_option = siv
+        .screen_mut()
+        .call_on_name(table_name, |table: &mut TableView<ProxyDataForTable, BasicColumn>| {
+            match table.borrow_item(item) {
+                Some(data) => {
+                    Some(data.id.clone())
+                }
+                None => {
+                    None
+                }
             }
-            None => {
-                None
-            }
-        }
-    }).unwrap()
+    }).unwrap();
+
+    if let None = id_option {
+        let err = CrusterError::ProxyTableIndexOutOfRange(format!("Could not get record with index {}.", item));
+        let ud: &mut SivUserData = siv.user_data().unwrap();
+        ud.push_error(err);
+    }
+
+    return id_option;
 }
 
 fn draw_request_and_response(siv: &mut Cursive, item: usize) {
@@ -234,7 +240,8 @@ fn draw_request_and_response(siv: &mut Cursive, item: usize) {
             }
         }
         else {
-            todo!("report error and continue")
+            user_data.push_error(CrusterError::EmptyRequest(format!("Could not draw table record {}, request is empty.", item)));
+
         }
     }
 }

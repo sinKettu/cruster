@@ -21,12 +21,9 @@ use std::{
     collections::hash_map::DefaultHasher
 };
 use std::borrow::Borrow;
-use std::io::Empty;
-use tokio::sync::mpsc::error::SendError;
 use crate::CrusterError;
 
 use cursive::{Cursive, CbSink};
-use crossbeam_channel::Sender as CB_Sender;
 
 use super::siv_ui::put_proxy_data_to_storage;
 
@@ -74,8 +71,8 @@ impl HttpHandler for CrusterHandler {
                 Ok(body_bytes) => {
                     body_bytes
                 },
-                Err(err) => {
-                    println!("http ==> [ERROR] ~Faced with troubles to handle request body~ [ERROR");
+                Err(_) => {
+                    println!("http ==> [ERROR] ~Faced with troubles to handle request body~ [ERROR]");
                     println!("http ==>");
                     return RequestOrResponse::Request(self.make_blank_request());
                 }
