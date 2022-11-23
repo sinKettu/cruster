@@ -1,4 +1,5 @@
 mod error_view;
+mod help_view;
 
 use std::cmp::Ordering;
 use cursive::{traits::*, XY};
@@ -21,6 +22,7 @@ use crate::cruster_proxy::request_response::{CrusterWrapper, HyperRequestWrapper
 use crate::utils::CrusterError;
 use crate::http_storage::{HTTPStorage, RequestResponsePair};
 use cursive::view::Offset;
+use std::rc::Rc;
 
 struct SivUserData {
     proxy_receiver: Receiver<(CrusterWrapper, usize)>,
@@ -89,10 +91,12 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
     }
 }
 
-
 pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize)>, err_rx: Receiver<CrusterError>) {
+    let help_message = Rc::new(help_view::make_help_message());
+
     siv.add_global_callback('q', |s| s.quit());
     siv.add_global_callback('e', |s| error_view::draw_error_view(s));
+    siv.add_global_callback('?',  move |s| help_view::draw_help_view(s, &help_message));
 
     siv.set_theme(cursive::theme::Theme {
         shadow: false,

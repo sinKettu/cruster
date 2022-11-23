@@ -87,7 +87,7 @@ async fn main() -> Result<(), utils::CrusterError> {
     let (proxy_tx, ui_rx) = channel(10);
     let (err_tx, err_rx) = channel(10);
 
-    let mut siv = Cursive::default();
+    let siv = Cursive::default();
     let cb_sink: CB_Sender<Box<dyn FnOnce(&mut Cursive)+Send>> = siv.cb_sink().clone();
 
     tokio::task::spawn(
