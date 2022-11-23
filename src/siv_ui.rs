@@ -1,5 +1,7 @@
+mod error_view;
+
 use std::cmp::Ordering;
-use cursive::traits::*;
+use cursive::{traits::*, XY};
 use cursive::{CursiveExt, Vec2};
 use cursive::{Cursive, Printer};
 use std::collections::VecDeque;
@@ -10,7 +12,7 @@ use std::time::Duration;
 use cursive::event::Event;
 use cursive::theme::{BaseColor, BorderStyle, Color, Palette, PaletteColor};
 use cursive::view::scroll::required_size;
-use cursive::views::{Dialog, LinearLayout, TextContent, TextContentRef, TextView};
+use cursive::views::{Dialog, LinearLayout, TextContent, TextContentRef, TextView, StackView, LayerPosition};
 use cursive_table_view::{TableView, TableViewItem};
 
 use tokio::sync::mpsc::{Sender, Receiver, channel};
@@ -18,6 +20,7 @@ use tokio::sync::mpsc::{Sender, Receiver, channel};
 use crate::cruster_proxy::request_response::{CrusterWrapper, HyperRequestWrapper};
 use crate::utils::CrusterError;
 use crate::http_storage::{HTTPStorage, RequestResponsePair};
+use cursive::view::Offset;
 
 struct SivUserData {
     proxy_receiver: Receiver<(CrusterWrapper, usize)>,
@@ -62,19 +65,6 @@ pub(crate) struct ProxyDataForTable {
     pub(crate) response_length: String,
 }
 
-impl ProxyDataForTable {
-    fn from_request(request: &HyperRequestWrapper, id: usize) -> ProxyDataForTable {
-        ProxyDataForTable {
-            id,
-            hostname: request.get_host(),
-            path: request.get_request_path(),
-            method: request.method.clone(),
-            status_code: "".to_string(),
-            response_length: "".to_string(),
-        }
-    }
-}
-
 impl TableViewItem<BasicColumn> for ProxyDataForTable {
     fn to_column(&self, column: BasicColumn) -> String {
         match column {
@@ -102,6 +92,8 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
 
 pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize)>, err_rx: Receiver<CrusterError>) {
     siv.add_global_callback('q', |s| s.quit());
+    siv.add_global_callback('e', |s| error_view::draw_error_view(s));
+
     siv.set_theme(cursive::theme::Theme {
         shadow: false,
         borders: BorderStyle::Simple,
@@ -143,7 +135,8 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
         .column(BasicColumn::ResponseLength, "Length", |c| {c.width(12)})
         .with_name("proxy-table");
 
-    siv.add_layer(
+    let mut views_stack = StackView::new();
+    views_stack.add_fullscreen_layer(
         LinearLayout::vertical()
             .child(
                 Dialog::around(
@@ -168,6 +161,8 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
                     )
             )
     );
+    // views_stack.reposition_layer(LayerPosition::FromBack(0), XY { x: Offset::Absolute(0), y: Offset::Absolute(0) });
+    siv.add_fullscreen_layer(views_stack.with_name("views-stack"));
 
     siv.run();
 }
