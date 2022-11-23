@@ -16,46 +16,11 @@ pub(super) struct RequestResponsePair {
     pub(super) index: usize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct CacheKey {
-    skip: usize,
-    take: usize,
-    filter: Option<String>
-}
-
-impl Default for CacheKey {
-    fn default() -> Self {
-        CacheKey {
-            skip: 0_usize,
-            take: 0_usize,
-            filter: None
-        }
-    }
-}
-
-impl CacheKey {
-    fn filter_exists(&self) -> bool {
-        return match self.filter {
-            Some(_) => {
-                true
-            },
-            None => {
-                false
-            }
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------------------------- //
 
 pub(crate) struct HTTPStorage {
-    pub(super) storage: Vec<RequestResponsePair>,
+    storage: Vec<RequestResponsePair>,
     context_reference: HashMap<usize, (usize, bool)>,
-    // cache_key: CacheKey,
-    // cache_buffer: Vec<usize>,
-    // filtered_ref: Vec<usize>
-    // seek: usize,
-    // capacity: usize
 }
 
 impl Default for HTTPStorage {
@@ -63,11 +28,6 @@ impl Default for HTTPStorage {
         HTTPStorage {
             storage: Vec::with_capacity(1000),
             context_reference: HashMap::new(),
-            // cache_key: CacheKey::default(),
-            // cache_buffer: Vec::new(),
-            // filtered_ref: Vec::new(),
-            // seek: 0,
-            // capacity: 10000
         }
     }
 }
@@ -81,6 +41,8 @@ impl HTTPStorage {
             hostname: request.get_host(),
             path: request.get_request_path(),
             method: request.method.clone(),
+            status_code: String::default(),
+            response_length: String::default(),
         };
 
         self.storage.push(
@@ -95,19 +57,15 @@ impl HTTPStorage {
         return table_record;
     }
 
-    pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &usize) {
+    pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &usize) -> Option<usize> {
+        let mut index_found = None;
+
         if let Some((index, match_filter)) = self.context_reference.get(addr) {
             self.storage[index.to_owned()].response = Some(response);
-
-            // if ! match_filter.to_owned() && self.cache_key.filter_exists() {
-            //     let re = regex::Regex::new(self.cache_key.filter.as_ref().unwrap()).unwrap();
-            //     if self.filter(&re, &self.storage[index.to_owned()]) {
-            //         self.filtered_ref.push(index.to_owned());
-            //     }
-            // }
+            index_found = Some(index.to_owned());
         }
-
-        self.context_reference.remove(addr);
+        
+        return index_found;
     }
 
     pub(crate) fn get(&self, idx: usize) -> &RequestResponsePair {

@@ -133,7 +133,8 @@ pub(crate) struct HyperResponseWrapper {
 impl HyperResponseWrapper {
     pub(crate) async fn from_hyper(
             rsp: Response<Body>,
-            err_pipe: Option<& Sender<CrusterError>>) -> Result<(Self, Response<Body>), CrusterError> {
+            err_pipe: Option<& Sender<CrusterError>>
+    ) -> Result<(Self, Response<Body>), CrusterError> {
 
         let (rsp_parts, rsp_body) = rsp.into_parts();
         let status = rsp_parts.status.clone().to_string();
@@ -219,6 +220,20 @@ impl HyperResponseWrapper {
                 self.body.len().to_string()
             }
         }
+    }
+
+    // TODO: rewrite as trait implementation
+    pub(crate) fn to_string(&self) -> String {
+        let mut result = format!("{} {}\r\n", self.version, self.status);
+        for (k, v) in self.headers.iter() {
+            let header_line = format!("{}: {}\r\n", k.as_str(), v.to_str().unwrap());
+            result.push_str(&header_line);
+        }
+
+        // TODO: rewrite with compression cases
+        result.push_str("\r\n");
+        result.push_str(self.body.to_str_lossy().as_ref());
+        return result;
     }
 }
 
