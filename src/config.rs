@@ -4,8 +4,11 @@ use clap::{App, Arg};
 use serde_yaml as yml;
 use std::{fs, path};
 use serde::{Serialize, Deserialize};
-use simple_logging;
 use log::{LevelFilter, debug};
+
+use log4rs::append::file::FileAppender;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::config::{Appender, Config as L4R_Config, Root};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Config {
@@ -142,10 +145,20 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
 
     if let Some(dfile) = matches.value_of("debug-file") {
-        config.debug_file = dfile.to_string();
-        simple_logging::log_to_file(dfile, LevelFilter::Debug)
-            .expect("Cannot configure debug logger to given file");
-        debug!("- CRUSTER - Debugging enabled");
+        let logfile = FileAppender::builder()
+            .encoder(Box::new(PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}] {l} - {M} - {m}\n")))
+            .build(dfile)
+            .unwrap();
+
+        let config = L4R_Config::builder()
+            .appender(Appender::builder().build("logfile", Box::new(logfile)))
+            .build(Root::builder()
+                    .appender("logfile")
+                    .build(LevelFilter::Debug)).unwrap();
+
+        log4rs::init_config(config).unwrap();
+
+        debug!("Debugging enabled");
     }
 
     if matches.is_present("dump-mode") {
