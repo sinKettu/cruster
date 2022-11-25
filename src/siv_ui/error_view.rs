@@ -4,8 +4,6 @@ use cursive::{
         TextView,
         OnEventView,
         Dialog,
-        NamedView,
-        ResizedView
     },
     align::HAlign,
     view::{
@@ -14,11 +12,28 @@ use cursive::{
     },
     event::Key
 };
+use super::SivUserData;
+
+pub(crate) fn put_error(siv: &mut Cursive) {
+    siv.with_user_data(|ud: &mut SivUserData| {
+        let error_message = ud.proxy_err_receiver.try_recv();
+        if let Ok(err) = error_message {
+            ud.errors.push(err);
+        }
+    });
+}
 
 pub(super) fn draw_error_view(siv: &mut Cursive) {
     if siv.find_name::<TextView>("errors-popup").is_some() { return; }
 
-    let errors = TextView::new("Errors\n")
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    let content = ud.errors
+        .iter()
+        .map(|e| { e.to_string() })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    let errors = TextView::new(content)
         .with_name("errors-popup");
     let errors = OnEventView::new(errors)
         .on_event(Key::Esc, |s| { s.pop_layer(); });

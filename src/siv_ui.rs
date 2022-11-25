@@ -1,4 +1,4 @@
-mod error_view;
+pub(super) mod error_view;
 mod help_view;
 mod http_table;
 
@@ -17,6 +17,7 @@ use crate::cruster_proxy::request_response::{CrusterWrapper, };
 use crate::utils::CrusterError;
 use crate::http_storage::{HTTPStorage, };
 use std::rc::Rc;
+use log::debug;
 
 struct SivUserData {
     proxy_receiver: Receiver<(CrusterWrapper, usize)>,
@@ -160,7 +161,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
                     )
             )
     );
-    // views_stack.reposition_layer(LayerPosition::FromBack(0), XY { x: Offset::Absolute(0), y: Offset::Absolute(0) });
+    
     siv.add_fullscreen_layer(views_stack.with_name("views-stack"));
 
     siv.run();
@@ -225,22 +226,43 @@ fn get_pair_id_from_table_record(siv: &mut Cursive, item: usize) -> Option<usize
 }
 
 fn draw_request_and_response(siv: &mut Cursive, item: usize) {
+    debug!("1");
     let id = get_pair_id_from_table_record(siv, item);
+    debug!("2");
+    let user_data: &mut SivUserData = siv.user_data().unwrap();
+    user_data.request_view_content.set_content("");
+    user_data.response_view_content.set_content("");
+
     if let Some(index) = id {
-        let user_data: &mut SivUserData = siv.user_data().unwrap();
+        debug!("3");
         let pair = user_data.http_storage.get(index);
+        debug!("4");
 
         if let Some(request) = &pair.request {
+            debug!("5");
             let req_str = request.to_string();
+            debug!("6");
             user_data.request_view_content.set_content(req_str);
+            debug!("7");
 
             if let Some(response) = &pair.response {
+                debug!("8");
                 let res_str = response.to_string();
+                debug!("9");
                 user_data.response_view_content.set_content(res_str);
+                debug!("10");
             }
+            else {
+                
+            }
+            debug!("11");
         }
         else {
+            debug!("12");
             user_data.push_error(CrusterError::EmptyRequest(format!("Could not draw table record {}, request is empty.", item)));
+            debug!("13");
         }
+        debug!("14");
     }
+    debug!("15");
 }

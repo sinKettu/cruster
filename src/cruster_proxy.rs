@@ -1,7 +1,11 @@
 pub(crate) mod request_response;
 
 use bstr::ByteSlice;
-use request_response::{CrusterWrapper, HyperRequestWrapper, HyperResponseWrapper};
+use request_response::{
+    CrusterWrapper,
+    HyperRequestWrapper,
+    HyperResponseWrapper
+};
 use tokio::sync::mpsc::Sender;
 use log::debug;
 use hudsucker::{
@@ -20,12 +24,12 @@ use std::{
     net::SocketAddr,
     collections::hash_map::DefaultHasher
 };
-use std::borrow::Borrow;
 use crate::CrusterError;
 
 use cursive::{Cursive, CbSink};
 
 use super::siv_ui::put_proxy_data_to_storage;
+use crate::siv_ui::error_view;
 
 fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> usize {
     let mut hasher = DefaultHasher::new();
@@ -199,6 +203,14 @@ impl CrusterHandler {
         let err_send_result = self.err_tx
             .send(err)
             .await;
+        
+        self.cursive_sink.send(
+            Box::new(
+                |siv: &mut Cursive| {
+                    error_view::put_error(siv);
+                }
+            )
+        ).expect("FATAL: proxy could not sync with ui, while sending request!");
 
         match err_send_result {
             Ok(_) => return RequestOrResponse::Request(self.make_blank_request()),
@@ -210,6 +222,14 @@ impl CrusterHandler {
         let err_send_result = self.err_tx
             .send(err)
             .await;
+        
+        self.cursive_sink.send(
+            Box::new(
+                |siv: &mut Cursive| {
+                    error_view::put_error(siv);
+                }
+            )
+        ).expect("FATAL: proxy could not sync with ui, while sending request!");
 
         match err_send_result {
             Ok(_) => return hyper::Response::new(hyper::Body::empty()),

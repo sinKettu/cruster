@@ -1,13 +1,20 @@
 use http::HeaderMap;
 use hudsucker::{
-    hyper::{Body, Request, Response, self},
+    hyper::{
+        Body,
+        Request,
+        Response,
+        self
+    },
+    decode_response
 };
 
-// use log::debug;
+use log::debug;
 
 use crate::CrusterError;
 use bstr::ByteSlice;
 use std::fmt::Display;
+use std::ffi::CString;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -29,6 +36,15 @@ impl Display for HyperRequestWrapper {
                 v.to_str().unwrap()
             );
         }
+
+        // Crutch because of binary string which are incompatible with c-strings in cursive
+        let body = self.body.to_str_lossy().to_string();
+        let body = if let Ok(b) = CString::new(body.as_bytes()) {
+            body
+        }
+        else {
+            "--- INCOMPATIBLE SET OF BYTES ---".to_string()
+        };
         
         write!(
             f,
@@ -37,7 +53,7 @@ impl Display for HyperRequestWrapper {
             self.get_request_path().as_str(),
             self.version.as_str(),
             headers,
-            self.body.to_str_lossy()
+            body
         )
     }
 }
@@ -135,21 +151,36 @@ impl Display for HyperResponseWrapper {
             headers.push_str(&header_line);
         }
 
+        // Crutch because of binary string which are incompatible with c-strings in cursive
+        let body = self.body.to_str_lossy().to_string();
+        let body = if let Ok(b) = CString::new(body.as_bytes()) {
+            body
+        }
+        else {
+            "--- INCOMPATIBLE SET OF BYTES ---".to_string()
+        };
+
         write!(
             f,
             "{} {}\r\n{}\r\n{}",
             &self.version,
             &self.status,
             headers,
-            self.body.to_str_lossy()
+            body
         )
+        // write!(f, "{}", "RESPONSE")
     }
 }
 
 impl HyperResponseWrapper {
     pub(crate) async fn from_hyper(rsp: Response<Body>) -> Result<(Self, Response<Body>), CrusterError> {
+        let rsp = decode_response(rsp);
 
-        let (rsp_parts, rsp_body) = rsp.into_parts();
+        if let Err(err) = rsp {
+            return Err(CrusterError::HudSuckerError(err.to_string()));
+        }
+
+        let (rsp_parts, rsp_body) = rsp.unwrap().into_parts();
         let status = rsp_parts.status.clone().to_string();
 
         let version = match rsp_parts.version.clone() {
@@ -184,7 +215,7 @@ impl HyperResponseWrapper {
                     },
                     Err(_) => {
                         // nothing to do here
-                        // add debug message
+                        debug!("Could not parse header to UTF-8");
                     }
                 }
             }
@@ -220,20 +251,6 @@ impl HyperResponseWrapper {
                 self.body.len().to_string()
             }
         }
-    }
-
-    // TODO: rewrite as trait implementation
-    pub(crate) fn to_string(&self) -> String {
-        let mut result = format!("{} {}\r\n", self.version, self.status);
-        for (k, v) in self.headers.iter() {
-            let header_line = format!("{}: {}\r\n", k.as_str(), v.to_str().unwrap());
-            result.push_str(&header_line);
-        }
-
-        // TODO: rewrite with compression cases
-        result.push_str("\r\n");
-        result.push_str(self.body.to_str_lossy().as_ref());
-        return result;
     }
 }
 
