@@ -132,7 +132,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
         }
     );
 
-    let main_table = http_table::new_table(true).with_name("proxy-table");
+    let main_table = http_table::new_table().with_name("proxy-table");
     let mut views_stack = StackView::new();
 
     views_stack.add_fullscreen_layer(
@@ -241,7 +241,6 @@ fn draw_request_and_response(siv: &mut Cursive, item: usize) {
         }
         else {
             user_data.push_error(CrusterError::EmptyRequest(format!("Could not draw table record {}, request is empty.", item)));
-
         }
     }
 }

@@ -88,7 +88,7 @@ impl HttpHandler for CrusterHandler {
             return match HyperRequestWrapper::from_hyper(req).await {
                 Ok((wrapper, new_req)) => {
                     self.request_hash = get_http_request_hash(&_ctx.client_addr, &wrapper.uri, &wrapper.method);
-                    debug!("- CRUSTER - HTTP Request with id {}", &self.request_hash);
+                    debug!("HTTP Request with id {}", &self.request_hash);
                     match self.send_request_to_storage(wrapper).await {
                         Some(ror) => ror,
                         None => RequestOrResponse::Request(new_req)
@@ -130,8 +130,8 @@ impl HttpHandler for CrusterHandler {
             return Response::from_parts(parts, Body::from(body));
         }
         else {
-            debug!("- CRUSTER - HTTP Response with id {}", &self.request_hash);
-            return match HyperResponseWrapper::from_hyper(res, Some(self.err_tx.borrow())).await {
+            debug!("HTTP Response with id {}", &self.request_hash);
+            return match HyperResponseWrapper::from_hyper(res).await {
                 Ok((wrapper, new_res)) => {
                     match self.send_response_to_storage(wrapper).await {
                         Some(response) => response,

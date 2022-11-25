@@ -62,7 +62,7 @@ impl HTTPStorage {
 
         if let Some((index, match_filter)) = self.context_reference.get(addr) {
             self.storage[index.to_owned()].response = Some(response);
-            index_found = Some(index.to_owned());
+            index_found = Some(self.storage[index.to_owned()].index);
         }
         
         return index_found;

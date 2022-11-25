@@ -1,18 +1,13 @@
-use std::fmt::format;
 use http::HeaderMap;
 use hudsucker::{
     hyper::{Body, Request, Response, self},
 };
-use log::debug;
-use tokio::sync::mpsc::Sender;
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
-use crate::CrusterError;
-use flate2::write::GzDecoder;
-use std::io::prelude::*;
-use bstr::ByteSlice;
 
-use crate::siv_ui::ProxyDataForTable;
+// use log::debug;
+
+use crate::CrusterError;
+use bstr::ByteSlice;
+use std::fmt::Display;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -21,6 +16,30 @@ pub(crate) struct HyperRequestWrapper {
     pub(crate) version: String,
     pub(crate) headers: hyper::HeaderMap,
     pub(crate) body: Vec<u8>
+}
+
+impl Display for HyperRequestWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut headers = String::default();
+        for (k, v) in self.headers.iter() {
+            headers = format!(
+                "{}{}: {}\r\n",
+                headers,
+                k.as_str(),
+                v.to_str().unwrap()
+            );
+        }
+        
+        write!(
+            f,
+            "{} {} {}\r\n{}\r\n{}",
+            self.method.as_str(),
+            self.get_request_path().as_str(),
+            self.version.as_str(),
+            headers,
+            self.body.to_str_lossy()
+        )
+    }
 }
 
 impl HyperRequestWrapper {
@@ -87,28 +106,6 @@ impl HyperRequestWrapper {
             }
         }
     }
-
-    pub fn to_string(&self) -> String {
-        let mut result = format!(
-            "{} {} {}\r\n",
-            self.method.as_str(),
-            self.get_request_path().as_str(),
-            self.version.as_str()
-        );
-
-        for (k, v) in self.headers.iter() {
-            result = format!(
-                "{}{}: {}\r\n",
-                result,
-                k.as_str(),
-                v.to_str().unwrap()
-            );
-        }
-
-        result = format!("{}\r\n{}", result, self.body.to_str_lossy().to_string());
-
-        return result;
-    }
 }
 
 // -----------------------------------------------------------------------------------------------//
@@ -130,11 +127,27 @@ pub(crate) struct HyperResponseWrapper {
     pub(crate) body_compressed: BodyCompressedWith
 }
 
+impl Display for HyperResponseWrapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut headers = String::default();
+        for (k, v) in self.headers.iter() {
+            let header_line = format!("{}: {}\r\n", k.as_str(), v.to_str().unwrap());
+            headers.push_str(&header_line);
+        }
+
+        write!(
+            f,
+            "{} {}\r\n{}\r\n{}",
+            &self.version,
+            &self.status,
+            headers,
+            self.body.to_str_lossy()
+        )
+    }
+}
+
 impl HyperResponseWrapper {
-    pub(crate) async fn from_hyper(
-            rsp: Response<Body>,
-            err_pipe: Option<& Sender<CrusterError>>
-    ) -> Result<(Self, Response<Body>), CrusterError> {
+    pub(crate) async fn from_hyper(rsp: Response<Body>) -> Result<(Self, Response<Body>), CrusterError> {
 
         let (rsp_parts, rsp_body) = rsp.into_parts();
         let status = rsp_parts.status.clone().to_string();
@@ -166,25 +179,12 @@ impl HyperResponseWrapper {
                             body_compressed = BodyCompressedWith::BR;
                         }
                         else {
-                            if let Some(err_tx) = err_pipe {
-                                let err_send_result = err_tx
-                                    .send(CrusterError::UnknownResponseBodyEncoding(
-                                        format!("Found unknown encoding for response body: {}", s))
-                                    )
-                                    .await;
-                                if let Err(send_err) = err_send_result {
-                                    panic!("Cannot send error about encoding to UI: {}", send_err.to_string());
-                                }
-                            }
+                            body_compressed = BodyCompressedWith::NONE;
                         }
                     },
-                    Err(e) => {
-                        if let Some(err_tx) = err_pipe {
-                            let err_send_result = err_tx.send(e.into()).await;
-                            if let Err(send_err) = err_send_result {
-                                panic!("Cannot send error message to UI thread: {}", send_err.to_string());
-                            }
-                        }
+                    Err(_) => {
+                        // nothing to do here
+                        // add debug message
                     }
                 }
             }

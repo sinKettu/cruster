@@ -3,10 +3,10 @@ use cursive::{
     views::{
         TextView,
         OnEventView,
-        Dialog
+        Dialog,
     },
     align::HAlign,
-    view::Resizable, utils::span::SpannedString, theme::{Style, Effect, BaseColor},
+    view::{Resizable, Nameable}, utils::span::SpannedString, theme::{Style, Effect, BaseColor},
 };
 use std::{rc::Rc, ops::Deref};
 
@@ -17,8 +17,22 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
         SpannedString::styled( "? - ",letters_style.clone()),
         SpannedString::styled("Show this help view\n", descriptions_style.clone()),
 
+        SpannedString::styled("q - ", letters_style.clone()),
+        SpannedString::styled("Quit\n", descriptions_style.clone()),
+
         SpannedString::styled("e - ", letters_style.clone()),
         SpannedString::styled("Show error logs view\n", descriptions_style.clone()),
+
+        SpannedString::styled("t - ", letters_style.clone()),
+        SpannedString::styled("Show fullscreen HTTP proxy table\n", descriptions_style.clone()),
+
+        SpannedString::styled("<Enter> - ", letters_style.clone()),
+        SpannedString::styled("\n    <On Proxy Table> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Show interactive fullscreen view for selected request and response contents\n", descriptions_style.clone()),
+
+        SpannedString::styled("<Esc> - ", letters_style.clone()),
+        SpannedString::styled("Close secondary view (i.e. help, errors, etc.)\n", descriptions_style.clone()),
+
     ];
 
     let mut result = SpannedString::<Style>::default();
@@ -30,14 +44,17 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
 }
 
 pub(super) fn draw_help_view(siv: &mut Cursive, content: &Rc<SpannedString<Style>>) {
-    let errors = TextView::new(content.deref().clone());
-    let errors = OnEventView::new(errors)
-        .on_event('q', |s| { s.pop_layer(); })
-        .on_event('?', |_| {})
-        .on_event('e', |_| {});
-    let errors = Dialog::around(errors).title("Errors")
+    if siv.find_name::<TextView>("help-popup").is_some() { return; }
+
+    let help = TextView::new(content.deref().clone())
+        .with_name("help-popup");
+    let help = OnEventView::new(help)
+        .on_event(cursive::event::Key::Esc, |s| { s.pop_layer(); });
+
+    let help = Dialog::around(help)
+        .title("Help")
         .title_position(HAlign::Center)
         .full_screen();
 
-    siv.add_fullscreen_layer(errors);
+    siv.add_fullscreen_layer(help);
 }
