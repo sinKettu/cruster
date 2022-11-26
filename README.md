@@ -1,17 +1,63 @@
 # Cruster
 
-> Current working branch is [ui_improvements](https://github.com/sinKettu/cruster/tree/ui_improvements)
-
-`v0.3.1`
+`v0.4.1`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
+
+## What Cruster can do
+
+- Proxy HTTP;
+- Proxy WebSocket;
+- Interactive text interface:
+  - Table visualization of HTTP messgages went through proxy;
+  - Requests/Responses highlighted visualization;
+- Dump mode.
+- ... *Coming soon*...
 
 ## Usage
 
 Just run `cruster` and it will create working directory in `~/.cruster`, putting there _base config_, _TLS certificate_ with _key_. Then it will be listening to requests on address `127.0.0.1:8080`.
 
 To use this proxy with browser you must import CA certificate of proxy (stored by default in `~/.cruster/cruster.cer`) into browser manually.
+
+### Help output
+
+``` shell
+$ cruster -h
+Cruster 0.3.1
+Andrey Ivanov<avangard.jazz@gmail.com>
+
+USAGE:
+    cruster [FLAGS] [OPTIONS]
+
+FLAGS:
+    -d, --dump       Enable non-interactive dumping mode: all communications will be shown in terminal output
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -a, --address <ADDR>                Address for proxy to bind, default: 127.0.0.1
+    -c, --config <YAML_CONFIG>          Path to config with YAML format [default: ~/.cruster/config.yaml]
+        --debug-file <FILE-TO-WRITE>    A file to write debug messages, mostly needed for development
+    -p, --port <PORT>                   Port for proxy to listen to, default: 8080
+    -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored
+                                        [default: ~/.cruster/]
+```
+
+### Navigation on text user interface
+
+``` text
+? - Show help view
+q - Quit
+e - Show error logs view
+t - Show fullscreen HTTP proxy table
+<Enter>
+│     <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
+<Esc> - Close secondary view (i.e. help, errors, etc.)
+```
+
+### Dump mode
 
 By default, `Cruster` will run in interactive mode, drawing interface in you terminal. You can also run it in `dump-mode` 
 using option `--dump`/`-d` and it will be just logging traffic:
@@ -42,35 +88,19 @@ http <== <!doctype html><html i
 http <==
 ```
 
-### Help output:
+## Installation
+
+The only option for now is to install from source code with `git` and `cargo`. You can use the following command:
 
 ``` shell
-$ cruster -h
-Cruster 0.3.1
-Andrey Ivanov<avangard.jazz@gmail.com>
-
-USAGE:
-    cruster [FLAGS] [OPTIONS]
-
-FLAGS:
-    -d, --dump       Enable non-interactive dumping mode: all communications will be shown in terminal output
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -a, --address <ADDR>                Address for proxy to bind, default: 127.0.0.1
-    -c, --config <YAML_CONFIG>          Path to config with YAML format [default: ~/.cruster/config.yaml]
-        --debug-file <FILE-TO-WRITE>    A file to write debug messages, mostly needed for development
-    -p, --port <PORT>                   Port for proxy to listen to, default: 8080
-    -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored
-                                        [default: ~/.cruster/]
+$ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.1"
 ```
 
 ## RoadMap
 
 - [X] Improve proxy performance.
-- [ ] Navigate over Requests/Responses text.
-- [ ] Requests/Responses syntax highlight.
+- [X] Navigate over Requests/Responses text.
+- [X] Requests/Responses syntax highlight.
 - [ ] Manual repeater for requests.
 - [ ] Projects (like in Burp or ZAP).
 - [ ] Store projects and history on drive.
@@ -83,6 +113,6 @@ OPTIONS:
 
 ## License
 
-Licensed with MIT license.
+Licensed with GNU GENERAL PUBLIC LICENSE Version 3.
 
 Copyright 2022 Andrey Ivanov.
