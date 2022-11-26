@@ -3,10 +3,50 @@ use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style,
 use bstr::ByteSlice;
 use std::ffi::CString;
 
+fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
+    let mut result = SpannedString::from(SpannedString::styled("?", BaseColor::Black.light()));
+
+    let query_without_question = &query_str[1..];
+    let split_by_amp: Vec<&str> = query_without_question.split("&").collect();
+
+    for (idx, kv) in split_by_amp.iter().enumerate() {
+        let split_by_equal: Vec<&str> = kv.splitn(2, "=").collect();
+        if split_by_equal.len() == 1 {
+            result.append(
+                StyledString::styled(
+                    split_by_equal[0],
+                    Style::from(BaseColor::Blue.light())
+                )
+            );
+            result.append("=");
+        }
+        else {
+            result.append(
+                StyledString::styled(
+                    split_by_equal[0],
+                    Style::from(BaseColor::Blue.light())
+                )
+            );
+            result.append("=");
+            result.append(
+                StyledString::styled(
+                    split_by_equal[1],
+                    BaseColor::Green.light()
+                )
+            );
+        }
+
+        if idx + 1 < split_by_amp.len() {
+            result.append(SpannedString::styled("&", BaseColor::Black.light()));
+        }
+    }
+
+    return result;
+}
 
 pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedString<Style> {
     let mut first_line = SpannedString::default();
-    let method = SpannedString::styled(&req.method, BaseColor::Blue.light());
+    let method = SpannedString::styled(&req.method, Style::from(BaseColor::White.light()).combine(Effect::Bold));
     first_line.append(method);
     first_line.append(" ");
 
@@ -17,7 +57,7 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
 
             match req.get_query() {
                 Some(query) => {
-                    let spanned_query = SpannedString::styled(query, Effect::Bold);
+                    let spanned_query = query_to_spanned(&query);
                     first_line.append(spanned_query);
                 },
                 None => {
