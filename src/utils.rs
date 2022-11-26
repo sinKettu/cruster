@@ -38,6 +38,7 @@ pub(crate) enum CrusterError {
     // NotImplementedError(String),
     UnacceptableFilter(String),
     ProxyTableIndexOutOfRange(String),
+    CouldParseRequestPathError(String),
     EmptyRequest(String),
 }
 

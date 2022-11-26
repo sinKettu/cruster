@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.3.1`
+`v0.4.1`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.

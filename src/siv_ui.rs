@@ -1,6 +1,7 @@
 pub(super) mod error_view;
 mod help_view;
 mod http_table;
+mod req_res_spanned;
 
 use std::cmp::Ordering;
 use cursive::{traits::*, };
@@ -235,12 +236,12 @@ fn draw_request_and_response(siv: &mut Cursive, item: usize) {
         let pair = user_data.http_storage.get(index);
 
         if let Some(request) = &pair.request {
-            let req_str = request.to_string();
-            user_data.request_view_content.set_content(req_str);
+            let req_spanned = req_res_spanned::request_wrapper_to_spanned(request);
+            user_data.request_view_content.set_content(req_spanned);
 
             if let Some(response) = &pair.response {
-                let res_str = response.to_string();
-                user_data.response_view_content.set_content(res_str);
+                let res_spanned = req_res_spanned::response_wrapper_to_spanned(response);
+                user_data.response_view_content.set_content(res_spanned);
             }
         }
         else {

@@ -103,6 +103,43 @@ impl HyperRequestWrapper {
         format!("/{}", path_list.join("/"))
     }
 
+    pub(crate) fn get_request_path_without_query(&self) -> Result<String, CrusterError> {
+        let after_split = self.uri.splitn(4, "/").collect::<Vec<&str>>();
+        let path_with_query_option = after_split.get(3);
+
+        return match path_with_query_option {
+            Some(path_with_query) => {
+                let after_second_split = path_with_query.splitn(2, "?").collect::<Vec<&str>>();
+                let path_without_query_option = after_second_split.get(0);
+
+                match path_without_query_option {
+                    Some(path_without_query) => {
+                        Ok(format!("/{}", path_without_query))
+                    },
+                    None => {
+                        Err(CrusterError::CouldParseRequestPathError(format!("Could not parse path at {}", self.uri)))
+                    }
+                }
+            },
+            None => {
+                Err(CrusterError::CouldParseRequestPathError(format!("Could not parse path at {}", self.uri)))
+            }
+        };
+    }
+
+    pub(crate) fn get_query(&self) -> Option<String> {
+        let after_split: Vec<&str> = self.uri.splitn(2, "?").collect();
+
+        return match after_split.get(1) {
+            Some(query) => {
+                Some(format!("?{}", query))
+            },
+            None => {
+                None
+            }
+        };
+    }
+
     pub(crate) fn get_host(&self) -> String {
         match self.headers.get("Host") {
             Some(h) => {
