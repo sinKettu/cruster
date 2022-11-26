@@ -67,6 +67,8 @@ pub(super) fn new_table() -> HTTPTable {
 pub(super) fn make_table_fullscreen(siv: &mut Cursive) {
     if siv.find_name::<HTTPTable>("fs-proxy-table").is_some() { return; }
 
+
+
     let table_items = siv.call_on_name("proxy-table", |table: &mut HTTPTable| {
         // TODO: ensure that popping one is the needed
         table.take_items()
@@ -92,7 +94,8 @@ pub(super) fn make_table_fullscreen(siv: &mut Cursive) {
             });
 
             siv.with_user_data(|ud: &mut SivUserData| {
-                ud.active_http_table_name = "fs-proxy-table"
+                ud.active_http_table_name = "fs-proxy-table";
+                ud.status.set_message("Press 'Esc' to go back");
             });
         },
         None => {
@@ -121,6 +124,7 @@ fn remove_fullscreen_http_proxy(siv: &mut Cursive) {
 
     siv.with_user_data(|ud: &mut SivUserData| {
         ud.active_http_table_name = "proxy-table";
+        ud.status.clear_message();
     });
 }
 

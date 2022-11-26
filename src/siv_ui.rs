@@ -2,6 +2,7 @@ pub(super) mod error_view;
 mod help_view;
 mod http_table;
 mod req_res_spanned;
+mod status_bar;
 
 use std::cmp::Ordering;
 use cursive::{traits::*, };
@@ -18,6 +19,8 @@ use crate::cruster_proxy::request_response::{CrusterWrapper, };
 use crate::utils::CrusterError;
 use crate::http_storage::{HTTPStorage, };
 use std::rc::Rc;
+use self::status_bar::StatusBarContent;
+use cursive::utils::markup::StyledString;
 // use log::debug;
 
 struct SivUserData {
@@ -28,6 +31,7 @@ struct SivUserData {
     response_view_content: TextContent,
     active_http_table_name: &'static str,
     errors: Vec<CrusterError>,
+    status: status_bar::StatusBarContent
 }
 
 impl SivUserData {
@@ -66,7 +70,7 @@ pub(crate) struct ProxyDataForTable {
     pub(crate) hostname: String,
     pub(crate) path: String,
     pub(crate) status_code: String,
-    pub(crate) response_length: String,
+    pub(crate) response_length: usize,
 }
 
 impl TableViewItem<BasicColumn> for ProxyDataForTable {
@@ -77,7 +81,14 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
             BasicColumn::Hostname => self.hostname.clone(),
             BasicColumn::Path => self.path.clone(),
             BasicColumn::StatusCode => self.status_code.clone(),
-            BasicColumn::ResponseLength => self.response_length.clone(),
+            BasicColumn::ResponseLength => (
+                if self.status_code.is_empty() {
+                    "".to_string()
+                }
+                else {
+                    self.response_length.to_string()
+                }
+            ),
         }
     }
 
@@ -98,9 +109,10 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
 
     siv.add_global_callback('q', |s| s.quit());
     siv.add_global_callback('e', |s| error_view::draw_error_view(s));
-    siv.add_global_callback('?',  move |s| help_view::draw_help_view(s, &help_message));
+    siv.add_global_callback('?', move |s| help_view::draw_help_view(s, &help_message));
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
 
+    siv.set_autorefresh(true);
     siv.set_theme(cursive::theme::Theme {
         shadow: false,
         borders: BorderStyle::Simple,
@@ -122,6 +134,13 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
     let request_view_content = TextContent::new("");
     let response_view_content = TextContent::new("");
 
+    let status_bar_message = TextContent::new(
+        StyledString::styled(" Status bar will be here soon...", BaseColor::Black.light())
+    );
+    let status_bar_stats = TextContent::new(
+        StyledString::styled("Press '?' to get help", BaseColor::Black.light())
+    );
+
     siv.set_user_data(
         SivUserData {
             proxy_receiver: rx,
@@ -131,6 +150,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
             response_view_content: response_view_content.clone(),
             active_http_table_name: "proxy-table",
             errors: Vec::new(),
+            status: StatusBarContent::new(status_bar_message.clone(), status_bar_stats.clone())
         }
     );
 
@@ -162,8 +182,11 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
                     )
             )
     );
+    let base_layout = LinearLayout::vertical()
+        .child(status_bar::make_status_bar(status_bar_message, status_bar_stats))
+        .child(views_stack.with_name("views-stack").full_width());
     
-    siv.add_fullscreen_layer(views_stack.with_name("views-stack"));
+    siv.add_fullscreen_layer(base_layout);
 
     siv.run();
 }
@@ -197,7 +220,9 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
                 }
             }
         }
+        rx.status.set_stats(rx.errors.len(), rx.http_storage.len());
     });
+
 
     siv.set_user_data(rx);
 }

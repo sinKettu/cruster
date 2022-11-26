@@ -37,7 +37,7 @@ impl HTTPStorage {
             path: request.get_request_path(),
             method: request.method.clone(),
             status_code: String::default(),
-            response_length: String::default(),
+            response_length: 0,
         };
 
         self.storage.push(
@@ -67,7 +67,7 @@ impl HTTPStorage {
         &self.storage[idx]
     }
 
-    // pub(crate) fn len(&self) -> usize {
-    //     return self.storage.len().clone();
-    // }
+    pub(crate) fn len(&self) -> usize {
+        return self.storage.len().clone();
+    }
 }

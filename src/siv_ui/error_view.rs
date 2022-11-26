@@ -20,6 +20,8 @@ pub(crate) fn put_error(siv: &mut Cursive) {
         if let Ok(err) = error_message {
             ud.errors.push(err);
         }
+
+        ud.status.set_stats(ud.errors.len(), ud.http_storage.len())
     });
 }
 

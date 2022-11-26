@@ -276,16 +276,17 @@ impl HyperResponseWrapper {
         return Ok((response_wrapper, reconstructed_response));
     }
 
-    pub(crate) fn get_length(&self) -> String {
+    pub(crate) fn get_length(&self) -> usize {
         match self.headers.get("Content-Length") {
             Some(length) => {
                 length
                     .to_str()
                     .unwrap()
-                    .to_string()
+                    .parse::<usize>()
+                    .unwrap()
             }
             None => {
-                self.body.len().to_string()
+                self.body.len()
             }
         }
     }
