@@ -9,7 +9,7 @@ use hudsucker::{
     decode_response
 };
 
-use log::debug;
+// use log::debug;
 
 use crate::CrusterError;
 use bstr::ByteSlice;
@@ -39,7 +39,7 @@ impl Display for HyperRequestWrapper {
 
         // Crutch because of binary string which are incompatible with c-strings in cursive
         let body = self.body.to_str_lossy().to_string();
-        let body = if let Ok(b) = CString::new(body.as_bytes()) {
+        let body = if CString::new(body.as_bytes()).is_ok() {
             body
         }
         else {
@@ -126,21 +126,21 @@ impl HyperRequestWrapper {
 
 // -----------------------------------------------------------------------------------------------//
 
-#[derive(Clone, Debug)]
-pub(crate) enum BodyCompressedWith {
-    GZIP,
-    DEFLATE,
-    BR,
-    NONE
-}
+// #[derive(Clone, Debug)]
+// pub(crate) enum BodyCompressedWith {
+//     GZIP,
+//     DEFLATE,
+//     BR,
+//     NONE
+// }
 
-#[derive(Clone, Debug)]
+// #[derive(Clone, Debug)]
 pub(crate) struct HyperResponseWrapper {
     pub(crate) status: String,
     pub(crate) version: String,
     pub(crate) headers: hyper::HeaderMap,
     pub(crate) body: Vec<u8>,
-    pub(crate) body_compressed: BodyCompressedWith
+    // pub(crate) body_compressed: BodyCompressedWith
 }
 
 impl Display for HyperResponseWrapper {
@@ -153,7 +153,7 @@ impl Display for HyperResponseWrapper {
 
         // Crutch because of binary string which are incompatible with c-strings in cursive
         let body = self.body.to_str_lossy().to_string();
-        let body = if let Ok(b) = CString::new(body.as_bytes()) {
+        let body = if CString::new(body.as_bytes()).is_ok() {
             body
         }
         else {
@@ -194,31 +194,31 @@ impl HyperResponseWrapper {
 
         // Copy headers and determine if body is compressed
         let mut headers = HeaderMap::new();
-        let mut body_compressed: BodyCompressedWith = BodyCompressedWith::NONE;
+        // let mut body_compressed: BodyCompressedWith = BodyCompressedWith::NONE;
         for (k, v) in &rsp_parts.headers.clone() {
             headers.insert(k.clone(), v.clone());
-            if k.as_str().to_lowercase() == "content-encoding" {
-                match v.to_str() {
-                    Ok(s) => {
-                        if s.contains("gzip") {
-                            body_compressed = BodyCompressedWith::GZIP;
-                        }
-                        else if s.contains("deflate") {
-                            body_compressed = BodyCompressedWith::DEFLATE;
-                        }
-                        else if s.contains("br") {
-                            body_compressed = BodyCompressedWith::BR;
-                        }
-                        else {
-                            body_compressed = BodyCompressedWith::NONE;
-                        }
-                    },
-                    Err(_) => {
-                        // nothing to do here
-                        debug!("Could not parse header to UTF-8");
-                    }
-                }
-            }
+            // if k.as_str().to_lowercase() == "content-encoding" {
+            //     match v.to_str() {
+            //         Ok(s) => {
+            //             if s.contains("gzip") {
+            //                 body_compressed = BodyCompressedWith::GZIP;
+            //             }
+            //             else if s.contains("deflate") {
+            //                 body_compressed = BodyCompressedWith::DEFLATE;
+            //             }
+            //             else if s.contains("br") {
+            //                 body_compressed = BodyCompressedWith::BR;
+            //             }
+            //             else {
+            //                 body_compressed = BodyCompressedWith::NONE;
+            //             }
+            //         },
+            //         Err(_) => {
+            //             // nothing to do here
+            //             debug!("Could not parse header to UTF-8");
+            //         }
+            //     }
+            // }
         }
 
         let body = match hyper::body::to_bytes(rsp_body).await {
@@ -233,7 +233,7 @@ impl HyperResponseWrapper {
             version,
             headers,
             body: body.to_vec(),
-            body_compressed
+            // body_compressed
         };
 
         return Ok((response_wrapper, reconstructed_response));
@@ -256,7 +256,7 @@ impl HyperResponseWrapper {
 
 // ---------------------------------------------------------------------------------------------- //
 
-#[derive(Clone, Debug)]
+// #[derive(Clone, Debug)]
 pub(crate) enum CrusterWrapper {
     Request(HyperRequestWrapper),
     Response(HyperResponseWrapper)

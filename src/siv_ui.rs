@@ -17,7 +17,7 @@ use crate::cruster_proxy::request_response::{CrusterWrapper, };
 use crate::utils::CrusterError;
 use crate::http_storage::{HTTPStorage, };
 use std::rc::Rc;
-use log::debug;
+// use log::debug;
 
 struct SivUserData {
     proxy_receiver: Receiver<(CrusterWrapper, usize)>,

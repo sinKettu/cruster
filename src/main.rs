@@ -12,11 +12,9 @@ use tokio::{
     signal
 };
 use cruster_proxy::{CrusterHandler, CrusterWSHandler, request_response::CrusterWrapper};
-use std::thread;
 use utils::CrusterError;
 
 use cursive::{Cursive, CbSink};
-use hyper::Body;
 use crossbeam_channel::Sender as CB_Sender;
 
 async fn shutdown_signal() {

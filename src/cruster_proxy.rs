@@ -120,7 +120,7 @@ impl HttpHandler for CrusterHandler {
             println!("http <==");
             let body = match hyper::body::to_bytes(body).await {
                 Ok(bytes) => bytes,
-                Err(e) => {
+                Err(_) => {
                     println!("http <== [ERROR] ~Faced with troubles to handle response body~ [ERROR");
                     println!("http <==");
                     return hyper::Response::new(hyper::Body::empty());

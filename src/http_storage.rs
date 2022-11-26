@@ -1,15 +1,10 @@
-use std::cmp::min;
 use std::collections::HashMap;
-use http::header::HeaderName;
-use http::HeaderValue;
 
 use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
-use regex;
-use crate::CrusterError;
 use crate::siv_ui::ProxyDataForTable;
 
-#[derive(Clone, Debug)]
+// #[derive(Clone, Debug)]
 pub(super) struct RequestResponsePair {
     pub(super) request: Option<HyperRequestWrapper>,
     pub(super) response: Option<HyperResponseWrapper>,
@@ -20,7 +15,7 @@ pub(super) struct RequestResponsePair {
 
 pub(crate) struct HTTPStorage {
     storage: Vec<RequestResponsePair>,
-    context_reference: HashMap<usize, (usize, bool)>,
+    context_reference: HashMap<usize, usize>,
 }
 
 impl Default for HTTPStorage {
@@ -53,14 +48,14 @@ impl HTTPStorage {
             }
         );
 
-        self.context_reference.insert(addr, (index, true));
+        self.context_reference.insert(addr, index);
         return table_record;
     }
 
     pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &usize) -> Option<usize> {
         let mut index_found = None;
 
-        if let Some((index, match_filter)) = self.context_reference.get(addr) {
+        if let Some(index) = self.context_reference.get(addr) {
             self.storage[index.to_owned()].response = Some(response);
             index_found = Some(self.storage[index.to_owned()].index);
         }
@@ -72,7 +67,7 @@ impl HTTPStorage {
         &self.storage[idx]
     }
 
-    pub(crate) fn len(&self) -> usize {
-        return self.storage.len().clone();
-    }
+    // pub(crate) fn len(&self) -> usize {
+    //     return self.storage.len().clone();
+    // }
 }

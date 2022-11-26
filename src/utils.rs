@@ -10,7 +10,6 @@ use std::{
     net::AddrParseError,
     fs
 };
-use std::fmt::format;
 use rcgen::{Certificate, CertificateParams, self, KeyPair, IsCa, BasicConstraints};
 use serde_yaml;
 // use std::time::macros::datetime;
@@ -30,13 +29,13 @@ pub(crate) enum CrusterError {
     ParseAddressError(String),
     // RenderUnitCastError(String),
     UndefinedError(String),
-    NotParagraphRenderUnit(String),
+    // NotParagraphRenderUnit(String),
     SendError(String),
     HyperBodyParseError(String),
     HeaderToStringError(String),
     TryRecvError(String),
-    UnknownResponseBodyEncoding(String),
-    NotImplementedError(String),
+    // UnknownResponseBodyEncoding(String),
+    // NotImplementedError(String),
     UnacceptableFilter(String),
     ProxyTableIndexOutOfRange(String),
     EmptyRequest(String),
@@ -134,12 +133,12 @@ impl fmt::Display for CrusterError {
             CrusterError::UndefinedError(s) => {
                 write!(f, "{}", s)
             },
-            CrusterError::NotImplementedError(s) => {
-                write!(f, "{}", s)
-            },
-            CrusterError::UnknownResponseBodyEncoding(s) => {
-                write!(f, "{}", s)
-            },
+            // CrusterError::NotImplementedError(s) => {
+            //     write!(f, "{}", s)
+            // },
+            // CrusterError::UnknownResponseBodyEncoding(s) => {
+            //     write!(f, "{}", s)
+            // },
             CrusterError::UnacceptableFilter(s) => {
                 write!(f, "{}", s)
             },
