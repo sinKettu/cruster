@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.4.1`
+`v0.4.2`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -93,7 +93,7 @@ http <==
 The only option for now is to install from source code with `git` and `cargo`. You can use the following command:
 
 ``` shell
-$ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.1"
+$ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.2" --locked
 ```
 
 ## RoadMap

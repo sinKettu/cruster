@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 authors = ["Andrey Ivanov"]
 description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
@@ -19,13 +19,9 @@ tokio = { version = "1.6.1", features = ["full"] }
 time = { version = "0.3.1" }
 hudsucker = { version = "0.17.2", features = ["full"] }
 # ---------------------------------------------------------------------
-# TUI
-tui = "0.18.0"
-crossterm = "0.23.2"
-# ---------------------------------------------------------------------
 # Cursive
-cursive = "0.*"
-cursive_table_view = "0.*"
+cursive = "0.20.0"
+cursive_table_view = "0.14.0"
 crossbeam-channel = "0.5.6"
 # ---------------------------------------------------------------------
 # Configuration
