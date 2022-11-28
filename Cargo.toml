@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 authors = ["Andrey Ivanov"]
 description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
@@ -17,10 +17,12 @@ rand = { version = "0.8.0"}
 http = "0.2.0"
 tokio = { version = "1.6.1", features = ["full"] }
 time = { version = "0.3.1" }
-hudsucker = { version = "0.17.2", features = ["full"] }
+hudsucker = { version = "0.17.2", features = ["http2", "rustls-client"] }
+rustls-pemfile = { version = "1.0.1", optional = true}
 # ---------------------------------------------------------------------
 # Cursive
-cursive = "0.20.0"
+# cursive = "0.20.0"
+cursive = { version = "0.20.0", default_features = false, optional = true }
 cursive_table_view = "0.14.0"
 crossbeam-channel = "0.5.6"
 # ---------------------------------------------------------------------
@@ -32,4 +34,16 @@ serde_yaml = "0.8.24"
 flate2 = "1.0.24"
 log4rs = "1.2.0"
 log = "0.4.17"
-rcgen = { version = "0.9.0", features = ["x509-parser", "pem"]}
+rcgen = { version = "0.10.0", features = ["x509-parser", "pem"]}
+
+# [dependencies.cursive]
+# version = "0.20.0"
+# default-features = false
+# features = ["crossterm-backend"]
+
+[features]
+crossterm = ["cursive/crossterm-backend"]
+rcgen-ca = ["hudsucker/rcgen-certs", "dep:rustls-pemfile"]
+default = ["crossterm", "rcgen-ca"]
+ncurses = ["cursive/ncurses-backend"]
+openssl-ca = ["hudsucker/openssl-certs"]

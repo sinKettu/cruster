@@ -112,7 +112,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
     siv.add_global_callback('?', move |s| help_view::draw_help_view(s, &help_message));
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
 
-    siv.set_autorefresh(true);
+    // siv.set_autorefresh(true);
     siv.set_theme(cursive::theme::Theme {
         shadow: false,
         borders: BorderStyle::Simple,

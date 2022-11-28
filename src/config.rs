@@ -49,7 +49,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let dump_help = "Enable non-interactive dumping mode: all communications will be shown in terminal output";
 
     let matches = App::new("Cruster")
-        .version("0.4.2")
+        .version("0.4.3")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .arg(
