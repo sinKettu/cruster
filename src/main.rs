@@ -5,7 +5,13 @@ mod http_storage;
 mod siv_ui;
 
 use std::net::{IpAddr, SocketAddr};
-use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority};
+
+#[cfg(feature = "default")]
+use hudsucker::{ProxyBuilder, certificate_authority::{RcgenAuthority as HudSuckerCA}};
+
+#[cfg(feature = "openssl-ca")]
+use hudsucker::{ProxyBuilder, certificate_authority::{OpensslAuthority as HudSuckerCA}};
+
 use tokio::{
     self,
     sync::mpsc::{channel, Sender},
@@ -25,7 +31,7 @@ async fn shutdown_signal() {
 
 async fn start_proxy(
         socket_addr: SocketAddr,
-        ca: OpensslAuthority,
+        ca: HudSuckerCA,
         tx: Sender<(CrusterWrapper, usize)>,
         err_tx: Sender<CrusterError>,
         cursive_sink: CbSink,
@@ -73,7 +79,7 @@ async fn start_proxy(
 async fn main() -> Result<(), utils::CrusterError> {
     let config = config::handle_user_input()?;
     utils::generate_key_and_cer(&config.tls_key_name, &config.tls_cer_name);
-    let ca = utils::get_ca(&config.tls_key_name, &config.tls_cer_name)?;
+    let ca: HudSuckerCA = utils::get_ca(&config.tls_key_name, &config.tls_cer_name)?;
 
     let socket_addr = SocketAddr::from((
         config
