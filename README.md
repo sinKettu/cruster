@@ -5,7 +5,7 @@
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
 
-![cruster](https://raw.githubusercontent.com/sinKettu/cruster/master/static/cruster-main.png)
+![cruster](https://github.com/sinKettu/cruster/raw/master/static/cruster-main.png)
 
 ## What Cruster can do
 
