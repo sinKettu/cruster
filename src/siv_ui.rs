@@ -81,14 +81,12 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
             BasicColumn::Hostname => self.hostname.clone(),
             BasicColumn::Path => self.path.clone(),
             BasicColumn::StatusCode => self.status_code.clone(),
-            BasicColumn::ResponseLength => (
-                if self.status_code.is_empty() {
-                    "".to_string()
-                }
-                else {
-                    self.response_length.to_string()
-                }
-            ),
+            BasicColumn::ResponseLength => if self.status_code.is_empty() {
+                "".to_string()
+            }
+            else {
+                self.response_length.to_string()
+            },
         }
     }
 
