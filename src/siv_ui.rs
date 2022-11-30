@@ -4,26 +4,27 @@ mod http_table;
 mod req_res_spanned;
 mod status_bar;
 
-use std::cmp::Ordering;
+// use log::debug;
+use cursive::{Cursive, };
 use cursive::{traits::*, };
 use cursive::{CursiveExt, };
-use cursive::{Cursive, };
-
+use cursive::utils::markup::StyledString;
+use cursive_table_view::{TableView, TableViewItem};
 use cursive::theme::{BaseColor, BorderStyle, Palette, };
 use cursive::views::{Dialog, LinearLayout, TextContent, TextView, StackView, };
-use cursive_table_view::{TableView, TableViewItem};
 
+use std::rc::Rc;
+use std::cmp::Ordering;
 use tokio::sync::mpsc::{Receiver, };
 
-use crate::cruster_proxy::request_response::{CrusterWrapper, };
+use crate::config::Config;
 use crate::utils::CrusterError;
+use status_bar::StatusBarContent;
 use crate::http_storage::{HTTPStorage, };
-use std::rc::Rc;
-use self::status_bar::StatusBarContent;
-use cursive::utils::markup::StyledString;
-// use log::debug;
+use crate::cruster_proxy::request_response::{CrusterWrapper, };
 
 struct SivUserData {
+    config: Config,
     proxy_receiver: Receiver<(CrusterWrapper, usize)>,
     proxy_err_receiver: Receiver<CrusterError>,
     http_storage: HTTPStorage,
@@ -102,13 +103,19 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
     }
 }
 
-pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize)>, err_rx: Receiver<CrusterError>) {
+pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(CrusterWrapper, usize)>, err_rx: Receiver<CrusterError>) {
     let help_message = Rc::new(help_view::make_help_message());
 
     siv.add_global_callback('q', |s| s.quit());
     siv.add_global_callback('e', |s| error_view::draw_error_view(s));
     siv.add_global_callback('?', move |s| help_view::draw_help_view(s, &help_message));
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
+    siv.add_global_callback('S', |s| {
+        s.with_user_data(|ud: &mut SivUserData| {
+            // TODO: separate thread
+            ud.http_storage.store(ud.config.store.as_ref().unwrap())
+        });
+    });
 
     // siv.set_autorefresh(true);
     siv.set_theme(cursive::theme::Theme {
@@ -141,6 +148,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, rx: Receiver<(CrusterWrapper, usize
 
     siv.set_user_data(
         SivUserData {
+            config,
             proxy_receiver: rx,
             proxy_err_receiver: err_rx,
             http_storage: HTTPStorage::default(),

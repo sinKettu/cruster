@@ -14,7 +14,7 @@ use hudsucker::{
 #[cfg(feature = "rcgen-ca")]
 use hudsucker::rustls::{PrivateKey, Certificate};
 
-// #[cfg(feature = "rcgen-ca")]
+use serde_json;
 use rcgen::{CertificateParams, self, IsCa, BasicConstraints, Certificate as RCgenCertificate, PKCS_ECDSA_P256_SHA256};
 
 use std::{
@@ -56,6 +56,7 @@ pub(crate) enum CrusterError {
     ProxyTableIndexOutOfRange(String),
     CouldParseRequestPathError(String),
     EmptyRequest(String),
+    JSONError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -102,6 +103,14 @@ impl From<serde_yaml::Error> for CrusterError {
     fn from(e: serde_yaml::Error) -> Self {
         Self::ConfigError(
             format!("Unable to serialize/deserialize YAML data: {}", e.to_string())
+        )
+    }
+}
+
+impl From<serde_json::Error> for CrusterError {
+    fn from(e: serde_json::Error) -> Self {
+        Self::JSONError(
+            format!("Unable to serialize/deserialize JSON data: {}", e.to_string())
         )
     }
 }
@@ -165,6 +174,9 @@ impl fmt::Display for CrusterError {
             CrusterError::EmptyRequest(s) => {
                 write!(f, "{}", s)
             },
+            CrusterError::JSONError(s) => {
+                write!(f, "{}", s)
+            }
             _ => { write!(f, "{:?}", self) }
         }
     }

@@ -1,4 +1,3 @@
-use http::HeaderMap;
 use hudsucker::{
     hyper::{
         Body,
@@ -11,10 +10,12 @@ use hudsucker::{
 
 // use log::debug;
 
-use crate::CrusterError;
+use http::HeaderMap;
 use bstr::ByteSlice;
 use std::fmt::Display;
 use std::ffi::CString;
+
+use crate::CrusterError;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {

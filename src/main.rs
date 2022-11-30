@@ -115,7 +115,7 @@ async fn main() -> Result<(), utils::CrusterError> {
         }
     }
     else {
-        siv_ui::bootstrap_ui(siv, ui_rx, err_rx);
+        siv_ui::bootstrap_ui(siv, config, ui_rx, err_rx);
         Ok(())
     }
 }

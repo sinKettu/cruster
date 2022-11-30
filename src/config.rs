@@ -1,14 +1,15 @@
-use shellexpand::tilde;
-use crate::utils::CrusterError;
+use std::{fs, path};
 use clap::{App, Arg};
 use serde_yaml as yml;
-use std::{fs, path};
+use shellexpand::tilde;
 use serde::{Serialize, Deserialize};
-use log::{LevelFilter, debug};
 
+use log::{LevelFilter, debug};
 use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config as L4R_Config, Root};
+
+use crate::utils::CrusterError;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Config {
@@ -18,8 +19,9 @@ pub(crate) struct Config {
     pub(crate) config_name: String,
     pub(crate) address: String,
     pub(crate) port: u16,
-    pub(crate) debug_file: String,
-    pub(crate) dump_mode: bool
+    pub(crate) debug_file: Option<String>,
+    pub(crate) dump_mode: bool,
+    pub(crate) store: Option<String>,
 }
 
 impl Default for Config {
@@ -32,8 +34,9 @@ impl Default for Config {
             tls_key_name: format!("{}{}", &expanded_path, "cruster.key"),
             address: "127.0.0.1".to_string(),
             port: 8080_u16,
-            debug_file: "".to_string(),
-            dump_mode: false
+            debug_file: None,
+            dump_mode: false,
+            store: None,
         }
     }
 }
@@ -47,6 +50,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let port_help = "Port for proxy to listen to, default: 8080";
     let debug_file_help = "A file to write debug messages, mostly needed for development";
     let dump_help = "Enable non-interactive dumping mode: all communications will be shown in terminal output";
+    let save_help = "Path to file to store proxy data. File will be rewritten!";
 
     let matches = App::new("Cruster")
         .version("0.4.4")
@@ -100,6 +104,14 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .takes_value(false)
                 .help(dump_help)
         )
+        .arg(
+            Arg::with_name("store")
+                .long("store")
+                .short("-s")
+                .takes_value(true)
+                .value_name("PATH-TO-FILE")
+                .help(save_help)
+        )
         .get_matches();
 
     let workplace = tilde(
@@ -145,25 +157,40 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
 
     if let Some(dfile) = matches.value_of("debug-file") {
-        let logfile = FileAppender::builder()
+        enable_debug(dfile);
+        config.debug_file = Some(dfile.to_string());
+    }
+    else if let Some(dfile) = &config.debug_file {
+        enable_debug(dfile)
+    }
+
+    if let Some(store_path) = matches.value_of("store") {
+        config.store = Some(store_path.to_string());
+        fs::File::create(store_path).expect(&format!("Could not create file to store proxy data at '{}'", store_path));
+    }
+    else if let Some(store_path) = &config.store {
+        fs::File::create(store_path).expect(&format!("Could not create file to store proxy data at '{}'", store_path));
+    }
+
+    if matches.is_present("dump-mode") || config.dump_mode {
+        config.dump_mode = true;
+    }
+
+    Ok(config)
+}
+
+fn enable_debug(debug_file_path: &str) {
+    let logfile = FileAppender::builder()
             .encoder(Box::new(PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}] {l} - {M} - {m}\n")))
-            .build(dfile)
+            .build(debug_file_path)
             .unwrap();
 
-        let config = L4R_Config::builder()
+        let log_config = L4R_Config::builder()
             .appender(Appender::builder().build("logfile", Box::new(logfile)))
             .build(Root::builder()
                     .appender("logfile")
                     .build(LevelFilter::Debug)).unwrap();
 
-        log4rs::init_config(config).unwrap();
-
+        log4rs::init_config(log_config).unwrap();
         debug!("Debugging enabled");
-    }
-
-    if matches.is_present("dump-mode") {
-        config.dump_mode = true;
-    }
-
-    Ok(config)
 }

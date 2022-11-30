@@ -1,8 +1,9 @@
+mod serializable;
+
 use std::collections::HashMap;
 
-use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
-
 use crate::siv_ui::ProxyDataForTable;
+use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
 // #[derive(Clone, Debug)]
 pub(super) struct RequestResponsePair {
