@@ -113,6 +113,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
     siv.add_global_callback('S', |s| {
         s.with_user_data(|ud: &mut SivUserData| {
             // TODO: separate thread
+            // TODO: check config.store for existence
             ud.http_storage.store(ud.config.store.as_ref().unwrap())
         });
     });
