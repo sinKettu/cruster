@@ -16,15 +16,15 @@ use cursive::views::{Dialog, LinearLayout, TextContent, TextView, StackView, };
 
 use std::rc::Rc;
 use std::cmp::Ordering;
+use tokio::sync::mpsc::Receiver;
 
 use crate::config::Config;
+use sivuserdata::SivUserData;
 use crate::utils::CrusterError;
 use status_bar::StatusBarContent;
-use crate::http_storage::HTTPStorage;
-use sivuserdata::SivUserData;
-use crate::cruster_proxy::request_response::CrusterWrapper;
 use std::thread::{self, JoinHandle};
-use tokio::sync::mpsc::Receiver;
+use crate::http_storage::HTTPStorage;
+use crate::cruster_proxy::request_response::CrusterWrapper;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum BasicColumn {
