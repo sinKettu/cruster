@@ -123,7 +123,18 @@ pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> Spanned
     for (k, v) in &res.headers {
         headers_content.append(StyledString::styled(k.as_str(), BaseColor::Blue.dark()));
         headers_content.append(": ");
-        headers_content.append(v.to_str().unwrap());
+
+        let hval = if let Ok(hval) = v.to_str() {
+            StyledString::from(hval)
+        }
+        else {
+            let mut spanned_hval = StyledString::from(v.as_bytes().to_str_lossy());
+            spanned_hval.append("  ");
+            spanned_hval.append(StyledString::styled("CANNOT FULLY ENCODE AS UTF-8", BaseColor::Black.light()));
+            spanned_hval
+        };
+
+        headers_content.append(hval);
         headers_content.append("\r\n");
     }
 
