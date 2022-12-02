@@ -160,6 +160,27 @@ impl HyperRequestWrapper {
             }
         }
     }
+
+    pub(crate) fn get_hostname(&self) -> String {
+        self.uri
+            .split("/")
+            .skip(2)
+            .take(1)
+            .collect::<Vec<&str>>()[0]
+            .to_string()
+    }
+
+    pub(crate) fn get_scheme(&self) -> String {
+        let split_result: Vec<&str> = self.uri.splitn(2, ":").collect();
+        return match split_result.get(0) {
+            Some(scheme) => {
+                format!("{}://", scheme)
+            },
+            None => {
+                "://".to_string()
+            }
+        };
+    }
 }
 
 // -----------------------------------------------------------------------------------------------//

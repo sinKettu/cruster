@@ -15,6 +15,7 @@ struct HeaderValue {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SerializableHTTPRequest {
     method: String,
+    scheme: String,
     host: String,
     path: String,
     query: Option<String>,
@@ -40,7 +41,7 @@ pub(super) struct SerializableProxyData {
 
 impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
     fn from(request: &HyperRequestWrapper) -> Self {
-        let host = request.get_host();
+        let host = request.get_hostname();
         let (path, query) = if let Ok(pth) = request.get_request_path_without_query() {
             let qr = request.get_query();
             (pth, qr)
@@ -73,6 +74,7 @@ impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
 
         SerializableHTTPRequest {
             method: request.method.clone(),
+            scheme: request.get_scheme(),
             host,
             path,
             query,
