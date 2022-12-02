@@ -3,6 +3,7 @@ mod help_view;
 mod http_table;
 mod req_res_spanned;
 mod status_bar;
+mod sivuserdata;
 
 // use log::debug;
 use cursive::{Cursive, };
@@ -15,43 +16,15 @@ use cursive::views::{Dialog, LinearLayout, TextContent, TextView, StackView, };
 
 use std::rc::Rc;
 use std::cmp::Ordering;
-use tokio::sync::mpsc::{Receiver, };
 
 use crate::config::Config;
 use crate::utils::CrusterError;
 use status_bar::StatusBarContent;
-use crate::http_storage::{HTTPStorage, };
-use crate::cruster_proxy::request_response::{CrusterWrapper, };
-
-struct SivUserData {
-    config: Config,
-    proxy_receiver: Receiver<(CrusterWrapper, usize)>,
-    proxy_err_receiver: Receiver<CrusterError>,
-    http_storage: HTTPStorage,
-    request_view_content: TextContent,
-    response_view_content: TextContent,
-    active_http_table_name: &'static str,
-    errors: Vec<CrusterError>,
-    status: status_bar::StatusBarContent
-}
-
-impl SivUserData {
-    pub(super) fn receive_data_from_proxy(&mut self) -> Option<(CrusterWrapper, usize)> {
-        match self.proxy_receiver.try_recv() {
-            Ok(received_data) => {
-                Some(received_data)
-            },
-            Err(e) => {
-                self.errors.push(e.into());
-                None
-            }
-        }
-    }
-
-    fn push_error(&mut self, err: CrusterError) {
-        self.errors.push(err);
-    }
-}
+use crate::http_storage::HTTPStorage;
+use sivuserdata::SivUserData;
+use crate::cruster_proxy::request_response::CrusterWrapper;
+use std::thread::{self, JoinHandle};
+use tokio::sync::mpsc::Receiver;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum BasicColumn {
@@ -110,13 +83,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
     siv.add_global_callback('e', |s| error_view::draw_error_view(s));
     siv.add_global_callback('?', move |s| help_view::draw_help_view(s, &help_message));
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
-    siv.add_global_callback('S', |s| {
-        s.with_user_data(|ud: &mut SivUserData| {
-            // TODO: separate thread
-            // TODO: check config.store for existence
-            ud.http_storage.store(ud.config.store.as_ref().unwrap())
-        });
-    });
+    siv.add_global_callback('S', |s| { store_proxy_data(s) });
 
     // siv.set_autorefresh(true);
     siv.set_theme(cursive::theme::Theme {
@@ -157,7 +124,8 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             response_view_content: response_view_content.clone(),
             active_http_table_name: "proxy-table",
             errors: Vec::new(),
-            status: StatusBarContent::new(status_bar_message.clone(), status_bar_stats.clone())
+            status: StatusBarContent::new(status_bar_message.clone(), status_bar_stats.clone()),
+            data_storing_started: false,
         }
     );
 
@@ -230,7 +198,6 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
         rx.status.set_stats(rx.errors.len(), rx.http_storage.len());
     });
 
-
     siv.set_user_data(rx);
 }
 
@@ -280,4 +247,57 @@ fn draw_request_and_response(siv: &mut Cursive, item: usize) {
             user_data.push_error(CrusterError::EmptyRequest(format!("Could not draw table record {}, request is empty.", item)));
         }
     }
+}
+
+fn poll_storing_thread(siv: &mut Cursive, thrd: JoinHandle<Result<(), CrusterError>>) {
+    if thrd.is_finished() {
+        let ud: &mut SivUserData = siv.user_data().unwrap();
+        match thrd.join() {
+            Ok(storing_result) => {
+                match storing_result {
+                    Ok(_) => {
+                        ud.status.clear_message();
+                    },
+                    Err(err) => {
+                        ud.push_error(err);
+                        ud.status.set_message("Error occured while storing data...");
+                    }
+                }
+            },
+            Err(e) => {
+                let err = CrusterError::UndefinedError(
+                    format!("Thread with process of storing proxy data failed: {:?}", e)
+                );
+                ud.push_error(err);
+                ud.status.set_message("Error occured while storing data...");
+            }
+        }
+        ud.data_storing_started = false;
+    }
+    else {
+        siv.cb_sink().send(Box::new(
+            |s: &mut Cursive| { poll_storing_thread(s, thrd) }
+        )).expect("FATAL: Cannot set calback on UI after spawning thread to store proxy data!");
+    }
+}
+
+fn store_proxy_data(siv: &mut Cursive) {
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    if ud.config.store.is_none() {
+        return;
+    }
+
+    if ud.data_storing_started {
+        return;
+    }
+
+    ud.data_storing_started = true;
+    ud.status.set_message("Storing proxy data...");
+    let storage_clone = ud.http_storage.clone();
+    let path_to_save = ud.config.store.as_ref().unwrap().clone();
+    let thrd = thread::spawn(move || { storage_clone.store(&path_to_save, None) });
+
+    siv.cb_sink().send(Box::new(
+        |s: &mut Cursive| { poll_storing_thread(s, thrd) }
+    )).expect("FATAL: Cannot set calback on UI after spawning thread to store proxy data!");
 }

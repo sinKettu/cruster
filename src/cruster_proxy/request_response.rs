@@ -172,7 +172,7 @@ impl HyperRequestWrapper {
 //     NONE
 // }
 
-// #[derive(Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct HyperResponseWrapper {
     pub(crate) status: String,
     pub(crate) version: String,

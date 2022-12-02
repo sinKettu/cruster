@@ -1,5 +1,5 @@
 use base64;
-use std::io::Write;
+use std::{io::Write, sync::mpsc::Receiver};
 use serde_json as json;
 use std::{collections::HashMap, fs};
 use serde::{Serialize, Deserialize};
@@ -146,13 +146,24 @@ impl HeaderValue {
 }
 
 impl HTTPStorage {
-    pub(crate) fn store(&self, path: &str) -> Result<(), CrusterError> {
+    // 'Sentinel' used in a case when this method called in separate thread, in one-threaded case it can be None
+    // It's needed to interrupt thread after some time expired, because rust threads cannot interrupr 
+    // https://internals.rust-lang.org/t/thread-cancel-support/3056
+    pub(crate) fn store(&self, path: &str, sentinel: Option<Receiver<usize>>) -> Result<(), CrusterError> {
         let mut fout = fs::OpenOptions::new().write(true).open(path)?;
         for pair in &self.storage {
             let serializable_record = SerializableProxyData::try_from(pair)?;
             let jsn = json::to_string(&serializable_record)?;
             let _bytes_written = fout.write(jsn.as_bytes())?;
             let _one_byte_written = fout.write("\n".as_bytes())?;
+
+            if let Some(rx) = &sentinel {
+                if let Ok(max_duration) = rx.try_recv() {
+                    return Err(CrusterError::JobDurateTooLongError(
+                        format!("Process of storing proxy data was interrupted, it was running longer that {} seconds.", max_duration)
+                    ));
+                }
+            }
         }
 
         Ok(())

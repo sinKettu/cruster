@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::siv_ui::ProxyDataForTable;
 use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
-// #[derive(Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct RequestResponsePair {
     pub(super) request: Option<HyperRequestWrapper>,
     pub(super) response: Option<HyperResponseWrapper>,
@@ -14,6 +14,7 @@ pub(super) struct RequestResponsePair {
 
 // ---------------------------------------------------------------------------------------------- //
 
+#[derive(Clone)]
 pub(crate) struct HTTPStorage {
     storage: Vec<RequestResponsePair>,
     context_reference: HashMap<usize, usize>,
