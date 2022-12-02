@@ -29,6 +29,7 @@ pub(super) fn draw_error_view(siv: &mut Cursive) {
     if siv.find_name::<TextView>("errors-popup").is_some() { return; }
 
     let ud: &mut SivUserData = siv.user_data().unwrap();
+    ud.status.clear_message();
     let content = ud.errors
         .iter()
         .map(|e| { e.to_string() })

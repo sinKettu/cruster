@@ -1,14 +1,13 @@
 use cursive::{
     Cursive,
-    views::{
-        TextView,
-        OnEventView,
-        Dialog,
-    },
+    views::{TextView, OnEventView, Dialog},
     align::HAlign,
-    view::{Resizable, Nameable}, utils::span::SpannedString, theme::{Style, Effect, BaseColor},
+    view::{Resizable, Nameable},
+    utils::span::SpannedString,
+    theme::{Style, Effect, BaseColor},
 };
 use std::{rc::Rc, ops::Deref};
+use super::sivuserdata::SivUserData;
 
 pub(super) fn make_help_message() -> SpannedString<Style> {
     let letters_style: Style = BaseColor::Green.light().into();
@@ -17,15 +16,6 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
         SpannedString::styled( "? - ",letters_style.clone()),
         SpannedString::styled("Show this help view\n", descriptions_style.clone()),
 
-        SpannedString::styled("q - ", letters_style.clone()),
-        SpannedString::styled("Quit\n", descriptions_style.clone()),
-
-        SpannedString::styled("e - ", letters_style.clone()),
-        SpannedString::styled("Show error logs view\n", descriptions_style.clone()),
-
-        SpannedString::styled("t - ", letters_style.clone()),
-        SpannedString::styled("Show fullscreen HTTP proxy table\n", descriptions_style.clone()),
-
         SpannedString::styled("<Enter> - ", letters_style.clone()),
         SpannedString::styled("\n    <On Proxy Table> - ", BaseColor::Yellow.dark()),
         SpannedString::styled("Show interactive fullscreen view for selected request and response contents\n", descriptions_style.clone()),
@@ -33,6 +23,17 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
         SpannedString::styled("<Esc> - ", letters_style.clone()),
         SpannedString::styled("Close secondary view (i.e. help, errors, etc.)\n", descriptions_style.clone()),
 
+        SpannedString::styled("e - ", letters_style.clone()),
+        SpannedString::styled("Show error logs view\n", descriptions_style.clone()),
+
+        SpannedString::styled("q - ", letters_style.clone()),
+        SpannedString::styled("Quit\n", descriptions_style.clone()),
+
+        SpannedString::styled("S - ", letters_style.clone()),
+        SpannedString::styled("Store proxy data on drive, file path is configured on start\n", descriptions_style.clone()),
+
+        SpannedString::styled("t - ", letters_style.clone()),
+        SpannedString::styled("Show fullscreen HTTP proxy table\n", descriptions_style.clone()),
     ];
 
     let mut result = SpannedString::<Style>::default();
@@ -45,6 +46,8 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
 
 pub(super) fn draw_help_view(siv: &mut Cursive, content: &Rc<SpannedString<Style>>) {
     if siv.find_name::<TextView>("help-popup").is_some() { return; }
+
+    siv.with_user_data(|ud: &mut SivUserData| { ud.status.clear_message(); });
 
     let help = TextView::new(content.deref().clone())
         .with_name("help-popup");
