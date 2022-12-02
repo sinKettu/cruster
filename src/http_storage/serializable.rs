@@ -1,5 +1,4 @@
 use base64;
-use bstr::ByteSlice;
 use std::io::Write;
 use serde_json as json;
 use std::{collections::HashMap, fs};
@@ -7,6 +6,11 @@ use serde::{Serialize, Deserialize};
 use super::{RequestResponsePair, HTTPStorage};
 use crate::{cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, utils::CrusterError};
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct HeaderValue {
+    encoding: String,
+    value: String
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SerializableHTTPRequest {
@@ -15,7 +19,7 @@ struct SerializableHTTPRequest {
     path: String,
     query: Option<String>,
     version: String,
-    headers: HashMap<String, String>,
+    headers: HashMap<String, HeaderValue>,
     body: Option<String>
 }
 
@@ -23,7 +27,7 @@ struct SerializableHTTPRequest {
 struct SerializableHTTPResponse {
     status: String,
     version: String,
-    headers: HashMap<String, String>,
+    headers: HashMap<String, HeaderValue>,
     body: Option<String>
 }
 
@@ -45,10 +49,18 @@ impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
             (request.get_request_path(), None)
         };
 
-        let headers: HashMap<String, String> = request.headers
+        let headers: HashMap<String, HeaderValue> = request.headers
             .iter()
             .map(|(k, v)| {
-                (k.to_string(), v.as_bytes().to_str_lossy().to_string())
+                let key = k.to_string();
+                let value = if let Ok(decoded_value) = v.to_str() {
+                    HeaderValue::new("utf-8", decoded_value)
+                }
+                else {
+                    HeaderValue::new("base64", base64::encode(v.as_bytes()))
+                };
+
+                (key, value)
             })
             .collect();
         
@@ -73,11 +85,18 @@ impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
 
 impl From<&HyperResponseWrapper> for SerializableHTTPResponse {
     fn from(response: &HyperResponseWrapper) -> Self {
-        let headers: HashMap<String, String> = response.headers
+        let headers: HashMap<String, HeaderValue> = response.headers
             .iter()
             .map(|(k, v)| {
-                // TODO: make format for value like UNDECODED![base64_encoded_header_value]
-                (k.to_string(), v.as_bytes().to_str_lossy().to_string())
+                let key = k.to_string();
+                let value = if let Ok(decoded_value) = v.to_str() {
+                    HeaderValue::new("utf-8", decoded_value)
+                }
+                else {
+                    HeaderValue::new("base64", base64::encode(v.as_bytes()))
+                };
+
+                (key, value)
             })
             .collect();
 
@@ -117,6 +136,12 @@ impl TryFrom<&RequestResponsePair> for SerializableProxyData {
                 }
             )
         };
+    }
+}
+
+impl HeaderValue {
+    fn new<T: ToString, U: ToString>(encoding: T, value: U) -> Self {
+        HeaderValue { encoding: encoding.to_string(), value: value.to_string() }
     }
 }
 
