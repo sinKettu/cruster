@@ -27,7 +27,7 @@ To use this proxy with browser you must import CA certificate of proxy (stored b
 
 ``` shell
 $ cruster -h
-Cruster 0.3.1
+Cruster 0.4.4
 Andrey Ivanov<avangard.jazz@gmail.com>
 
 USAGE:
@@ -43,6 +43,7 @@ OPTIONS:
     -c, --config <YAML_CONFIG>          Path to config with YAML format [default: ~/.cruster/config.yaml]
         --debug-file <FILE-TO-WRITE>    A file to write debug messages, mostly needed for development
     -p, --port <PORT>                   Port for proxy to listen to, default: 8080
+    -s, --store <PATH-TO-FILE>          Path to file to store proxy data. File will be rewritten!
     -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored
                                         [default: ~/.cruster/]
 ```
@@ -125,14 +126,15 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked 
 - [X] Improve proxy performance.
 - [X] Navigate over Requests/Responses text.
 - [X] Requests/Responses syntax highlight.
+- [ ] Intercepting requests/responses.
 - [ ] Manual repeater for requests.
 - [ ] Projects (like in Burp or ZAP).
 - [ ] Store projects and history on drive.
 - [ ] **Scripting engine based on YAML syntax to write testcases and checks**.
-- [ ] **Scripting engine based on Python to write testcases and checks**
+- [ ] **Scripting engine based on Python to write testcases and checks**.
 - [X] WS(S) support.
 - [ ] Improve documentation.
-- [ ] WS(S) proxy history visualisation (like for HTTP(S))
+- [ ] WS(S) proxy history visualization (like for HTTP(S));
 - [ ] And much more ...
 
 ## Gratitude
