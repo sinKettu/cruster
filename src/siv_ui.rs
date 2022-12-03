@@ -25,6 +25,8 @@ use status_bar::StatusBarContent;
 use std::thread::{self, JoinHandle};
 use crate::http_storage::HTTPStorage;
 use crate::cruster_proxy::request_response::CrusterWrapper;
+use log::debug;
+use crate::siv_ui::http_table::HTTPTable;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum BasicColumn {
@@ -128,6 +130,12 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             data_storing_started: false,
         }
     );
+
+    siv.cb_sink().send(
+        Box::new(
+            |s: &mut Cursive| { load_data_if_need(s) }
+        )
+    ).expect("Could not register action to load data from file!");
 
     let main_table = http_table::new_table().with_name("proxy-table");
     let mut views_stack = StackView::new();
@@ -300,4 +308,44 @@ fn store_proxy_data(siv: &mut Cursive) {
     siv.cb_sink().send(Box::new(
         |s: &mut Cursive| { poll_storing_thread(s, thrd) }
     )).expect("FATAL: Cannot set calback on UI after spawning thread to store proxy data!");
+}
+
+fn load_data_if_need(siv: &mut Cursive) {
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    debug!("{:?}", &ud.config.load);
+    if let None = &ud.config.load {
+        return;
+    }
+
+    let load_path = ud.config.load.as_ref().unwrap();
+    let result = ud.http_storage.load(load_path);
+
+    if let Err(e) = result {
+        ud.push_error(e);
+    }
+
+    let mut items: Vec<ProxyDataForTable> = Vec::with_capacity(ud.http_storage.len() * 2);
+    for pair in ud.http_storage.into_iter() {
+        let req = pair.request.as_ref().unwrap();
+        let mut table_record = ProxyDataForTable {
+            id: pair.index,
+            method: req.method.clone(),
+            hostname: req.get_hostname(),
+            path: req.get_request_path(),
+            status_code: "".to_string(),
+            response_length: 0,
+        };
+
+        if let Some(res) = pair.response.as_ref() {
+            table_record.status_code = res.status.clone();
+            table_record.response_length = res.get_length();
+        }
+
+        items.push(table_record);
+    }
+
+    let table_name = ud.active_http_table_name;
+    siv.call_on_name(table_name, move |t: &mut HTTPTable| {
+        t.set_items(items);
+    });
 }

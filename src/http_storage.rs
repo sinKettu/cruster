@@ -12,7 +12,10 @@ pub(super) struct RequestResponsePair {
     pub(super) index: usize,
 }
 
-// ---------------------------------------------------------------------------------------------- //
+pub(super) struct HTTPStorageIterator<'a> {
+    object: &'a HTTPStorage,
+    counter: usize
+}
 
 #[derive(Clone)]
 pub(crate) struct HTTPStorage {
@@ -28,6 +31,40 @@ impl Default for HTTPStorage {
         }
     }
 }
+
+impl<'a> Iterator for HTTPStorageIterator<'a> {
+    type Item = &'a RequestResponsePair;
+    fn next(&mut self) -> Option<Self::Item> {
+        let tmp = self.object.storage.get(self.counter);
+        self.counter += 1;
+        tmp
+    }
+}
+
+impl<'a> IntoIterator for &'a HTTPStorage {
+    type Item = &'a RequestResponsePair;
+    type IntoIter = HTTPStorageIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        HTTPStorageIterator {
+            object: self,
+            counter: 0
+        }
+    }
+}
+
+// impl Iterator for HTTPStorage {
+//     type Item = RequestResponsePair;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         if self.iter_counter < self.storage.len() {
+//             Some(&self.storage[self.iter_counter])
+//         }
+//         else {
+//             self.iter_counter = 0;
+//             None
+//         }
+//     }
+// }
 
 impl HTTPStorage {
     pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: usize) -> ProxyDataForTable {

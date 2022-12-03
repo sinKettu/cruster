@@ -185,14 +185,6 @@ impl HyperRequestWrapper {
 
 // -----------------------------------------------------------------------------------------------//
 
-// #[derive(Clone, Debug)]
-// pub(crate) enum BodyCompressedWith {
-//     GZIP,
-//     DEFLATE,
-//     BR,
-//     NONE
-// }
-
 #[derive(Clone, Debug)]
 pub(crate) struct HyperResponseWrapper {
     pub(crate) status: String,

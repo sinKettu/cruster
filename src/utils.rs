@@ -15,6 +15,7 @@ use hudsucker::{
 use hudsucker::rustls::{PrivateKey, Certificate};
 
 use serde_json;
+use base64::DecodeError;
 use rcgen::{CertificateParams, self, IsCa, BasicConstraints, Certificate as RCgenCertificate, PKCS_ECDSA_P256_SHA256};
 
 use std::{
@@ -58,6 +59,7 @@ pub(crate) enum CrusterError {
     EmptyRequest(String),
     JSONError(String),
     JobDurateTooLongError(String),
+    Base64DecodeError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -71,6 +73,10 @@ impl From<io::Error> for CrusterError {
 // impl From<openssl::error::ErrorStack> for CrusterError {
 //     fn from(e: openssl::error::ErrorStack) -> Self { Self::OpenSSLError(e.to_string()) }
 // }
+
+impl From<DecodeError> for CrusterError {
+    fn from(e: DecodeError) -> Self { Self::Base64DecodeError(e.to_string()) }
+}
 
 impl From<hudsucker::Error> for CrusterError {
     fn from(e: hudsucker::Error) -> Self { Self::HudSuckerError(e.to_string()) }
@@ -179,6 +185,9 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::JobDurateTooLongError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::Base64DecodeError(s) => {
                 write!(f, "{}", s)
             }
             _ => { write!(f, "{:?}", self) }

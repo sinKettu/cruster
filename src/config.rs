@@ -22,6 +22,7 @@ pub(crate) struct Config {
     pub(crate) debug_file: Option<String>,
     pub(crate) dump_mode: bool,
     pub(crate) store: Option<String>,
+    pub(crate) load: Option<String>,
 }
 
 impl Default for Config {
@@ -37,6 +38,7 @@ impl Default for Config {
             debug_file: None,
             dump_mode: false,
             store: None,
+            load: None
         }
     }
 }
@@ -112,6 +114,14 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .value_name("PATH-TO-FILE")
                 .help(save_help)
         )
+        .arg(
+            Arg::with_name("load")
+                .long("load")
+                .short("-l")
+                .takes_value(true)
+                .value_name("PATH-TO-FILE")
+                .help(save_help)
+        )
         .get_matches();
 
     let workplace = tilde(
@@ -170,6 +180,16 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
     else if let Some(store_path) = &config.store {
         fs::File::create(store_path).expect(&format!("Could not create file to store proxy data at '{}'", store_path));
+    }
+
+    if let Some(load_path) = matches.value_of("load") {
+        config.load = Some(load_path.to_string());
+    }
+
+    if let Some(load_path) = &config.load {
+        if ! path::Path::new(load_path).exists() {
+            panic!("Could not find previously stored data at path '{}'", load_path);
+        }
     }
 
     if matches.is_present("dump-mode") || config.dump_mode {

@@ -1,10 +1,11 @@
 use base64;
-use std::{io::Write, sync::mpsc::Receiver};
+use std::{io::{Write, BufReader, BufRead}, sync::mpsc::Receiver, str::FromStr};
 use serde_json as json;
 use std::{collections::HashMap, fs};
 use serde::{Serialize, Deserialize};
 use super::{RequestResponsePair, HTTPStorage};
 use crate::{cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, utils::CrusterError};
+use http::{HeaderMap, header::HeaderName, HeaderValue as HTTPHeaderValue};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct HeaderValue {
@@ -85,6 +86,82 @@ impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
     }
 }
 
+impl TryInto<HyperRequestWrapper> for SerializableHTTPRequest {
+    type Error = CrusterError;
+    fn try_into(self) -> Result<HyperRequestWrapper, Self::Error> {
+        let uri = match &self.query {
+            Some(query) => {
+                format!("{}{}{}{}", &self.scheme, &self.host, &self.path, query)
+            },
+            None => {
+                format!("{}{}{}", &self.scheme, &self.host, &self.path)
+            }
+        };
+
+        let mut headers: HeaderMap<HTTPHeaderValue> = HeaderMap::default();
+        for (k, v) in &self.headers {
+            let name = match HeaderName::from_str(k) {
+                Ok(hname) => {
+                    hname
+                },
+                Err(e) => {
+                    return Err(CrusterError::UndefinedError(
+                        format!("Could not parse HTTP Response header '{}' from file: {}", k, e)
+                    ));
+                }
+            };
+
+            let value_bytes: Vec<u8> = match v.encoding.as_str() {
+                "utf-8" => {
+                    v.value.as_bytes().into()
+                },
+                "base64" => {
+                    match base64::decode(v.value.as_str()) {
+                        Ok(decoded) => {
+                            decoded
+                        },
+                        Err(e) => {
+                            return Err(e.into());
+                        }
+                    }
+                },
+                _ => {
+                    return Err(CrusterError::UndefinedError(
+                        format!("Could not parse response from file because of unknown header value encoding: {}", &v.encoding)
+                    ));
+                }
+            };
+
+            let value = HTTPHeaderValue::from_bytes(value_bytes.as_slice()).unwrap();
+            headers.append(name.clone(), value);
+        }
+
+        let body = if let Some(body_encoded) = &self.body {
+            match base64::decode(body_encoded) {
+                Ok(body_bytes) => {
+                    body_bytes
+                },
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
+        }
+        else {
+            Vec::default()
+        };
+
+        Ok(
+            HyperRequestWrapper {
+                uri,
+                method: self.method.to_string(),
+                version: self.version.to_string(),
+                headers,
+                body
+            }
+        )
+    }    
+}
+
 impl From<&HyperResponseWrapper> for SerializableHTTPResponse {
     fn from(response: &HyperResponseWrapper) -> Self {
         let headers: HashMap<String, HeaderValue> = response.headers
@@ -115,6 +192,72 @@ impl From<&HyperResponseWrapper> for SerializableHTTPResponse {
                 headers,
                 body
             }
+    }
+}
+
+impl TryInto<HyperResponseWrapper> for SerializableHTTPResponse {
+    type Error = CrusterError;
+    fn try_into(self) -> Result<HyperResponseWrapper, Self::Error> {
+        let mut headers: HeaderMap<HTTPHeaderValue> = HeaderMap::default();
+        for (k, v) in &self.headers {
+            let name = match HeaderName::from_str(k) {
+                Ok(hname) => {
+                    hname
+                },
+                Err(e) => {
+                    return Err(CrusterError::UndefinedError(
+                        format!("Could not parse HTTP Response header '{}' from file: {}", k, e)
+                    ));
+                }
+            };
+
+            let value_bytes: Vec<u8> = match v.encoding.as_str() {
+                "utf-8" => {
+                    v.value.as_bytes().into()
+                },
+                "base64" => {
+                    match base64::decode(v.value.as_str()) {
+                        Ok(decoded) => {
+                            decoded
+                        },
+                        Err(e) => {
+                            return Err(e.into());
+                        }
+                    }
+                },
+                _ => {
+                    return Err(CrusterError::UndefinedError(
+                        format!("Could not parse response from file because of unknown header value encoding: {}", &v.encoding)
+                    ));
+                }
+            };
+
+            let value = HTTPHeaderValue::from_bytes(value_bytes.as_slice()).unwrap();
+            headers.append(name.clone(), value);
+        }
+
+        let body = if let Some(body_encoded) = &self.body {
+            match base64::decode(body_encoded) {
+                Ok(body_bytes) => {
+                    body_bytes
+                },
+                Err(e) => {
+                    return Err(e.into());
+                }
+            }
+        }
+        else {
+            Vec::default()
+        };
+
+        Ok(
+            HyperResponseWrapper {
+                status: self.status.clone(),
+                version: self.version.clone(),
+                headers,
+                body
+            }
+        )
     }
 }
 
@@ -165,6 +308,42 @@ impl HTTPStorage {
                         format!("Process of storing proxy data was interrupted, it was running longer that {} seconds.", max_duration)
                     ));
                 }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn load(&mut self, load_path: &str) -> Result<(), CrusterError> {
+        match std::fs::File::open(load_path) {
+            Ok(fin) => {
+                let reader = BufReader::new(fin);
+                for read_result in reader.lines() {
+                    if let Ok(line) = read_result {
+                        let record: SerializableProxyData = json::from_str(&line)?;
+                        let request: HyperRequestWrapper = record.request.try_into()?;
+                        let response: Option<HyperResponseWrapper> = match record.response {
+                            Some(ser_respone) => {
+                                let response: HyperResponseWrapper = ser_respone.try_into()?;
+                                Some(response)
+                            },
+                            None => {
+                                None
+                            }
+                        };
+                        
+                        let pair = RequestResponsePair {
+                            index: record.index,
+                            request: Some(request),
+                            response
+                        };
+
+                        self.storage.push(pair);
+                    }
+                }
+            },
+            Err(e) => {
+                return Err(e.into());
             }
         }
 
