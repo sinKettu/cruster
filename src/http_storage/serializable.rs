@@ -1,14 +1,27 @@
 use base64;
-use std::{io::{Write, BufReader, BufRead}, sync::mpsc::Receiver, str::FromStr};
 use serde_json as json;
-use std::{collections::HashMap, fs};
 use serde::{Serialize, Deserialize};
-use super::{RequestResponsePair, HTTPStorage};
-use crate::{cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, utils::CrusterError};
 use http::{HeaderMap, header::HeaderName, HeaderValue as HTTPHeaderValue};
 
+use std::{
+    io::{Write, BufReader, BufRead},
+    sync::mpsc::Receiver,
+    str::FromStr,
+    fs
+};
+
+use super::{RequestResponsePair, HTTPStorage};
+use crate::{
+    cruster_proxy::request_response::{
+        HyperRequestWrapper,
+        HyperResponseWrapper
+    },
+    utils::CrusterError
+};
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct HeaderValue {
+struct Header {
+    key: String,
     encoding: String,
     value: String
 }
@@ -21,7 +34,7 @@ struct SerializableHTTPRequest {
     path: String,
     query: Option<String>,
     version: String,
-    headers: HashMap<String, HeaderValue>,
+    headers: Vec<Header>,
     body: Option<String>
 }
 
@@ -29,7 +42,7 @@ struct SerializableHTTPRequest {
 struct SerializableHTTPResponse {
     status: String,
     version: String,
-    headers: HashMap<String, HeaderValue>,
+    headers: Vec<Header>,
     body: Option<String>
 }
 
@@ -51,18 +64,23 @@ impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
             (request.get_request_path(), None)
         };
 
-        let headers: HashMap<String, HeaderValue> = request.headers
+        let headers: Vec<Header> = request.headers
             .iter()
             .map(|(k, v)| {
                 let key = k.to_string();
-                let value = if let Ok(decoded_value) = v.to_str() {
-                    HeaderValue::new("utf-8", decoded_value)
+                let (encoding, value) = if let Ok(decoded_value) = v.to_str() {
+                    ("utf-8".to_string(), decoded_value.to_string())
                 }
                 else {
-                    HeaderValue::new("base64", base64::encode(v.as_bytes()))
+                    // HeaderValue::new("base64", base64::encode(v.as_bytes()))
+                    ("base64".to_string(), base64::encode(v.as_bytes()))
                 };
 
-                (key, value)
+                Header {
+                    key,
+                    encoding,
+                    value
+                }
             })
             .collect();
         
@@ -99,7 +117,9 @@ impl TryInto<HyperRequestWrapper> for SerializableHTTPRequest {
         };
 
         let mut headers: HeaderMap<HTTPHeaderValue> = HeaderMap::default();
-        for (k, v) in &self.headers {
+        for header in &self.headers {
+            // TODO: we can improve it replacing clone with iterating over header parts
+            let k = &header.key;
             let name = match HeaderName::from_str(k) {
                 Ok(hname) => {
                     hname
@@ -111,12 +131,12 @@ impl TryInto<HyperRequestWrapper> for SerializableHTTPRequest {
                 }
             };
 
-            let value_bytes: Vec<u8> = match v.encoding.as_str() {
+            let value_bytes: Vec<u8> = match header.encoding.as_ref() {
                 "utf-8" => {
-                    v.value.as_bytes().into()
+                    header.value.as_bytes().into()
                 },
                 "base64" => {
-                    match base64::decode(v.value.as_str()) {
+                    match base64::decode(header.value.as_str()) {
                         Ok(decoded) => {
                             decoded
                         },
@@ -127,7 +147,7 @@ impl TryInto<HyperRequestWrapper> for SerializableHTTPRequest {
                 },
                 _ => {
                     return Err(CrusterError::UndefinedError(
-                        format!("Could not parse response from file because of unknown header value encoding: {}", &v.encoding)
+                        format!("Could not parse response from file because of unknown header value encoding: {}", &header.encoding)
                     ));
                 }
             };
@@ -164,18 +184,22 @@ impl TryInto<HyperRequestWrapper> for SerializableHTTPRequest {
 
 impl From<&HyperResponseWrapper> for SerializableHTTPResponse {
     fn from(response: &HyperResponseWrapper) -> Self {
-        let headers: HashMap<String, HeaderValue> = response.headers
+        let headers: Vec<Header> = response.headers
             .iter()
             .map(|(k, v)| {
                 let key = k.to_string();
-                let value = if let Ok(decoded_value) = v.to_str() {
-                    HeaderValue::new("utf-8", decoded_value)
+                let (encoding, value) = if let Ok(decoded_value) = v.to_str() {
+                    ("utf-8".to_string(), decoded_value.to_string())
                 }
                 else {
-                    HeaderValue::new("base64", base64::encode(v.as_bytes()))
+                    ("base64".to_string(), base64::encode(v.as_bytes()))
                 };
 
-                (key, value)
+                Header {
+                    key,
+                    encoding,
+                    value
+                }
             })
             .collect();
 
@@ -199,7 +223,9 @@ impl TryInto<HyperResponseWrapper> for SerializableHTTPResponse {
     type Error = CrusterError;
     fn try_into(self) -> Result<HyperResponseWrapper, Self::Error> {
         let mut headers: HeaderMap<HTTPHeaderValue> = HeaderMap::default();
-        for (k, v) in &self.headers {
+        for header in &self.headers {
+            // TODO: we can improve it replacing clone with iterating over header parts
+            let k = &header.key;
             let name = match HeaderName::from_str(k) {
                 Ok(hname) => {
                     hname
@@ -211,12 +237,12 @@ impl TryInto<HyperResponseWrapper> for SerializableHTTPResponse {
                 }
             };
 
-            let value_bytes: Vec<u8> = match v.encoding.as_str() {
+            let value_bytes: Vec<u8> = match header.encoding.as_ref() {
                 "utf-8" => {
-                    v.value.as_bytes().into()
+                    header.value.as_bytes().into()
                 },
                 "base64" => {
-                    match base64::decode(v.value.as_str()) {
+                    match base64::decode(header.value.as_str()) {
                         Ok(decoded) => {
                             decoded
                         },
@@ -227,7 +253,7 @@ impl TryInto<HyperResponseWrapper> for SerializableHTTPResponse {
                 },
                 _ => {
                     return Err(CrusterError::UndefinedError(
-                        format!("Could not parse response from file because of unknown header value encoding: {}", &v.encoding)
+                        format!("Could not parse response from file because of unknown header value encoding: {}", &header.encoding)
                     ));
                 }
             };
@@ -284,15 +310,9 @@ impl TryFrom<&RequestResponsePair> for SerializableProxyData {
     }
 }
 
-impl HeaderValue {
-    fn new<T: ToString, U: ToString>(encoding: T, value: U) -> Self {
-        HeaderValue { encoding: encoding.to_string(), value: value.to_string() }
-    }
-}
-
 impl HTTPStorage {
     // 'Sentinel' used in a case when this method called in separate thread, in one-threaded case it can be None
-    // It's needed to interrupt thread after some time expired, because rust threads cannot interrupr 
+    // It's needed to interrupt thread after some time expired, because rust threads cannot interrupt themselves 
     // https://internals.rust-lang.org/t/thread-cancel-support/3056
     pub(crate) fn store(&self, path: &str, sentinel: Option<Receiver<usize>>) -> Result<(), CrusterError> {
         let mut fout = fs::OpenOptions::new().write(true).open(path)?;
