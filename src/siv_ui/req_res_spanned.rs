@@ -1,7 +1,8 @@
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style, BaseColor, Effect}};
 use bstr::ByteSlice;
-use std::ffi::CString;
+use std::{ffi::CString, collections::HashMap};
+use http::HeaderMap;
 
 fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
     let mut result = SpannedString::from(SpannedString::styled("?", BaseColor::Black.light()));
@@ -44,6 +45,50 @@ fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
     return result;
 }
 
+fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
+    let mut tmp_storage: HashMap<&str, SpannedString<Style>> = HashMap::default();
+    for (k, v) in headers {
+        let k_str = k.as_str();
+        let hval = if let Ok(hval) = v.to_str() {
+            StyledString::from(hval)
+        }
+        else {
+            let spanned_hval = StyledString::from(v.as_bytes().to_str_lossy());
+            spanned_hval
+        };
+
+        let key_found = tmp_storage.get_mut(k_str);
+        match key_found {
+            Some(val) => {
+                // CRUTCH
+                // TODO: read RFC, determine the better way
+                if k_str == "cookie" {
+                    val.append("; ");
+                }
+                else {
+                    val.append(",");
+                }
+                
+                val.append(hval);
+            },
+            None => {
+                tmp_storage.insert(k_str, hval);
+            }
+        }
+    }
+
+    let mut result: SpannedString<Style> = SpannedString::default();
+    for (k, v) in tmp_storage {
+        result.append(StyledString::styled(k, BaseColor::Blue.dark()));
+        result.append(": ");
+        result.append(v);
+        result.append("\r\n");
+    }
+
+    result.append("\r\n");
+    return result;
+}
+
 pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedString<Style> {
     let mut first_line = SpannedString::default();
     let method = SpannedString::styled(&req.method, Style::from(BaseColor::White.light()).combine(Effect::Bold));
@@ -75,15 +120,7 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
     first_line.append(&req.version);
     first_line.append("\r\n");
 
-    let mut headers_content = SpannedString::default();
-    for (k, v) in &req.headers {
-        headers_content.append(StyledString::styled(k.as_str(), BaseColor::Blue.dark()));
-        headers_content.append(": ");
-        headers_content.append(v.to_str().unwrap());
-        headers_content.append("\r\n");
-    }
-
-    headers_content.append("\r\n");
+    let headers_content = header_map_to_spanned(&req.headers);
     first_line.append(headers_content);
 
     let body_str = req.body.to_str_lossy();
@@ -119,26 +156,7 @@ pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> Spanned
     first_line.append(status);
     first_line.append("\r\n");
 
-    let mut headers_content = SpannedString::default();
-    for (k, v) in &res.headers {
-        headers_content.append(StyledString::styled(k.as_str(), BaseColor::Blue.dark()));
-        headers_content.append(": ");
-
-        let hval = if let Ok(hval) = v.to_str() {
-            StyledString::from(hval)
-        }
-        else {
-            let mut spanned_hval = StyledString::from(v.as_bytes().to_str_lossy());
-            spanned_hval.append("  ");
-            spanned_hval.append(StyledString::styled("CANNOT FULLY ENCODE AS UTF-8", BaseColor::Black.light()));
-            spanned_hval
-        };
-
-        headers_content.append(hval);
-        headers_content.append("\r\n");
-    }
-
-    headers_content.append("\r\n");
+    let headers_content = header_map_to_spanned(&res.headers);
     first_line.append(headers_content);
 
     let body_str = res.body.to_str_lossy();
