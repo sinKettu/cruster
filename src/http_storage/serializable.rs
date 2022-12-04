@@ -1,4 +1,5 @@
 use base64;
+use regex::Regex;
 use serde_json as json;
 use serde::{Serialize, Deserialize};
 use http::{HeaderMap, header::HeaderName, HeaderValue as HTTPHeaderValue};
@@ -16,7 +17,8 @@ use crate::{
         HyperRequestWrapper,
         HyperResponseWrapper
     },
-    utils::CrusterError
+    utils::CrusterError,
+    scope
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -51,6 +53,19 @@ pub(super) struct SerializableProxyData {
     index: usize,
     request: SerializableHTTPRequest,
     response: Option<SerializableHTTPResponse>
+}
+
+impl SerializableHTTPRequest {
+    fn get_uri(&self) -> String {
+        match &self.query {
+            Some(query) => {
+                format!("{}{}{}{}", &self.scheme, &self.host, &self.path, query)
+            },
+            None => {
+                format!("{}{}{}", &self.scheme, &self.host, &self.path)
+            }
+        }
+    }
 }
 
 impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
@@ -107,15 +122,7 @@ impl From<&HyperRequestWrapper> for SerializableHTTPRequest {
 impl TryInto<HyperRequestWrapper> for SerializableHTTPRequest {
     type Error = CrusterError;
     fn try_into(self) -> Result<HyperRequestWrapper, Self::Error> {
-        let uri = match &self.query {
-            Some(query) => {
-                format!("{}{}{}{}", &self.scheme, &self.host, &self.path, query)
-            },
-            None => {
-                format!("{}{}{}", &self.scheme, &self.host, &self.path)
-            }
-        };
-
+        let uri = self.get_uri();
         let mut headers: HeaderMap<HTTPHeaderValue> = HeaderMap::default();
         for header in &self.headers {
             // TODO: we can improve it replacing clone with iterating over header parts
@@ -334,6 +341,30 @@ impl HTTPStorage {
         Ok(())
     }
 
+    fn insert_serializable_into_storage(&mut self, record: SerializableProxyData) -> Result<(), CrusterError> {
+        let id = record.index;
+        let request: HyperRequestWrapper = record.request.try_into()?;
+        let response: Option<HyperResponseWrapper> = match record.response {
+            Some(ser_respone) => {
+                let response: HyperResponseWrapper = ser_respone.try_into()?;
+                Some(response)
+            },
+            None => {
+                None
+            }
+        };
+        
+        let pair = RequestResponsePair {
+            index: record.index,
+            request: Some(request),
+            response
+        };
+
+        self.insert_with_explicit_id(id, pair);
+
+        Ok(())
+    }
+
     pub(crate) fn load(&mut self, load_path: &str) -> Result<(), CrusterError> {
         match std::fs::File::open(load_path) {
             Ok(fin) => {
@@ -341,25 +372,46 @@ impl HTTPStorage {
                 for read_result in reader.lines() {
                     if let Ok(line) = read_result {
                         let record: SerializableProxyData = json::from_str(&line)?;
-                        let id = record.index;
-                        let request: HyperRequestWrapper = record.request.try_into()?;
-                        let response: Option<HyperResponseWrapper> = match record.response {
-                            Some(ser_respone) => {
-                                let response: HyperResponseWrapper = ser_respone.try_into()?;
-                                Some(response)
+                        self.insert_serializable_into_storage(record)?;
+                    }
+                }
+            },
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn load_with_strict_scope(&mut self, load_path: &str, include: Option<&Vec<Regex>>, exclude: Option<&Vec<Regex>>) -> Result<(), CrusterError> {
+        match std::fs::File::open(load_path) {
+            Ok(fin) => {
+                let reader = BufReader::new(fin);
+                for read_result in reader.lines() {
+                    if let Ok(line) = read_result {
+                        let record: SerializableProxyData = json::from_str(&line)?;
+                        let string_uri = record.request.get_uri();
+                        let uri = string_uri.as_str();
+
+                        let fit = match (include, exclude) {
+                            (None, None) => {
+                                true
                             },
-                            None => {
-                                None
+                            (Some(included), None) => {
+                                scope::fit_included(uri, included.as_slice())
+                            },
+                            (None, Some(excluded)) => {
+                                scope::fit_excluded(uri, &excluded)
+                            },
+                            (Some(inc), Some(exc)) => {
+                                scope::fit(uri, &inc, &exc)
                             }
                         };
-                        
-                        let pair = RequestResponsePair {
-                            index: record.index,
-                            request: Some(request),
-                            response
-                        };
 
-                        self.insert_with_explicit_id(id, pair);
+                        if fit {
+                            self.insert_serializable_into_storage(record)?;
+                        }
                     }
                 }
             },

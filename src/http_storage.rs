@@ -98,9 +98,9 @@ impl HTTPStorage {
         return id;
     }
 
-    pub(crate) fn get(&self, idx: usize) -> &RequestResponsePair {
-        &self.storage[idx]
-    }
+    // pub(crate) fn get(&self, idx: usize) -> &RequestResponsePair {
+    //     &self.storage[idx]
+    // }
 
     pub(crate) fn get_by_id(&self, id: usize) -> Option<&RequestResponsePair> {
         if id >= self.seq_reference.len() {

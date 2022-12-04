@@ -9,25 +9,25 @@ mod sivuserdata;
 use cursive::{Cursive, };
 use cursive::{traits::*, };
 use cursive::{CursiveExt, };
+use cursive_table_view::TableViewItem;
 use cursive::utils::markup::StyledString;
-use cursive_table_view::{TableView, TableViewItem};
 use cursive::theme::{BaseColor, BorderStyle, Palette, };
 use cursive::views::{Dialog, LinearLayout, TextContent, TextView, StackView, };
 
 use log::debug;
 use std::rc::Rc;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use tokio::sync::mpsc::Receiver;
+use std::thread::{self, JoinHandle};
 
 use crate::config::Config;
 use sivuserdata::{SivUserData};
 use crate::utils::CrusterError;
 use status_bar::StatusBarContent;
-use std::thread::{self, JoinHandle};
 use crate::http_storage::HTTPStorage;
 use crate::siv_ui::http_table::HTTPTable;
 use crate::cruster_proxy::request_response::CrusterWrapper;
-use std::collections::HashMap;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum BasicColumn {
@@ -192,13 +192,15 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
             match request_or_response {
                 CrusterWrapper::Request(req) => {
                     let fit_scope = rx.is_uri_in_socpe(&req.uri);
-                    let table_record = rx.http_storage.put_request(req, hash);
+                    if !rx.config.strict_scope || fit_scope {
+                        let table_record = rx.http_storage.put_request(req, hash);
 
-                    if fit_scope {
-                        let id = table_record.id;
-                        table.insert_item(table_record);
-                        let last_index = table.borrow_items().len() - 1;
-                        rx.table_id_ref.insert(id, last_index);
+                        if fit_scope {
+                            let id = table_record.id;
+                            table.insert_item(table_record);
+                            let last_index = table.borrow_items().len() - 1;
+                            rx.table_id_ref.insert(id, last_index);
+                        }
                     }
                 },
                 CrusterWrapper::Response(res) => {
@@ -218,21 +220,6 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
                                 table_record.response_length = response.get_length();
                             }
                         }
-                        // let response = rx.http_storage
-                        //     .get(id).response
-                        //         .as_ref()
-                        //         .unwrap();
-                        // let actual_table_index = rx.table_id_ref.get(&idx);
-
-                        // if actual_table_index.is_none() {
-                        //     return;
-                        // }
-
-                        // let table_record_option = table.borrow_item_mut(actual_table_index.unwrap().to_owned());
-                        // if let Some(table_record) = table_record_option {
-                        //     table_record.status_code = response.status.clone();
-                        //     table_record.response_length = response.get_length();
-                        // }
                     }
                 }
             }
@@ -247,7 +234,7 @@ fn get_pair_id_from_table_record(siv: &mut Cursive, item: usize) -> Option<usize
     let table_name = siv.with_user_data(|ud: &mut SivUserData| { ud.active_http_table_name } ).unwrap();
     let id_option = siv
         .screen_mut()
-        .call_on_name(table_name, |table: &mut TableView<ProxyDataForTable, BasicColumn>| {
+        .call_on_name(table_name, |table: &mut HTTPTable| {
             match table.borrow_item(item) {
                 Some(data) => {
                     Some(data.id.clone())
@@ -268,25 +255,27 @@ fn get_pair_id_from_table_record(siv: &mut Cursive, item: usize) -> Option<usize
 }
 
 fn draw_request_and_response(siv: &mut Cursive, item: usize) {
-    let id = get_pair_id_from_table_record(siv, item);
+    let possible_id = get_pair_id_from_table_record(siv, item);
     let user_data: &mut SivUserData = siv.user_data().unwrap();
     user_data.request_view_content.set_content("");
     user_data.response_view_content.set_content("");
 
-    if let Some(index) = id {
-        let pair = user_data.http_storage.get(index);
+    if let Some(id) = possible_id {
+        let pair = user_data.http_storage.get_by_id(id);
 
-        if let Some(request) = &pair.request {
-            let req_spanned = req_res_spanned::request_wrapper_to_spanned(request);
-            user_data.request_view_content.set_content(req_spanned);
-
-            if let Some(response) = &pair.response {
-                let res_spanned = req_res_spanned::response_wrapper_to_spanned(response);
-                user_data.response_view_content.set_content(res_spanned);
+        if let Some(pair) = pair {
+            if let Some(request) = &pair.request {
+                let req_spanned = req_res_spanned::request_wrapper_to_spanned(request);
+                user_data.request_view_content.set_content(req_spanned);
+    
+                if let Some(response) = &pair.response {
+                    let res_spanned = req_res_spanned::response_wrapper_to_spanned(response);
+                    user_data.response_view_content.set_content(res_spanned);
+                }
             }
-        }
-        else {
-            user_data.push_error(CrusterError::EmptyRequest(format!("Could not draw table record {}, request is empty.", item)));
+            else {
+                user_data.push_error(CrusterError::EmptyRequest(format!("Could not draw table record {}, request is empty.", item)));
+            }
         }
     }
 }
@@ -352,7 +341,13 @@ fn load_data_if_need(siv: &mut Cursive) {
     }
 
     let load_path = ud.config.load.as_ref().unwrap();
-    let result = ud.http_storage.load(load_path);
+
+    let result = if ud.config.strict_scope {
+        ud.http_storage.load_with_strict_scope(load_path, ud.include.as_ref(), ud.exclude.as_ref())
+    }
+    else {
+        ud.http_storage.load(load_path)
+    };
 
     if let Err(e) = result {
         ud.push_error(e);
@@ -387,6 +382,7 @@ fn load_data_if_need(siv: &mut Cursive) {
     }
 
     let table_name = ud.active_http_table_name;
+    ud.update_status();
     siv.call_on_name(table_name, move |t: &mut HTTPTable| {
         t.set_items(items);
     });
