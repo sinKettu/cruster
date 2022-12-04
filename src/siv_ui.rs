@@ -14,19 +14,20 @@ use cursive_table_view::{TableView, TableViewItem};
 use cursive::theme::{BaseColor, BorderStyle, Palette, };
 use cursive::views::{Dialog, LinearLayout, TextContent, TextView, StackView, };
 
+use log::debug;
 use std::rc::Rc;
 use std::cmp::Ordering;
 use tokio::sync::mpsc::Receiver;
 
 use crate::config::Config;
-use sivuserdata::SivUserData;
+use sivuserdata::{SivUserData};
 use crate::utils::CrusterError;
 use status_bar::StatusBarContent;
 use std::thread::{self, JoinHandle};
 use crate::http_storage::HTTPStorage;
-use crate::cruster_proxy::request_response::CrusterWrapper;
-use log::debug;
 use crate::siv_ui::http_table::HTTPTable;
+use crate::cruster_proxy::request_response::CrusterWrapper;
+use std::collections::HashMap;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum BasicColumn {
@@ -128,8 +129,17 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             errors: Vec::new(),
             status: StatusBarContent::new(status_bar_message.clone(), status_bar_stats.clone()),
             data_storing_started: false,
+            include: None,
+            exclude: None,
+            table_id_ref: HashMap::default(),
         }
     );
+
+    siv.cb_sink().send(
+        Box::new(
+            |s: &mut Cursive| { sivuserdata::make_scope(s) }
+        )
+    ).expect("Could not register action to load data from file!");
 
     siv.cb_sink().send(
         Box::new(
@@ -176,25 +186,35 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
 
 pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
     let mut rx: SivUserData = siv.take_user_data().unwrap();
-    siv.screen_mut().call_on_name(rx.active_http_table_name, |table: &mut TableView<ProxyDataForTable, BasicColumn>| {
+    siv.screen_mut().call_on_name(rx.active_http_table_name, |table: &mut HTTPTable| {
         let result = rx.receive_data_from_proxy();
         if let Some((request_or_response, hash)) = result {
             match request_or_response {
                 CrusterWrapper::Request(req) => {
+                    let fit_scope = rx.is_uri_in_socpe(&req.uri);
                     let table_record = rx.http_storage.put_request(req, hash);
-                    table.insert_item(table_record);
+
+                    if fit_scope {
+                        let id = table_record.id;
+                        table.insert_item(table_record);
+                        let last_index = table.borrow_items().len() - 1;
+                        rx.table_id_ref.insert(id, last_index);
+                    }
                 },
                 CrusterWrapper::Response(res) => {
                     let table_idx = rx.http_storage.put_response(res, &hash);
                     if let Some(idx) = table_idx {
-                        let response = rx
-                            .http_storage
-                            .get(idx)
-                            .response
-                            .as_ref()
-                            .unwrap();
-                        
-                        let table_record_option = table.borrow_item_mut(idx);
+                        let response = rx.http_storage
+                            .get(idx).response
+                                .as_ref()
+                                .unwrap();
+                        let actual_table_index = rx.table_id_ref.get(&idx);
+
+                        if actual_table_index.is_none() {
+                            return;
+                        }
+
+                        let table_record_option = table.borrow_item_mut(actual_table_index.unwrap().to_owned());
                         if let Some(table_record) = table_record_option {
                             table_record.status_code = response.status.clone();
                             table_record.response_length = response.get_length();
@@ -327,6 +347,12 @@ fn load_data_if_need(siv: &mut Cursive) {
     let mut items: Vec<ProxyDataForTable> = Vec::with_capacity(ud.http_storage.len() * 2);
     for pair in ud.http_storage.into_iter() {
         let req = pair.request.as_ref().unwrap();
+        let in_scope = ud.is_uri_in_socpe(&req.uri);
+
+        if ! in_scope {
+            continue;
+        }
+
         let mut table_record = ProxyDataForTable {
             id: pair.index,
             method: req.method.clone(),
@@ -341,7 +367,9 @@ fn load_data_if_need(siv: &mut Cursive) {
             table_record.response_length = res.get_length();
         }
 
+        let id = table_record.id;
         items.push(table_record);
+        ud.table_id_ref.insert(id, items.len() - 1);
     }
 
     let table_name = ud.active_http_table_name;

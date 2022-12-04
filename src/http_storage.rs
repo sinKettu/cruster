@@ -53,19 +53,6 @@ impl<'a> IntoIterator for &'a HTTPStorage {
     }
 }
 
-// impl Iterator for HTTPStorage {
-//     type Item = RequestResponsePair;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         if self.iter_counter < self.storage.len() {
-//             Some(&self.storage[self.iter_counter])
-//         }
-//         else {
-//             self.iter_counter = 0;
-//             None
-//         }
-//     }
-// }
-
 impl HTTPStorage {
     pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: usize) -> ProxyDataForTable {
         let index = self.storage.len();

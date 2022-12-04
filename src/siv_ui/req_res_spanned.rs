@@ -1,8 +1,9 @@
-use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
-use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style, BaseColor, Effect}};
 use bstr::ByteSlice;
-use std::{ffi::CString, collections::HashMap};
 use http::HeaderMap;
+use std::{ffi::CString, collections::HashMap};
+use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style, BaseColor, Effect}};
+
+use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
 fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
     let mut result = SpannedString::from(SpannedString::styled("?", BaseColor::Black.light()));

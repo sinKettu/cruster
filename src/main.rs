@@ -3,6 +3,7 @@ mod cruster_proxy;
 mod config;
 mod http_storage;
 mod siv_ui;
+mod scope;
 
 use std::net::{IpAddr, SocketAddr};
 

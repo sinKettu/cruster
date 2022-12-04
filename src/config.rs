@@ -12,6 +12,12 @@ use log4rs::config::{Appender, Config as L4R_Config, Root};
 use crate::utils::CrusterError;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub(crate) struct Scope {
+    pub(crate) include: Option<Vec<String>>,
+    pub(crate) exclude: Option<Vec<String>>
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Config {
     pub(crate) workplace: String,
     pub(crate) tls_key_name: String,
@@ -23,6 +29,8 @@ pub(crate) struct Config {
     pub(crate) dump_mode: bool,
     pub(crate) store: Option<String>,
     pub(crate) load: Option<String>,
+    pub(crate) strict_scope: bool,
+    pub(crate) scope: Option<Scope>,
 }
 
 impl Default for Config {
@@ -38,7 +46,9 @@ impl Default for Config {
             debug_file: None,
             dump_mode: false,
             store: None,
-            load: None
+            load: None,
+            strict_scope: false,
+            scope: None,
         }
     }
 }
@@ -53,6 +63,10 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let debug_file_help = "A file to write debug messages, mostly needed for development";
     let dump_help = "Enable non-interactive dumping mode: all communications will be shown in terminal output";
     let save_help = "Path to file to store proxy data. File will be rewritten!";
+    let load_help = "Path to file to load previously stored data from";
+    let strict_help = "If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from ui";
+    let include_help = "Regex for URI to include in scope, i.e. ^https?://www\\.google\\.com/.*$. Option can repeat.";
+    let exclude_help = "Regex for URI to exclude from scope, i.e. ^https?://www\\.google\\.com/.*$. Processed after include regex if any. Option can repeat.";
 
     let matches = App::new("Cruster")
         .version("0.4.4")
@@ -120,7 +134,32 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .short("-l")
                 .takes_value(true)
                 .value_name("PATH-TO-FILE")
-                .help(save_help)
+                .help(load_help)
+        )
+        .arg(
+            Arg::with_name("strict-scope")
+                .long("strict")
+                .help(strict_help)
+        )
+        .arg(
+            Arg::with_name("include")
+                .long("include-scope")
+                .short("-I")
+                .takes_value(true)
+                .value_name("REGEX")
+                .multiple(true)
+                .number_of_values(1)
+                .help(include_help)
+        )
+        .arg(
+            Arg::with_name("exclude")
+                .long("exclude-scope")
+                .short("-E")
+                .takes_value(true)
+                .value_name("REGEX")
+                .multiple(true)
+                .number_of_values(1)
+                .help(exclude_help)
         )
         .get_matches();
 
@@ -189,6 +228,61 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     if let Some(load_path) = &config.load {
         if ! path::Path::new(load_path).exists() {
             panic!("Could not find previously stored data at path '{}'", load_path);
+        }
+    }
+
+    if matches.is_present("strict-scope") {
+        config.strict_scope = true;
+    }
+
+    let include_scope = if let Some(include_re) = matches.values_of("include") {
+        let res: Vec<String> = include_re
+            .into_iter()
+            .map(|v| {
+                v.to_string()
+            })
+            .collect();
+        
+        Some(res)
+    }
+    else {
+        None
+    };
+
+    let exclude_scope = if let Some(exclude_re) = matches.values_of("exclude") {
+        let res: Vec<String> = exclude_re
+            .into_iter()
+            .map(|v| {
+                v.to_string()
+            })
+            .collect();
+        
+        Some(res)
+    }
+    else {
+        None
+    };
+
+    if include_scope.is_some() {
+        if let None = &config.scope {
+            config.scope = Some(Scope {
+                include: include_scope,
+                exclude: None
+            });
+        }
+        else {
+            let scope_ref = config.scope.as_mut().unwrap();
+            scope_ref.include = include_scope;
+        }
+    }
+
+    if exclude_scope.is_some() {
+        if let None = &config.scope {
+            config.scope = Some(Scope { include: None, exclude: exclude_scope });
+        }
+        else {
+            let scope_ref = config.scope.as_mut().unwrap();
+            scope_ref.exclude = exclude_scope;
         }
     }
 
