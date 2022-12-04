@@ -21,7 +21,7 @@ All HTTP data stored in format of [JSONLines](https://jsonlines.org).
 | path | *String* | `Path` part of HTTP URI |
 | query | *String* OR *null* | `Query` part of HTTP URI, including `Anchor` |
 | version | *String* | HTTP Version |
-| headers | *JSON* | Dictonary, containing HTTP Request headers. See `Serializable Headers` section |
+| headers | *List* | List containing `Header` structure. See `Serializable Headers` section |
 | body | *String* OR *null* | Base64-encoded raw body bytes |
 
 ### Serializable HTTP Response
@@ -30,19 +30,14 @@ All HTTP data stored in format of [JSONLines](https://jsonlines.org).
 | --- | --- | --- |
 | status | *String* | HTTP Response Status |
 | version | *String* | HTTP Version |
-| headers | *JSON* | Dictonary, containing HTTP Request headers. See `Serializable Headers` section |
+| headers | *List* | List containing `Header` structure. See `Serializable Headers` section |
 | body | *String* OR *null* | Base64-encoded raw body bytes |
 
 ### Serializable Headers
 
 | Key | Value / Value Type | Comment |
 | --- | --- | --- |
-| *`Header Name`* | *JSON* | Key is unique header name. Value format described in `Serializable Header Value` section |
-
-### Serializable Header Value
-
-| Key | Value / Value Type | Comment |
-| --- | --- | --- |
+| key | *String* | Header name (key) |
 | encoding | *String* | Encoding method used. There are two options at the moment: `base64`, `utf-8` |
 | value | *String* | Value encoded in string using encoding mentioned above |
 
