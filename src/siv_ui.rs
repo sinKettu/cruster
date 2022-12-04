@@ -202,23 +202,37 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
                     }
                 },
                 CrusterWrapper::Response(res) => {
-                    let table_idx = rx.http_storage.put_response(res, &hash);
-                    if let Some(idx) = table_idx {
-                        let response = rx.http_storage
-                            .get(idx).response
-                                .as_ref()
-                                .unwrap();
-                        let actual_table_index = rx.table_id_ref.get(&idx);
+                    let table_id = rx.http_storage.put_response(res, &hash);
+                    if let Some(id) = table_id {
+                        if let Some(pair) = rx.http_storage.get_by_id(id) {
+                            let response = pair.response.as_ref().unwrap();
+                            let table_index = rx.table_id_ref.get(&id);
 
-                        if actual_table_index.is_none() {
-                            return;
-                        }
+                            if table_index.is_none() {
+                                return;
+                            }
 
-                        let table_record_option = table.borrow_item_mut(actual_table_index.unwrap().to_owned());
-                        if let Some(table_record) = table_record_option {
-                            table_record.status_code = response.status.clone();
-                            table_record.response_length = response.get_length();
+                            let possible_table_record = table.borrow_item_mut(table_index.unwrap().to_owned());
+                            if let Some(table_record) = possible_table_record {
+                                table_record.status_code = response.status.clone();
+                                table_record.response_length = response.get_length();
+                            }
                         }
+                        // let response = rx.http_storage
+                        //     .get(id).response
+                        //         .as_ref()
+                        //         .unwrap();
+                        // let actual_table_index = rx.table_id_ref.get(&idx);
+
+                        // if actual_table_index.is_none() {
+                        //     return;
+                        // }
+
+                        // let table_record_option = table.borrow_item_mut(actual_table_index.unwrap().to_owned());
+                        // if let Some(table_record) = table_record_option {
+                        //     table_record.status_code = response.status.clone();
+                        //     table_record.response_length = response.get_length();
+                        // }
                     }
                 }
             }

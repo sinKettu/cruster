@@ -341,6 +341,7 @@ impl HTTPStorage {
                 for read_result in reader.lines() {
                     if let Ok(line) = read_result {
                         let record: SerializableProxyData = json::from_str(&line)?;
+                        let id = record.index;
                         let request: HyperRequestWrapper = record.request.try_into()?;
                         let response: Option<HyperResponseWrapper> = match record.response {
                             Some(ser_respone) => {
@@ -358,7 +359,7 @@ impl HTTPStorage {
                             response
                         };
 
-                        self.storage.push(pair);
+                        self.insert_with_explicit_id(id, pair);
                     }
                 }
             },
