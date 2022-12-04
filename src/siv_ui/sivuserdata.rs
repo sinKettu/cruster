@@ -66,6 +66,15 @@ impl SivUserData {
             }
         }
     }
+
+    pub(super) fn is_scope_strict(&self) -> bool {
+        if let Some(scope) = self.config.scope.as_ref() {
+            scope.strict
+        }
+        else {
+            false
+        }
+    }
 }
 
 pub(super) fn make_scope(siv: &mut Cursive) {

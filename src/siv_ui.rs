@@ -192,7 +192,7 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
             match request_or_response {
                 CrusterWrapper::Request(req) => {
                     let fit_scope = rx.is_uri_in_socpe(&req.uri);
-                    if !rx.config.strict_scope || fit_scope {
+                    if !rx.is_scope_strict() || fit_scope {
                         let table_record = rx.http_storage.put_request(req, hash);
 
                         if fit_scope {
@@ -342,7 +342,7 @@ fn load_data_if_need(siv: &mut Cursive) {
 
     let load_path = ud.config.load.as_ref().unwrap();
 
-    let result = if ud.config.strict_scope {
+    let result = if ud.is_scope_strict() {
         ud.http_storage.load_with_strict_scope(load_path, ud.include.as_ref(), ud.exclude.as_ref())
     }
     else {

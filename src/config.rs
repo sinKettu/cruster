@@ -14,7 +14,8 @@ use crate::utils::CrusterError;
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Scope {
     pub(crate) include: Option<Vec<String>>,
-    pub(crate) exclude: Option<Vec<String>>
+    pub(crate) exclude: Option<Vec<String>>,
+    pub(crate) strict: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -29,7 +30,6 @@ pub(crate) struct Config {
     pub(crate) dump_mode: bool,
     pub(crate) store: Option<String>,
     pub(crate) load: Option<String>,
-    pub(crate) strict_scope: bool,
     pub(crate) scope: Option<Scope>,
 }
 
@@ -47,7 +47,6 @@ impl Default for Config {
             dump_mode: false,
             store: None,
             load: None,
-            strict_scope: false,
             scope: None,
         }
     }
@@ -232,7 +231,16 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
 
     if matches.is_present("strict-scope") {
-        config.strict_scope = true;
+        if let Some(scope) = config.scope.as_mut() {
+            scope.strict = true;
+        }
+        else {
+            config.scope = Some(Scope {
+                include: None,
+                exclude: None,
+                strict: true
+            });
+        }
     }
 
     let include_scope = if let Some(include_re) = matches.values_of("include") {
@@ -267,7 +275,8 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         if let None = &config.scope {
             config.scope = Some(Scope {
                 include: include_scope,
-                exclude: None
+                exclude: None,
+                strict: false
             });
         }
         else {
@@ -278,7 +287,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
 
     if exclude_scope.is_some() {
         if let None = &config.scope {
-            config.scope = Some(Scope { include: None, exclude: exclude_scope });
+            config.scope = Some(Scope { include: None, exclude: exclude_scope, strict: false });
         }
         else {
             let scope_ref = config.scope.as_mut().unwrap();
