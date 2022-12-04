@@ -11,7 +11,6 @@ You can configure `Cruster` either with config file or with command line argumen
 | tls_cer_name | *String* | `~/.cruster/cruster.cer` | Path to TLS CA certificate in PEM format. This option is not configurable by cmdline and it is required to be written explicitly. |
 | address | *String* | `127.0.0.1` | Address for proxy to bind |
 | port | *Integer* | `8080` | Port for proxy to listen to |
-| port | *Integer* | `8080` | Port for proxy to listen to |
 | debug_file | *String* or `null` | `null` | Path to file to write debug logs. Mostly used for development, for now you will not find there anything useful |
 | dump_mode | *Boolean* | `false` | Run `Cruster` in dump mode |
 | store | *String* or `null` | `null` | Path to store data collected by proxy (requests and responses) in JSONLines format (see `Stored HTTP Data Format.md` for details) |
