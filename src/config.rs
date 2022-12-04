@@ -23,7 +23,6 @@ pub(crate) struct Config {
     pub(crate) workplace: String,
     pub(crate) tls_key_name: String,
     pub(crate) tls_cer_name: String,
-    pub(crate) config_name: String,
     pub(crate) address: String,
     pub(crate) port: u16,
     pub(crate) debug_file: Option<String>,
@@ -38,7 +37,6 @@ impl Default for Config {
         let expanded_path = tilde("~/.cruster/").to_string();
         Config {
             workplace: expanded_path.clone(),
-            config_name: format!("{}{}", &expanded_path, "config.yaml"),
             tls_cer_name: format!("{}{}", &expanded_path, "cruster.cer"),
             tls_key_name: format!("{}{}", &expanded_path, "cruster.key"),
             address: "127.0.0.1".to_string(),
@@ -168,9 +166,10 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             .ok_or(CrusterError::ConfigError("'--workplace' arg not found".to_owned()))?
     ).to_string();
 
+    let possible_config_name = format!("{}/config.yaml", &workplace);
     let config_name = tilde(matches
         .value_of("config")
-        .ok_or(CrusterError::ConfigError("'--config' arg not found".to_owned()))?
+        .unwrap_or(&possible_config_name)
     ).to_string();
 
     let workplace_path = path::Path::new(&workplace);
@@ -187,10 +186,9 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     else {
         let default_config = Config {
             workplace,
-            config_name,
             ..Default::default()
         };
-        let file = fs::File::create(&default_config.config_name)?;
+        let file = fs::File::create(&config_name)?;
         let yaml_config = yml::to_value(&default_config)?;
         yml::to_writer(file, &yaml_config)?;
         default_config
