@@ -315,6 +315,12 @@ fn poll_storing_thread(siv: &mut Cursive, thrd: JoinHandle<Result<(), CrusterErr
 fn store_proxy_data(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
     if ud.config.store.is_none() {
+        ud.push_error(
+            CrusterError::StorePathNotFoundError(
+                format!("You tried to store data, but did not specify path to store at start.")
+            )
+        );
+        
         return;
     }
 

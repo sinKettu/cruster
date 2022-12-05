@@ -60,6 +60,7 @@ pub(crate) enum CrusterError {
     JSONError(String),
     JobDurateTooLongError(String),
     Base64DecodeError(String),
+    StorePathNotFoundError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -188,6 +189,9 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::Base64DecodeError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::StorePathNotFoundError(s) => {
                 write!(f, "{}", s)
             }
             _ => { write!(f, "{:?}", self) }

@@ -2,11 +2,12 @@
 
 You can configure `Cruster` either with config file or with command line arguments. I think config is more handy.
 
+You cannot configure path to config (`-c`) and path to workplace (`-w`) with config-file.
+
 ## Config
 
 | Key | Value Type | Default | Comment |
 | --- | --- | --- | --- |
-| workplace | *String* | `~/.cruster` | Directory where `Cruster` will store or look for files without explicitly specified paths |
 | tls_key_name | *String* | `~/.cruster/cruster.key` | Path to TLS key in PEM format. This option is not configurable by cmdline and it is required to be written explicitly. |
 | tls_cer_name | *String* | `~/.cruster/cruster.cer` | Path to TLS CA certificate in PEM format. This option is not configurable by cmdline and it is required to be written explicitly. |
 | address | *String* | `127.0.0.1` | Address for proxy to bind |

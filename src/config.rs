@@ -20,7 +20,6 @@ pub(crate) struct Scope {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub(crate) struct Config {
-    pub(crate) workplace: String,
     pub(crate) tls_key_name: String,
     pub(crate) tls_cer_name: String,
     pub(crate) address: String,
@@ -34,11 +33,9 @@ pub(crate) struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        let expanded_path = tilde("~/.cruster/").to_string();
         Config {
-            workplace: expanded_path.clone(),
-            tls_cer_name: format!("{}{}", &expanded_path, "cruster.cer"),
-            tls_key_name: format!("{}{}", &expanded_path, "cruster.key"),
+            tls_cer_name: "cruster.cer".to_string(),
+            tls_key_name: "cruster.key".to_string(),
             address: "127.0.0.1".to_string(),
             port: 8080_u16,
             debug_file: None,
@@ -53,8 +50,8 @@ impl Default for Config {
 // -----------------------------------------------------------------------------------------------//
 
 pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
-    let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored";
-    let config_help = "Path to config with YAML format";
+    let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.";
+    let config_help = "Path to config with YAML format. Cannot be set by config file.";
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
     let port_help = "Port for proxy to listen to, default: 8080";
     let debug_file_help = "A file to write debug messages, mostly needed for development";
@@ -64,6 +61,9 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let strict_help = "If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from ui";
     let include_help = "Regex for URI to include in scope, i.e. ^https?://www\\.google\\.com/.*$. Option can repeat.";
     let exclude_help = "Regex for URI to exclude from scope, i.e. ^https?://www\\.google\\.com/.*$. Processed after include regex if any. Option can repeat.";
+    
+    let default_workplace = tilde("~/.cruster");
+    let default_config = tilde("~/.cruster/config.yaml");
 
     let matches = App::new("Cruster")
         .version("0.4.4")
@@ -74,7 +74,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .short("P")
                 .long("workplace")
                 .takes_value(true)
-                .default_value("~/.cruster/")
+                // .default_value(default_workplace)
                 .value_name("WORKPLACE_DIR")
                 .help(workplace_help)
         )
@@ -83,7 +83,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .short("c")
                 .long("config")
                 .takes_value(true)
-                .default_value("~/.cruster/config.yaml")
+                // .default_value(default_config)
                 .value_name("YAML_CONFIG")
                 .help(config_help)
         )
@@ -160,38 +160,95 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         )
         .get_matches();
 
-    let workplace = tilde(
-        matches
-            .value_of("workplace")
-            .ok_or(CrusterError::ConfigError("'--workplace' arg not found".to_owned()))?
-    ).to_string();
+    let workplace_possible = matches.value_of("workplace");
+    let config_possible = matches.value_of("config");
 
-    let possible_config_name = format!("{}/config.yaml", &workplace);
-    let config_name = tilde(matches
-        .value_of("config")
-        .unwrap_or(&possible_config_name)
-    ).to_string();
+    let (workplace, config_name) = match (workplace_possible, config_possible) {
+        (None, None) => {
+            let workplace_path = path::Path::new(default_workplace.as_ref());
+            if !workplace_path.exists() {
+                fs::create_dir_all(workplace_path)?;
+            }
 
-    let workplace_path = path::Path::new(&workplace);
-    if !workplace_path.exists() {
-        fs::create_dir_all(workplace_path)?;
-    }
+            (default_workplace.to_string(), default_config.to_string())
+        },
+        (Some(workplace), None) => {
+            let workplace_path = path::Path::new(workplace);
+            if !workplace_path.exists() {
+                return Err(
+                    CrusterError::UndefinedError(
+                        format!("Could not find workplace dir at '{}'", workplace)
+                    )
+                );
+            }
 
-    let config_path = path::Path::new(&config_name);
+            let config_name = format!("{}/config.yaml", workplace);
+            let config_path = path::Path::new(&config_name);
+            if !config_path.exists() {
+                return Err(
+                    CrusterError::UndefinedError(
+                        format!("Could not find config file at unusual path '{}'", config_name)
+                    )
+                );
+            }
+
+            (workplace.to_string(), config_name)
+        },
+        (None, Some(config_name)) => {
+            let config_path = path::Path::new(config_name);
+            if !config_path.exists() {
+                return Err(
+                    CrusterError::UndefinedError(
+                        format!("Could not find config file at unusual path '{}'", config_name)
+                    )
+                );
+            }
+
+            let workplace_path = path::Path::new(default_workplace.as_ref());
+            if !workplace_path.exists() {
+                fs::create_dir_all(workplace_path)?;
+            }
+
+            (default_workplace.to_string(), config_name.to_string())
+        },
+        (Some(workplace), Some(config_name)) => {
+            let workplace_path = path::Path::new(workplace);
+            if !workplace_path.exists() {
+                return Err(
+                    CrusterError::UndefinedError(
+                        format!("Could not find workplace dir at '{}'", workplace)
+                    )
+                );
+            }
+
+            let config_path = path::Path::new(config_name);
+            if !config_path.exists() {
+                return Err(
+                    CrusterError::UndefinedError(
+                        format!("Could not find config file at unusual path '{}'", config_name)
+                    )
+                );
+            }
+
+            (workplace.to_string(), config_name.to_string())
+        }
+    };
+
+    let config_path = path::Path::new(config_name.as_str());
     let mut config = if config_path.exists() {
-        let file = fs::File::open(&config_name)?;
+        let file = fs::File::open(config_name.as_str())?;
         let config_from_file: Config = yml::from_reader(file)?;
         config_from_file
     }
-    else {
-        let default_config = Config {
-            workplace,
-            ..Default::default()
-        };
-        let file = fs::File::create(&config_name)?;
+    else if config_name == default_config && workplace == default_workplace {
+        let default_config = Config::default();
+        let file = fs::File::create(config_name.as_str())?;
         let yaml_config = yml::to_value(&default_config)?;
         yml::to_writer(file, &yaml_config)?;
         default_config
+    }
+    else {
+        unreachable!("You should not reach this place. If you somehow did it, write me to 'avangard.jazz@gmail.com'.");
     };
 
     if let Some(addr) = matches.value_of("address") {
@@ -203,30 +260,33 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
 
     if let Some(dfile) = matches.value_of("debug-file") {
-        enable_debug(dfile);
-        config.debug_file = Some(dfile.to_string());
+        let debug_file = find_file(&workplace, dfile)?;
+        enable_debug(&debug_file);
+        config.debug_file = Some(debug_file);
     }
     else if let Some(dfile) = &config.debug_file {
-        enable_debug(dfile)
+        let _ = find_file(&workplace, dfile)?;
+        enable_debug(dfile);
     }
 
     if let Some(store_path) = matches.value_of("store") {
         config.store = Some(store_path.to_string());
-        fs::File::create(store_path).expect(&format!("Could not create file to store proxy data at '{}'", store_path));
+        fs::File::create(store_path)?;
     }
     else if let Some(store_path) = &config.store {
-        fs::File::create(store_path).expect(&format!("Could not create file to store proxy data at '{}'", store_path));
+        fs::File::create(store_path)?;
     }
 
     if let Some(load_path) = matches.value_of("load") {
-        config.load = Some(load_path.to_string());
+        let lpath = find_file(&workplace, load_path)?;
+        config.load = Some(lpath);
+    }
+    else if let Some(load_path) = &config.load {
+        let _ = find_file(&workplace, load_path)?;
     }
 
-    if let Some(load_path) = &config.load {
-        if ! path::Path::new(load_path).exists() {
-            panic!("Could not find previously stored data at path '{}'", load_path);
-        }
-    }
+    config.tls_cer_name = find_file(&workplace, &config.tls_cer_name)?;
+    config.tls_key_name = find_file(&workplace, &config.tls_key_name)?;
 
     if matches.is_present("strict-scope") {
         if let Some(scope) = config.scope.as_mut() {
@@ -314,4 +374,39 @@ fn enable_debug(debug_file_path: &str) {
 
         log4rs::init_config(log_config).unwrap();
         debug!("Debugging enabled");
+}
+
+fn find_file(base_path: &str, path: &str) -> Result<String, CrusterError> {
+    let fpath = path::Path::new(path);
+    if fpath.is_absolute() {
+        if fpath.exists() {
+            return Ok(path.to_string());
+        }
+        else {
+            return Err(
+                CrusterError::ConfigError(
+                    format!("Could not find file at absolute path '{}'", path)
+                )
+            );
+        }
+    }
+    else {
+        let workspace_path = format!("{}/{}", base_path, path);
+        let wpath = path::Path::new(&workspace_path);
+        if wpath.exists() {
+            return Ok(workspace_path);
+        }
+        else {
+            if fpath.exists() {
+                return Ok(path.to_string());
+            }
+            else {
+                return Err(
+                    CrusterError::ConfigError(
+                        format!("Could not find file at relative path '{}' neither in workplace nor working dir", path)
+                    )
+                );
+            }
+        }
+    }
 }
