@@ -29,7 +29,6 @@ You cannot configure path to config (`-c`) and path to workplace (`-w`) with con
 ## Example
 
 ``` yaml
-workplace: /home/user/.cruster/
 tls_key_name: /home/user/.cruster/cruster.key
 tls_cer_name: /home/user/.cruster/cruster.cer
 address: 127.0.0.1
