@@ -215,9 +215,9 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "base64"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
+checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "bitflags"
@@ -494,9 +494,10 @@ dependencies = [
 
 [[package]]
 name = "cruster"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "async-trait",
+ "base64",
  "bstr",
  "clap",
  "crossbeam-channel",
@@ -513,6 +514,7 @@ dependencies = [
  "regex",
  "rustls-pemfile",
  "serde",
+ "serde_json",
  "serde_yaml",
  "shellexpand",
  "time 0.3.11",
@@ -2004,9 +2006,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.82"
+version = "1.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82c2c1fdcd807d1098552c5b9a36e425e42e9fbd7c6a37a8425f390f781f7fa7"
+checksum = "020ff22c755c2ed3f8cf162dbb41a7268d934702f3ed3631656ea597e08fc3db"
 dependencies = [
  "itoa",
  "ryu",

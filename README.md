@@ -14,7 +14,8 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 - Interactive text interface:
   - Table visualization of HTTP messgages went through proxy;
   - Requests/Responses highlighted visualization;
-- Dump mode.
+- Dump mode (`-d`);
+- Process requests/responses basing on scope (`-I`, `-E`);
 - ... *Coming soon*...
 
 ## Usage
@@ -36,16 +37,23 @@ USAGE:
 FLAGS:
     -d, --dump       Enable non-interactive dumping mode: all communications will be shown in terminal output
     -h, --help       Prints help information
+        --strict     If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from
+                     ui
     -V, --version    Prints version information
 
 OPTIONS:
     -a, --address <ADDR>                Address for proxy to bind, default: 127.0.0.1
-    -c, --config <YAML_CONFIG>          Path to config with YAML format [default: ~/.cruster/config.yaml]
+    -c, --config <YAML_CONFIG>          Path to config with YAML format. Cannot be set by config file.
         --debug-file <FILE-TO-WRITE>    A file to write debug messages, mostly needed for development
+    -E, --exclude-scope <REGEX>...      Regex for URI to exclude from scope, i.e. ^https?://www\.google\.com/.*$.
+                                        Processed after include regex if any. Option can repeat.
+    -I, --include-scope <REGEX>...      Regex for URI to include in scope, i.e. ^https?://www\.google\.com/.*$. Option
+                                        can repeat.
+    -l, --load <PATH-TO-FILE>           Path to file to load previously stored data from
     -p, --port <PORT>                   Port for proxy to listen to, default: 8080
     -s, --store <PATH-TO-FILE>          Path to file to store proxy data. File will be rewritten!
-    -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored
-                                        [default: ~/.cruster/]
+    -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored.
+                                        Cannot be set by config file.
 ```
 
 ### Navigation on text user interface
@@ -147,15 +155,3 @@ Thank to projects, which are basics for mine:
 ## License
 
 Copyright © Andrey Ivanov
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
