@@ -14,7 +14,8 @@ use hudsucker::{
 #[cfg(feature = "rcgen-ca")]
 use hudsucker::rustls::{PrivateKey, Certificate};
 
-// #[cfg(feature = "rcgen-ca")]
+use serde_json;
+use base64::DecodeError;
 use rcgen::{CertificateParams, self, IsCa, BasicConstraints, Certificate as RCgenCertificate, PKCS_ECDSA_P256_SHA256};
 
 use std::{
@@ -56,6 +57,10 @@ pub(crate) enum CrusterError {
     ProxyTableIndexOutOfRange(String),
     CouldParseRequestPathError(String),
     EmptyRequest(String),
+    JSONError(String),
+    JobDurateTooLongError(String),
+    Base64DecodeError(String),
+    StorePathNotFoundError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -69,6 +74,10 @@ impl From<io::Error> for CrusterError {
 // impl From<openssl::error::ErrorStack> for CrusterError {
 //     fn from(e: openssl::error::ErrorStack) -> Self { Self::OpenSSLError(e.to_string()) }
 // }
+
+impl From<DecodeError> for CrusterError {
+    fn from(e: DecodeError) -> Self { Self::Base64DecodeError(e.to_string()) }
+}
 
 impl From<hudsucker::Error> for CrusterError {
     fn from(e: hudsucker::Error) -> Self { Self::HudSuckerError(e.to_string()) }
@@ -102,6 +111,14 @@ impl From<serde_yaml::Error> for CrusterError {
     fn from(e: serde_yaml::Error) -> Self {
         Self::ConfigError(
             format!("Unable to serialize/deserialize YAML data: {}", e.to_string())
+        )
+    }
+}
+
+impl From<serde_json::Error> for CrusterError {
+    fn from(e: serde_json::Error) -> Self {
+        Self::JSONError(
+            format!("Unable to serialize/deserialize JSON data: {}", e.to_string())
         )
     }
 }
@@ -165,6 +182,18 @@ impl fmt::Display for CrusterError {
             CrusterError::EmptyRequest(s) => {
                 write!(f, "{}", s)
             },
+            CrusterError::JSONError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::JobDurateTooLongError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::Base64DecodeError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::StorePathNotFoundError(s) => {
+                write!(f, "{}", s)
+            }
             _ => { write!(f, "{:?}", self) }
         }
     }
@@ -215,14 +244,6 @@ pub(crate) fn get_ca(key_path: &str, cer_path: &str) -> Result<HudSuckerCA, Crus
         )
     }
 
-    // let mut private_key = rustls_pemfile::pkcs8_private_keys(&mut private_key_bytes).unwrap();
-    // let mut ca_cert = rustls_pemfile::certs(&mut ca_cert_bytes).unwrap();
-
-    // let private_key = PrivateKey(private_key.remove(0));
-    // let ca_cert = Certificate(ca_cert.remove(0));
-
-    // Ok(RcgenAuthority::new(private_key, ca_cert, 1000).unwrap())
-
     #[cfg(feature = "openssl-ca")]
     return {
         debug!("openssl-ca feature enabled");
@@ -230,12 +251,7 @@ pub(crate) fn get_ca(key_path: &str, cer_path: &str) -> Result<HudSuckerCA, Crus
         let private_key = PKey::private_key_from_pem(&key_buffer).unwrap();
         let ca_cert = X509::from_pem(&cer_buffer).unwrap();
 
-        Ok(HudSuckerCA::new(
-            private_key,
-            ca_cert,
-            MessageDigest::sha256(),
-            1_000
-        ))
+        Ok(HudSuckerCA::new(private_key, ca_cert, MessageDigest::sha256(), 1_000))
     };
 
     #[cfg(feature = "rcgen-ca")]
@@ -265,44 +281,10 @@ pub(crate) fn generate_key_and_cer(key_path: &str, cer_path: &str) {
     cert_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
     cert_params.not_before = OffsetDateTime::from(datetime!(1970-01-01 0:00 UTC));
     cert_params.not_after = OffsetDateTime::from(datetime!(5000-01-01 0:00 UTC));
-    // cert_params.key_usages = vec![
-    //     KeyUsagePurpose::DigitalSignature,
-    //     KeyUsagePurpose::ContentCommitment,
-    //     KeyUsagePurpose::KeyEncipherment,
-    //     KeyUsagePurpose::DataEncipherment,
-    //     KeyUsagePurpose::KeyAgreement,
-    //     KeyUsagePurpose::KeyCertSign,
-    //     KeyUsagePurpose::CrlSign,
-    // ];
-    // cert_params.extended_key_usages = vec![
-    //     ExtendedKeyUsagePurpose::Any
-    // ];
     cert_params.key_pair = None;
     cert_params.alg = &PKCS_ECDSA_P256_SHA256;
 
     let new_cert = RCgenCertificate::from_params(cert_params).unwrap();
     fs::write(cer_path, new_cert.serialize_pem().unwrap()).unwrap();
     fs::write(key_path, new_cert.serialize_private_key_pem()).unwrap();
-
-    // let subject_alt_names = vec![
-    //     "Cruster".to_string(),
-    //     "localhost".to_string()
-    // ];
-
-    // let cert = rcgen::generate_simple_self_signed(subject_alt_names).unwrap();
-
-    // let kp = KeyPair::from_pem(
-    //     cert
-    //         .get_key_pair()
-    //         .serialize_pem()
-    //         .as_str()
-    // ).unwrap();
-
-    // let mut cert_params = CertificateParams::from_ca_cert_pem(
-    //     cert
-    //         .serialize_pem().
-    //         unwrap()
-    //         .as_str(),
-    //     kp
-    // ).unwrap();
 }

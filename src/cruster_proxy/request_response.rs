@@ -1,4 +1,3 @@
-use http::HeaderMap;
 use hudsucker::{
     hyper::{
         Body,
@@ -11,10 +10,12 @@ use hudsucker::{
 
 // use log::debug;
 
-use crate::CrusterError;
+use http::HeaderMap;
 use bstr::ByteSlice;
 use std::fmt::Display;
 use std::ffi::CString;
+
+use crate::CrusterError;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -159,19 +160,32 @@ impl HyperRequestWrapper {
             }
         }
     }
+
+    pub(crate) fn get_hostname(&self) -> String {
+        self.uri
+            .split("/")
+            .skip(2)
+            .take(1)
+            .collect::<Vec<&str>>()[0]
+            .to_string()
+    }
+
+    pub(crate) fn get_scheme(&self) -> String {
+        let split_result: Vec<&str> = self.uri.splitn(2, ":").collect();
+        return match split_result.get(0) {
+            Some(scheme) => {
+                format!("{}://", scheme)
+            },
+            None => {
+                "://".to_string()
+            }
+        };
+    }
 }
 
 // -----------------------------------------------------------------------------------------------//
 
-// #[derive(Clone, Debug)]
-// pub(crate) enum BodyCompressedWith {
-//     GZIP,
-//     DEFLATE,
-//     BR,
-//     NONE
-// }
-
-// #[derive(Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct HyperResponseWrapper {
     pub(crate) status: String,
     pub(crate) version: String,

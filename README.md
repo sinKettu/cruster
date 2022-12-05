@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.4.3`
+`v0.4.4`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -14,7 +14,8 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 - Interactive text interface:
   - Table visualization of HTTP messgages went through proxy;
   - Requests/Responses highlighted visualization;
-- Dump mode.
+- Dump mode (`-d`);
+- Process requests/responses basing on scope (`-I`, `-E`);
 - ... *Coming soon*...
 
 ## Usage
@@ -27,7 +28,7 @@ To use this proxy with browser you must import CA certificate of proxy (stored b
 
 ``` shell
 $ cruster -h
-Cruster 0.3.1
+Cruster 0.4.4
 Andrey Ivanov<avangard.jazz@gmail.com>
 
 USAGE:
@@ -36,15 +37,23 @@ USAGE:
 FLAGS:
     -d, --dump       Enable non-interactive dumping mode: all communications will be shown in terminal output
     -h, --help       Prints help information
+        --strict     If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from
+                     ui
     -V, --version    Prints version information
 
 OPTIONS:
     -a, --address <ADDR>                Address for proxy to bind, default: 127.0.0.1
-    -c, --config <YAML_CONFIG>          Path to config with YAML format [default: ~/.cruster/config.yaml]
+    -c, --config <YAML_CONFIG>          Path to config with YAML format. Cannot be set by config file.
         --debug-file <FILE-TO-WRITE>    A file to write debug messages, mostly needed for development
+    -E, --exclude-scope <REGEX>...      Regex for URI to exclude from scope, i.e. ^https?://www\.google\.com/.*$.
+                                        Processed after include regex if any. Option can repeat.
+    -I, --include-scope <REGEX>...      Regex for URI to include in scope, i.e. ^https?://www\.google\.com/.*$. Option
+                                        can repeat.
+    -l, --load <PATH-TO-FILE>           Path to file to load previously stored data from
     -p, --port <PORT>                   Port for proxy to listen to, default: 8080
-    -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored
-                                        [default: ~/.cruster/]
+    -s, --store <PATH-TO-FILE>          Path to file to store proxy data. File will be rewritten!
+    -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored.
+                                        Cannot be set by config file.
 ```
 
 ### Navigation on text user interface
@@ -97,7 +106,7 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.3" --locked
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
@@ -109,7 +118,7 @@ This command will install `Cruster` using `rcgen` library to build local certifi
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.3" --locked --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -117,7 +126,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.3" --locked 
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.3" --locked --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## RoadMap
@@ -125,14 +134,15 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.3" --locked 
 - [X] Improve proxy performance.
 - [X] Navigate over Requests/Responses text.
 - [X] Requests/Responses syntax highlight.
+- [ ] Intercepting requests/responses.
 - [ ] Manual repeater for requests.
 - [ ] Projects (like in Burp or ZAP).
 - [ ] Store projects and history on drive.
 - [ ] **Scripting engine based on YAML syntax to write testcases and checks**.
-- [ ] **Scripting engine based on Python to write testcases and checks**
+- [ ] **Scripting engine based on Python to write testcases and checks**.
 - [X] WS(S) support.
 - [ ] Improve documentation.
-- [ ] WS(S) proxy history visualisation (like for HTTP(S))
+- [ ] WS(S) proxy history visualization (like for HTTP(S));
 - [ ] And much more ...
 
 ## Gratitude
@@ -144,6 +154,4 @@ Thank to projects, which are basics for mine:
 
 ## License
 
-Licensed with GNU GENERAL PUBLIC LICENSE Version 3.
-
-Copyright 2022 Andrey Ivanov.
+Copyright © Andrey Ivanov
