@@ -67,8 +67,6 @@ pub(super) fn new_table() -> HTTPTable {
 pub(super) fn make_table_fullscreen(siv: &mut Cursive) {
     if siv.find_name::<HTTPTable>("fs-proxy-table").is_some() { return; }
 
-
-
     let table_items = siv.call_on_name("proxy-table", |table: &mut HTTPTable| {
         // TODO: ensure that popping one is the needed
         table.take_items()

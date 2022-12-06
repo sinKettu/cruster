@@ -1,9 +1,10 @@
-pub(super) mod error_view;
 mod help_view;
+mod quit_popup;
 mod http_table;
-mod req_res_spanned;
 mod status_bar;
 mod sivuserdata;
+mod req_res_spanned;
+pub(super) mod error_view;
 
 // use log::debug;
 use cursive::{Cursive, };
@@ -82,7 +83,7 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
 pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(CrusterWrapper, usize)>, err_rx: Receiver<CrusterError>) {
     let help_message = Rc::new(help_view::make_help_message());
 
-    siv.add_global_callback('q', |s| s.quit());
+    siv.add_global_callback('q', |s| quit_popup::draw_popup(s));
     siv.add_global_callback('e', |s| error_view::draw_error_view(s));
     siv.add_global_callback('?', move |s| help_view::draw_help_view(s, &help_message));
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
