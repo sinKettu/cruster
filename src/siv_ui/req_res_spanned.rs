@@ -48,7 +48,7 @@ fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
 
 fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
     let mut tmp_storage: HashMap<&str, SpannedString<Style>> = HashMap::default();
-    for (k, v) in headers {
+    for (k, v) in headers.iter() {
         let k_str = k.as_str();
         let hval = if let Ok(hval) = v.to_str() {
             StyledString::from(hval)
