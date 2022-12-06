@@ -59,13 +59,17 @@ OPTIONS:
 ### Navigation on text user interface
 
 ``` text
-? - Show help view
-q - Quit
+? - Show this help view
+<Enter> -
+     <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
+     <On Filter View> - Apply written filter
+<Esc> - Close secondary view (i.e. help, errors, etc.)
+<Shift> + s - Store proxy data on drive, file path is configured on start
+<Shift> + f - Set filter for table
 e - Show error logs view
 t - Show fullscreen HTTP proxy table
-<Enter>
-│     <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
-<Esc> - Close secondary view (i.e. help, errors, etc.)
+q - Quit
+
 ```
 
 ### Dump mode
