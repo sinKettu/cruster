@@ -3,6 +3,7 @@ mod quit_popup;
 mod http_table;
 mod status_bar;
 mod sivuserdata;
+mod filter_view;
 mod req_res_spanned;
 pub(super) mod error_view;
 
@@ -88,6 +89,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
     siv.add_global_callback('?', move |s| help_view::draw_help_view(s, &help_message));
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
     siv.add_global_callback('S', |s| { store_proxy_data(s) });
+    siv.add_global_callback('F', |s| { filter_view::draw_filter(s) });
 
     // siv.set_autorefresh(true);
     siv.set_theme(cursive::theme::Theme {
@@ -102,7 +104,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             palette[View] = TerminalDefault;
             palette[Primary] = White.light();
             palette[TitlePrimary] = Green.light();
-            palette[Secondary] = Red.light();
+            palette[Secondary] = TerminalDefault;
             palette[Highlight] = White.light();
             palette[HighlightText] = BaseColor::Black.dark();
         }),
@@ -126,6 +128,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             http_storage: HTTPStorage::default(),
             request_view_content: request_view_content.clone(),
             response_view_content: response_view_content.clone(),
+            filter_content: "".to_string(),
             active_http_table_name: "proxy-table",
             errors: Vec::new(),
             status: StatusBarContent::new(status_bar_message.clone(), status_bar_stats.clone()),
@@ -360,11 +363,18 @@ fn load_data_if_need(siv: &mut Cursive) {
         ud.push_error(e);
     }
 
+    fill_table_using_scope(siv);
+}
+
+fn fill_table_using_scope(siv: &mut Cursive) {
+    let ud: &mut SivUserData = siv.user_data().unwrap();
     let mut items: Vec<ProxyDataForTable> = Vec::with_capacity(ud.http_storage.len() * 2);
+    ud.table_id_ref.clear();
+
     for pair in ud.http_storage.into_iter() {
         let req = pair.request.as_ref().unwrap();
-        let in_scope = ud.is_uri_in_socpe(&req.uri);
 
+        let in_scope = ud.is_uri_in_socpe(&req.uri);
         if ! in_scope {
             continue;
         }

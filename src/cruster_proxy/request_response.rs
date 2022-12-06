@@ -16,6 +16,7 @@ use std::fmt::Display;
 use std::ffi::CString;
 
 use crate::CrusterError;
+use regex::Regex;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -181,6 +182,27 @@ impl HyperRequestWrapper {
             }
         };
     }
+
+    pub(crate) fn serach_with_re(&self, re: &Regex) -> bool {
+        let fl = format!("{} {} {}\r\n", &self.method, &self.uri, &self.version);
+        if re.find(&fl).is_some() {
+            return true;
+        }
+
+        let found_in_headers: bool = self.headers
+            .iter()
+            .any(|(k, v)| {
+                let hl = format!("{}: {}", k.as_str(), v.as_bytes().to_str_lossy().as_ref());
+                re.find(&hl).is_some()
+            });
+        
+        if found_in_headers {
+            return true;
+        }
+
+        let body = self.body.as_slice().to_str_lossy();
+        return re.find(&body).is_some();
+    }
 }
 
 // -----------------------------------------------------------------------------------------------//
@@ -303,6 +325,27 @@ impl HyperResponseWrapper {
                 self.body.len()
             }
         }
+    }
+
+    pub(crate) fn serach_with_re(&self, re: &Regex) -> bool {
+        let fl = format!("{} {}\r\n", &self.version, &self.status);
+        if re.find(&fl).is_some() {
+            return true;
+        }
+
+        let found_in_headers: bool = self.headers
+            .iter()
+            .any(|(k, v)| {
+                let hl = format!("{}: {}", k.as_str(), v.as_bytes().to_str_lossy().as_ref());
+                re.find(&hl).is_some()
+            });
+        
+        if found_in_headers {
+            return true;
+        }
+
+        let body = self.body.as_slice().to_str_lossy();
+        return re.find(&body).is_some();
     }
 }
 

@@ -19,6 +19,7 @@ pub(super) struct SivUserData {
     pub(super) http_storage: HTTPStorage,
     pub(super) request_view_content: TextContent,
     pub(super) response_view_content: TextContent,
+    pub(super) filter_content: String,
     pub(super) active_http_table_name: &'static str,
     pub(super) errors: Vec<CrusterError>,
     pub(super) status: status_bar::StatusBarContent,
