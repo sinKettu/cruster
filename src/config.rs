@@ -270,11 +270,12 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
 
     if let Some(store_path) = matches.value_of("store") {
-        config.store = Some(store_path.to_string());
-        fs::File::create(store_path)?;
+        config.store = Some(resolve_path(&workplace, store_path)?);
+        fs::File::create(config.store.as_ref().unwrap())?;
     }
     else if let Some(store_path) = &config.store {
-        fs::File::create(store_path)?;
+        config.store = Some(resolve_path(&workplace, store_path)?);
+        fs::File::create(config.store.as_ref().unwrap())?;
     }
 
     if let Some(load_path) = matches.value_of("load") {
@@ -282,7 +283,8 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         config.load = Some(lpath);
     }
     else if let Some(load_path) = &config.load {
-        let _ = find_file(&workplace, load_path)?;
+        let lpath = find_file(&workplace, load_path)?;
+        config.load = Some(lpath);
     }
 
     config.tls_cer_name = find_file(&workplace, &config.tls_cer_name)?;
@@ -376,6 +378,7 @@ fn enable_debug(debug_file_path: &str) {
         debug!("Debugging enabled");
 }
 
+/// For existing files and dirs
 fn find_file(base_path: &str, path: &str) -> Result<String, CrusterError> {
     let fpath = path::Path::new(path);
     if fpath.is_absolute() {
@@ -391,6 +394,10 @@ fn find_file(base_path: &str, path: &str) -> Result<String, CrusterError> {
         }
     }
     else {
+        if fpath.starts_with("./") && fpath.exists() {
+            return Ok(path.to_string());
+        }
+
         let workspace_path = format!("{}/{}", base_path, path);
         let wpath = path::Path::new(&workspace_path);
         if wpath.exists() {
@@ -408,5 +415,21 @@ fn find_file(base_path: &str, path: &str) -> Result<String, CrusterError> {
                 );
             }
         }
+    }
+}
+
+/// Return such path state, which is accessbile with cruster
+fn resolve_path(base_path: &str, path: &str) -> Result<String, CrusterError> {
+    let fpath = path::Path::new(path);
+    if fpath.is_absolute() {
+        return Ok(path.to_string());
+    }
+    else if fpath.starts_with("./") {
+        let canonicalized = fs::canonicalize(fpath)?;
+        let pth = canonicalized.to_str().unwrap().to_string();
+        return Ok(pth);
+    }
+    else {
+        return Ok(format!("{}/{}", base_path, path));
     }
 }
