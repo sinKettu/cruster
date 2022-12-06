@@ -1,7 +1,32 @@
-use cursive::{Cursive, views::{TextView, EditView, Dialog, StackView, LinearLayout, OnEventView, ThemedView}, utils::markup::StyledString, theme::{Style, BaseColor, Effect, BorderStyle, Palette}, view::{Nameable, Resizable}, event, With};
 use regex::Regex;
-use super::{sivuserdata::SivUserData, ProxyDataForTable, http_table::HTTPTable};
+use cursive::{
+    Cursive,
+    views::{
+        TextView,
+        EditView,
+        Dialog,
+        StackView,
+        LinearLayout,
+        OnEventView,
+        ThemedView
+    },
+    utils::markup::StyledString,
+    theme::{
+        Style,
+        BaseColor,
+        Effect,
+        BorderStyle,
+        Palette
+    },
+    view::{
+        Nameable,
+        Resizable
+    },
+    event,
+    With
+};
 
+use super::{sivuserdata::SivUserData, ProxyDataForTable, http_table::HTTPTable};
 
 pub(super) fn draw_filter(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
@@ -33,24 +58,24 @@ pub(super) fn draw_filter(siv: &mut Cursive) {
     let layout = LinearLayout::horizontal()
         .child(txt)
         .child(with_theme)
+        // .min_height(3)
         .full_width();
 
     let dialog = Dialog::around(layout).title(" Filter Regex ");
     let with_events = OnEventView::new(dialog)
         .on_event('F', |_s: &mut Cursive| {})
-        .on_event(event::Key::Esc, |s: &mut Cursive| { hide_filter(s) });
+        .on_event(event::Key::Esc, |s: &mut Cursive| { hide_filter(s, None) });
         // .on_event(event::Key::Enter, |s: &mut Cursive| { apply(s) });
 
+    ud.status.set_message("Press <Enter> to apply or <Esc> to go back");
     siv.call_on_name("views-stack", |sv: &mut StackView| { sv.add_layer(with_events) });
     siv.focus_name("filter-content").unwrap();
 }
 
 fn apply(siv: &mut Cursive, content: &str) {
     if content.is_empty() {
-        let ud: &mut SivUserData = siv.user_data().unwrap();
-        ud.filter_content = content.to_string();
         super::fill_table_using_scope(siv);
-        hide_filter(siv);
+        hide_filter(siv, Some(content));
 
         return;
     }
@@ -101,21 +126,25 @@ fn apply(siv: &mut Cursive, content: &str) {
                 
             }
 
-            ud.filter_content = content.to_string();
             siv.call_on_name(table_name, move |table: &mut HTTPTable| { table.set_items(items); });
-
-            hide_filter(siv);
+            hide_filter(siv, Some(content));
         },
         Err(e) => {
             let ud: &mut SivUserData = siv.user_data().unwrap();
             ud.push_error(e.into());
-            ud.filter_content = content.to_string();
 
-            hide_filter(siv);
+            hide_filter(siv, Some(content));
         }
     }
 }
 
-fn hide_filter(siv: &mut Cursive) {
+fn hide_filter(siv: &mut Cursive, content: Option<&str>) {
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    ud.status.clear_message();
+
+    if let Some(content) = content {
+        ud.filter_content = content.to_string();
+    }
+
     siv.call_on_name("views-stack", |sv: &mut StackView| { sv.pop_layer() });
 }
