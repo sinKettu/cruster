@@ -24,9 +24,13 @@ You can navigate over table with keys `<up>` and `<down>`. Keys `<left>` and `<r
 ![fullrequest-response](https://github.com/sinKettu/cruster/raw/master/static/full_req_res.png)
 *Full Request/Response*
 
+Sometimes `Request` view can be narrower than `Response` if it;s really "small".
+
 Views are scrollable, you can switch them with `<left>` and `<right>`. In *Cruster you can scroll anything scrollable with `<up>`/`<down>`, `<home>`/`<end>`, `<page up>`/`<page down>` and with `mouse wheel`.* Just like in GUI programs.
 
 *Cruster shows only cut bodies of requests/responses, because large bodies can significantly slow down Cruster*. Unfortunately, I see no way for now, how I can fix it, seems like this behavior is a feature of TUI. If you want to see full body (for some reason), you can can store request/response (see below).
+
+If you want observe table in a more convinient way, you can press `t` and it will make table fullscreen. Press `<Esc>` to make it "usual" again.
 
 ## Filtering
 

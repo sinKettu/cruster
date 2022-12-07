@@ -14,9 +14,12 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 - Interactive text interface:
   - Table visualization of HTTP messgages went through proxy;
   - Requests/Responses highlighted visualization;
+  - Filtering content;
 - Dump mode (`-d`);
 - Process requests/responses basing on scope (`-I`, `-E`);
 - ... *Coming soon*...
+
+You can find more detailed description in [Usage.md](https://github.com/sinKettu/cruster/blob/master/docs/Usage.md)
 
 ## Usage
 
