@@ -2,6 +2,7 @@ use regex::Regex;
 use cursive::{views::TextContent, Cursive};
 use tokio::sync::mpsc::Receiver as TokioReceiver;
 
+use super::repeater;
 use super::status_bar;
 use crate::{
     config::Config,
@@ -27,6 +28,7 @@ pub(super) struct SivUserData {
     pub(super) include: Option<Vec<Regex>>,
     pub(super) exclude: Option<Vec<Regex>>,
     pub(super) table_id_ref: HashMap<usize, usize>,
+    pub(super) repeater_state: Vec<repeater::RepeaterState>,
 }
 
 impl SivUserData {
