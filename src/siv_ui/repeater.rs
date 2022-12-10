@@ -37,7 +37,7 @@ use crate::{utils::CrusterError, cruster_proxy::request_response::HyperResponseW
 
 type RepeaterRequestHandler = JoinHandle<Result<hyper::Response<hyper::body::Body>, hyper::Error>>;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct RepeaterParameters {
     redirects: bool,
     https: bool,
@@ -45,7 +45,7 @@ pub(super) struct RepeaterParameters {
     max_redirects: usize,
 }
 
-// #[derive(Serialize, Deserialize)]
+#[derive(Clone)]
 pub(super) struct RepeaterState {
     name: String,
     request: String,
@@ -56,15 +56,15 @@ pub(super) struct RepeaterState {
 }
 
 #[derive(Serialize, Deserialize)]
-struct RepeaterStateSerializable {
+pub(super) struct RepeaterStateSerializable {
     name: String,
     request: String,
     response: Option<String>,
     parameters: RepeaterParameters
 }
 
-impl From<RepeaterState> for RepeaterStateSerializable {
-    fn from(rs: RepeaterState) -> Self {
+impl From<&RepeaterState> for RepeaterStateSerializable {
+    fn from(rs: &RepeaterState) -> Self {
         let rsp_content = rs.response.get_content();
         let rsp_raw = rsp_content.source();
         let rsp = if rsp_raw.is_empty() {
@@ -75,10 +75,10 @@ impl From<RepeaterState> for RepeaterStateSerializable {
         };
 
         RepeaterStateSerializable {
-            name: rs.name,
-            request: rs.request,
+            name: rs.name.clone(),
+            request: rs.request.clone(),
             response: rsp,
-            parameters: rs.parameters
+            parameters: rs.parameters.clone()
         }
     }
 }
@@ -104,7 +104,6 @@ impl From<RepeaterStateSerializable> for RepeaterState {
         }
     }
 }
-
 
 pub(super) fn draw_repeater_select(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
@@ -436,7 +435,7 @@ fn wait_for_response(siv: &mut Cursive, handler: RepeaterRequestHandler, beginni
                 let ud: &mut SivUserData = siv.user_data().unwrap();
                 let repeater_state = &mut ud.repeater_state[idx];
                 if repeater_state.parameters.redirects {
-                    follow_redirect(siv, rsp, beginning, idx);
+                    follow_redirect(siv, rsp, idx);
                 }
                 else {
                     hyper_response_to_view_content(siv, rsp, idx);
@@ -468,7 +467,7 @@ fn wait_for_response(siv: &mut Cursive, handler: RepeaterRequestHandler, beginni
     }
 }
 
-fn follow_redirect(siv: &mut Cursive, rsp: Response<Body>, beginning: Instant, idx: usize) {
+fn follow_redirect(siv: &mut Cursive, rsp: Response<Body>, idx: usize) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
     let repeater_state = &mut ud.repeater_state[idx];
 

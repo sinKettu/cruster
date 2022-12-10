@@ -322,7 +322,7 @@ impl HTTPStorage {
     // It's needed to interrupt thread after some time expired, because rust threads cannot interrupt themselves 
     // https://internals.rust-lang.org/t/thread-cancel-support/3056
     pub(crate) fn store(&self, path: &str, sentinel: Option<Receiver<usize>>) -> Result<(), CrusterError> {
-        let mut fout = fs::OpenOptions::new().write(true).open(path)?;
+        let mut fout = fs::OpenOptions::new().write(true).create(true).open(path)?;
         for pair in &self.storage {
             let serializable_record = SerializableProxyData::try_from(pair)?;
             let jsn = json::to_string(&serializable_record)?;

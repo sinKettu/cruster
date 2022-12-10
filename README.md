@@ -143,8 +143,8 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked 
 - [X] Requests/Responses syntax highlight.
 - [ ] Intercepting requests/responses.
 - [X] Manual repeater for requests.
-- [ ] Projects (like in Burp or ZAP).
-- [ ] Store projects and history on drive.
+- [X] Projects (like in Burp or ZAP).
+- [X] Store projects and history on drive.
 - [ ] **Scripting engine based on YAML syntax to write testcases and checks**.
 - [ ] **Scripting engine based on Python to write testcases and checks**.
 - [X] WS(S) support.

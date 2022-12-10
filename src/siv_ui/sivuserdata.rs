@@ -1,9 +1,15 @@
+use std::fs;
 use regex::Regex;
+use serde_json as json;
+use std::collections::HashMap;
+use std::io::{Write, BufReader, BufRead};
 use cursive::{views::TextContent, Cursive};
 use tokio::sync::mpsc::Receiver as TokioReceiver;
 
 use super::repeater;
 use super::status_bar;
+use super::repeater::RepeaterState;
+use super::repeater::RepeaterStateSerializable;
 use crate::{
     config::Config,
     cruster_proxy::request_response::CrusterWrapper,
@@ -11,7 +17,6 @@ use crate::{
     http_storage::HTTPStorage,
     scope
 };
-use std::collections::HashMap;
 
 pub(super) struct SivUserData {
     pub(super) config: Config,
@@ -77,6 +82,46 @@ impl SivUserData {
         else {
             false
         }
+    }
+
+    pub(super) fn store_repeater_state(&self, pth: &str) -> Result<(), CrusterError> {
+        let mut fout = fs::OpenOptions::new().write(true).create(true).open(pth)?;
+        for rs in self.repeater_state.iter() {
+            let serializable = RepeaterStateSerializable::from(rs);
+            let jsn = json::to_string(&serializable)?;
+            let _bytes_written = fout.write(jsn.as_bytes())?;
+            let _one_byte_written = fout.write("\n".as_bytes())?;
+
+            // if let Some(rx) = &sentinel {
+            //     if let Ok(max_duration) = rx.try_recv() {
+            //         return Err(CrusterError::JobDurateTooLongError(
+            //             format!("Process of storing proxy data was interrupted, it was running longer that {} seconds.", max_duration)
+            //         ));
+            //     }
+            // }
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn load_repeater_state(&mut self, pth: &str) -> Result<(), CrusterError> {
+        match std::fs::File::open(pth) {
+            Ok(fin) => {
+                let reader = BufReader::new(fin);
+                for read_result in reader.lines() {
+                    if let Ok(line) = read_result {
+                        let rs: RepeaterStateSerializable = json::from_str(&line)?;
+                        let rss = RepeaterState::from(rs);
+                        self.repeater_state.push(rss);
+                    }
+                }
+            },
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
+
+        Ok(())
     }
 }
 

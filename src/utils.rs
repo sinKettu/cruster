@@ -199,6 +199,9 @@ impl fmt::Display for CrusterError {
             CrusterError::StorePathNotFoundError(s) => {
                 write!(f, "{}", s)
             }
+            CrusterError::IOError(s) => {
+                write!(f, "{}", s)
+            },
             _ => { write!(f, "{:?}", self) }
         }
     }

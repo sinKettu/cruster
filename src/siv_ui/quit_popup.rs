@@ -12,20 +12,13 @@ use cursive::{Cursive,
     use super::sivuserdata::SivUserData;
 
 fn save_and_quit(siv: &mut Cursive) {
-    let ud: &mut SivUserData = siv.user_data().unwrap();
-    let spath = ud.config.store.as_ref().unwrap();
-    let err_possible = ud.http_storage.store(spath, None);
-
-    if let Err(err) = err_possible {
-        panic!("{}", err.to_string());
-    }
-
+    super::store_cruster_state(siv);
     siv.quit();
 }
 
 fn popup_quit_and_save(siv: &mut Cursive) {
     let styled_text = StyledString::styled(
-        "\nSave proxied data before quit?",
+        "\nSave Cruster state before quit?",
         BaseColor::Yellow.light()
     );
     let txt = TextView::new(styled_text);
