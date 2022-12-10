@@ -1,20 +1,43 @@
-use cursive::{Cursive, views::{ListView, TextView, LinearLayout, Checkbox, EditView, OnEventView, Dialog, SelectView, TextArea, TextContent}, event, view::{Resizable, Nameable, Scrollable}, utils::markup::StyledString};
-use super::{sivuserdata::SivUserData, http_table};
-use super::views_stack;
+use cursive::{
+    Cursive,
+    views::{
+        ListView,
+        TextView,
+        LinearLayout,
+        Checkbox,
+        EditView,
+        OnEventView,
+        Dialog,
+        SelectView,
+        TextArea,
+        TextContent
+    },
+    event,
+    view::{
+        Resizable,
+        Nameable,
+        Scrollable
+    },
+};
+
 // use log::debug;
-use crate::{utils::CrusterError, cruster_proxy::request_response::HyperResponseWrapper};
-use regex::Regex;
-use std::{fmt::format, str::FromStr, thread::JoinHandle, time::Instant};
-use http::{HeaderValue, header::HeaderName, Response, StatusCode, HeaderMap};
-use hyper::{Client, body, Body};
-use tokio::{runtime::Runtime};
-use std::thread;
-use bstr::ByteSlice;
-use hudsucker::tungstenite::handshake::client::Request;
 use hyper_tls;
+use std::thread;
+use regex::Regex;
+use bstr::ByteSlice;
+use tokio::{runtime::Runtime};
+use hyper::{Client, body, Body};
+use serde::{Serialize, Deserialize};
+use std::{str::FromStr, thread::JoinHandle, time::Instant};
+use http::{HeaderValue, header::HeaderName, Response, HeaderMap};
+
+use super::views_stack;
+use super::{sivuserdata::SivUserData, http_table};
+use crate::{utils::CrusterError, cruster_proxy::request_response::HyperResponseWrapper};
 
 type RepeaterRequestHandler = JoinHandle<Result<hyper::Response<hyper::body::Body>, hyper::Error>>;
 
+#[derive(Serialize, Deserialize)]
 pub(super) struct RepeaterParameters {
     redirects: bool,
     https: bool,
@@ -22,6 +45,7 @@ pub(super) struct RepeaterParameters {
     max_redirects: usize,
 }
 
+// #[derive(Serialize, Deserialize)]
 pub(super) struct RepeaterState {
     name: String,
     request: String,
@@ -30,6 +54,57 @@ pub(super) struct RepeaterState {
     redirects_reached: usize,
     parameters: RepeaterParameters,
 }
+
+#[derive(Serialize, Deserialize)]
+struct RepeaterStateSerializable {
+    name: String,
+    request: String,
+    response: Option<String>,
+    parameters: RepeaterParameters
+}
+
+impl From<RepeaterState> for RepeaterStateSerializable {
+    fn from(rs: RepeaterState) -> Self {
+        let rsp_content = rs.response.get_content();
+        let rsp_raw = rsp_content.source();
+        let rsp = if rsp_raw.is_empty() {
+            None
+        }
+        else {
+            Some(rsp_raw.to_string())
+        };
+
+        RepeaterStateSerializable {
+            name: rs.name,
+            request: rs.request,
+            response: rsp,
+            parameters: rs.parameters
+        }
+    }
+}
+
+impl From<RepeaterStateSerializable> for RepeaterState {
+    fn from(rss: RepeaterStateSerializable) -> Self {
+        let response = match rss.response.as_ref() {
+            Some(rsp) => {
+                TextContent::new(rsp)
+            },
+            None => {
+                TextContent::new("")
+            }
+        };
+
+        RepeaterState {
+            name: rss.name,
+            request: rss.request,
+            response,
+            saved_headers: HeaderMap::default(),
+            redirects_reached: 0,
+            parameters: rss.parameters
+        }
+    }
+}
+
 
 pub(super) fn draw_repeater_select(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
