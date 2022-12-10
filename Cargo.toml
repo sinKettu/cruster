@@ -3,7 +3,7 @@ name = "cruster"
 version = "0.4.5"
 edition = "2021"
 authors = ["Andrey Ivanov"]
-description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
+description = "Something between MitMProxy, Burp Suite/ZAP and Nuclei"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,7 +11,9 @@ description = "Something between MitMProxy, Burp Suite/ZAP and nuclei"
 # General
 async-trait = "0.1.7"
 regex = "1.6.0"
-hyper = { version = "0.14.7", features = ["full"] }
+hyper = { version = "0.14.7", features = ["http1", "http2", "client"] }
+hyper-tls = "0.5.0"
+# reqwest = { version = "0.11.13", features = ["blocking"] }
 bstr = "0.2.1"
 rand = { version = "0.8.0"}
 http = "0.2.0"

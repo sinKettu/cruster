@@ -35,11 +35,12 @@ impl Display for HyperRequestWrapper {
                 "{}{}: {}\r\n",
                 headers,
                 k.as_str(),
-                v.to_str().unwrap()
+                v.as_bytes().to_str_lossy()
             );
         }
 
         // Crutch because of binary string which are incompatible with c-strings in cursive
+        // TODO: check with crossterm, may be should use feature-toggle here
         let body = self.body.to_str_lossy().to_string();
         let body = if CString::new(body.as_bytes()).is_ok() {
             body
@@ -220,11 +221,12 @@ impl Display for HyperResponseWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut headers = String::default();
         for (k, v) in self.headers.iter() {
-            let header_line = format!("{}: {}\r\n", k.as_str(), v.to_str().unwrap());
+            let header_line = format!("{}: {}\r\n", k.as_str(), v.as_bytes().to_str_lossy());
             headers.push_str(&header_line);
         }
 
         // Crutch because of binary string which are incompatible with c-strings in cursive
+        // TODO: check with crossterm, may be should use feature-toggle here
         let body = self.body.to_str_lossy().to_string();
         let body = if CString::new(body.as_bytes()).is_ok() {
             body

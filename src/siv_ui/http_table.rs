@@ -161,3 +161,29 @@ fn draw_fullscreen_request_and_response(siv: &mut Cursive) {
             
     });    
 }
+
+pub(super) fn get_selected_id(siv: &mut Cursive) -> Option<usize> {
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    let table_name = ud.active_http_table_name;
+    let selected_index = siv.call_on_name(table_name, |table: &mut HTTPTable| {
+        table.item()
+    }).unwrap();
+
+    return match selected_index {
+        Some(table_index) => {
+            siv.call_on_name(table_name, |table: &mut HTTPTable| {
+                match table.borrow_item(table_index) {
+                    Some(item) => {
+                        Some(item.id)
+                    },
+                    None => {
+                        None
+                    }
+                }
+            }).unwrap()
+        },
+        None => {
+            None
+        }
+    };
+}

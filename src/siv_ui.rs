@@ -92,7 +92,8 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
     siv.add_global_callback('S', |s| { store_proxy_data(s) });
     siv.add_global_callback('F', |s| { filter_view::draw_filter(s) });
-    siv.add_global_callback('R', |s| { repeater::draw_repeater(s) });
+    siv.add_global_callback('r', |s| { repeater::draw_repeater_select(s) });
+    siv.add_global_callback('R', |s| { repeater::create_and_draw_repeater(s) });
 
     // siv.set_autorefresh(true);
     siv.set_theme(cursive::theme::Theme {
@@ -107,7 +108,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             palette[View] = TerminalDefault;
             palette[Primary] = White.light();
             palette[TitlePrimary] = Green.light();
-            palette[Secondary] = TerminalDefault;
+            palette[Secondary] = Green.light();
             palette[Highlight] = White.light();
             palette[HighlightText] = BaseColor::Black.dark();
         }),
@@ -139,11 +140,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             include: None,
             exclude: None,
             table_id_ref: HashMap::default(),
-            repeater_state: vec![
-                repeater::RepeaterState::test_new("First".to_string(), "First".to_string()),
-                repeater::RepeaterState::test_new("Second".to_string(), "Second".to_string()),
-                repeater::RepeaterState::test_new("Second".to_string(), "Second".to_string())
-            ],
+            repeater_state: vec![],
         }
     );
 
