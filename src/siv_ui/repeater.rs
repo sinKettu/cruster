@@ -1,3 +1,5 @@
+mod request_executor;
+
 use cursive::{
     Cursive,
     views::{
@@ -21,19 +23,15 @@ use cursive::{
 };
 
 // use log::debug;
-use hyper_tls;
-use std::thread;
 use regex::Regex;
-use bstr::ByteSlice;
-use tokio::{runtime::Runtime};
-use hyper::{Client, body, Body};
+use hyper::body;
 use serde::{Serialize, Deserialize};
+use http::{HeaderValue, header::HeaderName, HeaderMap};
 use std::{str::FromStr, thread::JoinHandle, time::Instant};
-use http::{HeaderValue, header::HeaderName, Response, HeaderMap};
 
 use super::views_stack;
+use crate::utils::CrusterError;
 use super::{sivuserdata::SivUserData, http_table};
-use crate::{utils::CrusterError, cruster_proxy::request_response::HyperResponseWrapper};
 
 type RepeaterRequestHandler = JoinHandle<Result<hyper::Response<hyper::body::Body>, hyper::Error>>;
 
@@ -191,8 +189,10 @@ pub(super) fn create_and_draw_repeater(siv: &mut Cursive) {
 fn draw_static_repeater(siv: &mut Cursive, idx: usize) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
     let repeater_state = &mut ud.repeater_state[idx];
-    let request_view = TextView::new(repeater_state.request.as_str()).scrollable();
     let response_view = TextView::new_with_content(repeater_state.response.clone()).scrollable();
+    let request_view = TextView::new(repeater_state.request.as_str())
+        .with_name("repeater-request-static")
+        .scrollable();
 
     let request_dialog = Dialog::around(request_view).title(" Request ").full_screen();
     let response_dialog = Dialog::around(response_view).title(" Response ").full_screen();
@@ -411,10 +411,11 @@ fn send_request(siv: &mut Cursive, idx: usize) {
     repeater_state.saved_headers = request_builder.headers_ref().unwrap().clone();
     match request_builder.body(body::Body::from(body)) {
         Ok(request) => {
-            repeater_state.redirects_reached = 0;
+            repeater_state.redirects_reached = 1;
+            repeater_state.response.set_content("");
             // ud.push_error(CrusterError::UndefinedError(uri.clone()));
             ud.status.set_message("Sending...");
-            send_hyper_request(siv, request, idx);
+            request_executor::send_hyper_request(siv, request, Instant::now(), idx);
         },
         Err(e) => {
             let err = CrusterError::HyperRequestBuildingError(
@@ -426,120 +427,3 @@ fn send_request(siv: &mut Cursive, idx: usize) {
     }
 }
 
-fn wait_for_response(siv: &mut Cursive, handler: RepeaterRequestHandler, beginning: Instant, idx: usize) {
-    if handler.is_finished() {
-        let send_result = handler.join().unwrap();
-
-        match send_result {
-            Ok(rsp) => {
-                let ud: &mut SivUserData = siv.user_data().unwrap();
-                let repeater_state = &mut ud.repeater_state[idx];
-                if repeater_state.parameters.redirects {
-                    follow_redirect(siv, rsp, idx);
-                }
-                else {
-                    hyper_response_to_view_content(siv, rsp, idx);
-                    let ud: &mut SivUserData = siv.user_data().unwrap();
-                    ud.status.set_message(format!("Repeater with index {} is finished!", idx));
-                }
-            },
-            Err(e) => {
-                let ud: &mut SivUserData = siv.user_data().unwrap();
-                let err = CrusterError::UndefinedError(
-                    format!("Error while sending request in repeater: {}", e.to_string())
-                );
-
-                ud.status.set_message(format!("Error occured in repeater #{}", idx));
-                ud.push_error(err);
-            }
-        }
-    }
-    else {
-        let duration = Instant::now().duration_since(beginning).as_secs();
-        let ud: &mut SivUserData = siv.user_data().unwrap();
-        ud.status.set_message(format!("Request sending: {} sec", duration));
-        
-        siv.cb_sink().send(
-            Box::new(
-                move |s: &mut Cursive| { wait_for_response(s, handler, beginning, idx); }
-            )
-        ).expect("Could not await for request is sent from repeater!");
-    }
-}
-
-fn follow_redirect(siv: &mut Cursive, rsp: Response<Body>, idx: usize) {
-    let ud: &mut SivUserData = siv.user_data().unwrap();
-    let repeater_state = &mut ud.repeater_state[idx];
-
-    if repeater_state.redirects_reached == repeater_state.parameters.max_redirects {
-        ud.status.set_message("Maximum number of redirects reached");
-        hyper_response_to_view_content(siv, rsp, idx);
-
-        return;
-    }
-
-    repeater_state.redirects_reached += 1;
-
-    if rsp.status().is_redirection() {
-        let next_uri = rsp.headers().get("location");
-        if let Some(next_uri) = next_uri {
-            let mut request_builder = hyper::Request::builder()
-                .uri(next_uri.as_bytes().to_str_lossy().to_string());
-
-            for (k, v) in repeater_state.saved_headers.iter() {
-                request_builder.headers_mut().unwrap().insert(k, v.clone());
-            }
-
-            // TODO: handle error
-            let request = request_builder.body(Body::empty()).unwrap();
-            send_hyper_request(siv, request, idx);
-        }
-    }
-    else {
-        ud.status.set_message(format!("Repeater with index {} is finished!", idx));
-        hyper_response_to_view_content(siv, rsp, idx);
-    }
-}
-
-fn hyper_response_to_view_content(siv: &mut Cursive, rsp: Response<Body>, idx: usize) {
-    let ud: &mut SivUserData = siv.user_data().unwrap();
-    let repeater_state = &mut ud.repeater_state[idx];
-
-    let possible_wrapper = thread::spawn(move || {
-        let runtime = Runtime::new().unwrap();
-        let wrapper = runtime.block_on(HyperResponseWrapper::from_hyper(rsp));
-        return wrapper;
-    }).join().unwrap();
-
-    if let Err(err) = possible_wrapper {
-        ud.push_error(err);
-    }
-    else {
-        let wrapper = possible_wrapper.unwrap().0.to_string();
-        repeater_state.response.set_content(wrapper);
-    }
-}
-
-fn send_hyper_request(siv: &mut Cursive, req: hyper::Request<Body>, idx: usize) {
-    let scheme = req.uri().scheme().unwrap().as_str();
-    let send_result = if scheme.starts_with("https") {
-        let tls = hyper_tls::HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(tls);
-
-        thread::spawn(move || {
-            let runtime = Runtime::new().unwrap();
-            let rsp = runtime.block_on(client.request(req));
-            return rsp;
-        })
-    }
-    else {
-        let client = Client::new();
-        thread::spawn(move || {
-            let runtime = Runtime::new().unwrap();
-            let rsp = runtime.block_on(client.request(req));
-            return rsp;
-        })
-    };
-
-    wait_for_response(siv, send_result, Instant::now(), idx);
-}

@@ -10,24 +10,23 @@ use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config as L4R_Config, Root};
 
 use crate::utils::CrusterError;
-use std::time::Instant;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct Scope {
     pub(crate) include: Option<Vec<String>>,
     pub(crate) exclude: Option<Vec<String>>,
     pub(crate) strict: bool,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct Config {
     pub(crate) tls_key_name: String,
     pub(crate) tls_cer_name: String,
     pub(crate) address: String,
     pub(crate) port: u16,
+    pub(crate) store: Option<String>,
     pub(crate) debug_file: Option<String>,
     pub(crate) dump_mode: bool,
-    pub(crate) store: Option<String>,
     pub(crate) load: Option<String>,
     pub(crate) scope: Option<Scope>,
 }
@@ -271,8 +270,6 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         config.debug_file = Some(debug_file);
     }
 
-    let a = Instant::now();
-
     if let Some(store_path) = matches.value_of("store") {
         config.store = Some(resolve_path(&workplace, store_path)?);
         if ! path::Path::new(config.store.as_ref().unwrap()).is_dir() {
@@ -381,7 +378,6 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         config.dump_mode = true;
     }
 
-    debug!("Config took: {} ms", Instant::now().duration_since(a).as_millis());
     Ok(config)
 }
 

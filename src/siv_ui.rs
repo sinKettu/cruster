@@ -290,68 +290,6 @@ fn draw_request_and_response(siv: &mut Cursive, item: usize) {
     }
 }
 
-// fn poll_storing_thread(siv: &mut Cursive, thrd: JoinHandle<Result<(), CrusterError>>) {
-//     if thrd.is_finished() {
-//         let ud: &mut SivUserData = siv.user_data().unwrap();
-//         match thrd.join() {
-//             Ok(storing_result) => {
-//                 match storing_result {
-//                     Ok(_) => {
-//                         ud.status.clear_message();
-//                     },
-//                     Err(err) => {
-//                         ud.push_error(err);
-//                         ud.status.set_message("Error occured while storing data...");
-//                     }
-//                 }
-//             },
-//             Err(e) => {
-//                 let err = CrusterError::UndefinedError(
-//                     format!("Thread with process of storing proxy data failed: {:?}", e)
-//                 );
-//                 ud.push_error(err);
-//                 ud.status.set_message("Error occured while storing data...");
-//             }
-//         }
-//         ud.data_storing_started = false;
-//     }
-//     else {
-//         siv.cb_sink().send(Box::new(
-//             |s: &mut Cursive| { poll_storing_thread(s, thrd) }
-//         )).expect("FATAL: Cannot set calback on UI after spawning thread to store proxy data!");
-//     }
-// }
-
-// fn store_proxy_data(siv: &mut Cursive) {
-//     let ud: &mut SivUserData = siv.user_data().unwrap();
-//     if ud.config.store.is_none() {
-//         ud.push_error(
-//             CrusterError::StorePathNotFoundError(
-//                 format!("You tried to store data, but did not specify path to store at start.")
-//             )
-//         );
-        
-//         return;
-//     }
-
-//     if ud.data_storing_started {
-//         return;
-//     }
-
-//     ud.data_storing_started = true;
-//     ud.status.set_message("Storing proxy data...");
-//     let storage_clone = ud.http_storage.clone();
-//     let path_to_save = ud.config.store.as_ref().unwrap().clone();
-    
-//     let thrd = thread::spawn(move || {
-//         storage_clone.store(&path_to_save, None)
-//     });
-
-//     siv.cb_sink().send(Box::new(
-//         |s: &mut Cursive| { poll_storing_thread(s, thrd) }
-//     )).expect("FATAL: Cannot set calback on UI after spawning thread to store proxy data!");
-// }
-
 /// For now it stores http history + repeater state
 fn store_cruster_state(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
@@ -394,17 +332,14 @@ fn store_cruster_state(siv: &mut Cursive) {
 }
 
 fn load_cruster_state(siv: &mut Cursive) {
-    debug!("{}", "Entering load routine");
     let ud: &mut SivUserData = siv.user_data().unwrap();
-
+    let load_dir = ud.config.load.as_ref().unwrap();
+    debug!("Loading state from \"{}\"", load_dir.to_string());
     if let None = &ud.config.load {
         debug!("Load dir not found");
         return;
     }
 
-    let a = Instant::now();
-    debug!("Load dir found");
-    debug!("Entering http scope");
     let load_path = format!("{}/http.jsonl", ud.config.load.as_ref().unwrap());
     let result = if ud.is_scope_strict() {
         ud.http_storage.load_with_strict_scope(
@@ -421,11 +356,7 @@ fn load_cruster_state(siv: &mut Cursive) {
         ud.push_error(e);
         ud.status.set_message("Error while loading HTTP data from file");
     }
-    let b = Instant::now().duration_since(a);
-    debug!("Leaving http scope, took {} ms", b.as_millis());
-
-    debug!("Entering repeater scope");
-    let a = Instant::now();
+    
     let load_path = format!("{}/repeater.jsonl", ud.config.load.as_ref().unwrap());
     let result = ud.load_repeater_state(&load_path);
 
@@ -434,10 +365,6 @@ fn load_cruster_state(siv: &mut Cursive) {
         ud.status.set_message("Error while loading repeater state from file");
     }
 
-    let b = Instant::now().duration_since(a);
-    debug!("Leaving repeater scope, took: {} ms", b.as_millis());
-
-    debug!("Entering filling table routine");
     fill_table_using_scope(siv);
 }
 
