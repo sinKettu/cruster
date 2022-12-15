@@ -23,6 +23,7 @@ use cursive::{
 };
 
 // use log::debug;
+use base64;
 use regex::Regex;
 use hyper::body;
 use serde::{Serialize, Deserialize};
@@ -32,6 +33,7 @@ use std::{str::FromStr, thread::JoinHandle, time::Instant};
 use super::views_stack;
 use crate::utils::CrusterError;
 use super::{sivuserdata::SivUserData, http_table};
+use bstr::ByteSlice;
 
 type RepeaterRequestHandler = JoinHandle<Result<hyper::Response<hyper::body::Body>, hyper::Error>>;
 
@@ -69,12 +71,12 @@ impl From<&RepeaterState> for RepeaterStateSerializable {
             None
         }
         else {
-            Some(rsp_raw.to_string())
+            Some(base64::encode(rsp_raw.as_bytes()))
         };
 
         RepeaterStateSerializable {
             name: rs.name.clone(),
-            request: rs.request.clone(),
+            request: base64::encode(rs.request.as_bytes()),
             response: rsp,
             parameters: rs.parameters.clone()
         }
@@ -85,16 +87,21 @@ impl From<RepeaterStateSerializable> for RepeaterState {
     fn from(rss: RepeaterStateSerializable) -> Self {
         let response = match rss.response.as_ref() {
             Some(rsp) => {
-                TextContent::new(rsp)
+                let rsp_raw = base64::decode(rsp).unwrap();
+                TextContent::new(rsp_raw.to_str().unwrap())
             },
             None => {
                 TextContent::new("")
             }
         };
+        
+        // TODO: handle errors. Possibly it should be rewritten as TryInto
+        let req_raw = base64::decode(rss.request).unwrap();
+        let req_str = String::from_utf8(req_raw).unwrap();
 
         RepeaterState {
             name: rss.name,
-            request: rss.request,
+            request: req_str,
             response,
             saved_headers: HeaderMap::default(),
             redirects_reached: 0,

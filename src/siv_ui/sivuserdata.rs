@@ -91,14 +91,6 @@ impl SivUserData {
             let jsn = json::to_string(&serializable)?;
             let _bytes_written = fout.write(jsn.as_bytes())?;
             let _one_byte_written = fout.write("\n".as_bytes())?;
-
-            // if let Some(rx) = &sentinel {
-            //     if let Ok(max_duration) = rx.try_recv() {
-            //         return Err(CrusterError::JobDurateTooLongError(
-            //             format!("Process of storing proxy data was interrupted, it was running longer that {} seconds.", max_duration)
-            //         ));
-            //     }
-            // }
         }
 
         Ok(())
@@ -110,6 +102,9 @@ impl SivUserData {
                 let reader = BufReader::new(fin);
                 for read_result in reader.lines() {
                     if let Ok(line) = read_result {
+                        if line.is_empty() {
+                            continue;
+                        }
                         let rs: RepeaterStateSerializable = json::from_str(&line)?;
                         let rss = RepeaterState::from(rs);
                         self.repeater_state.push(rss);

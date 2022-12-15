@@ -333,11 +333,14 @@ fn store_cruster_state(siv: &mut Cursive) {
 
 fn load_cruster_state(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
-    let load_dir = ud.config.load.as_ref().unwrap();
-    debug!("Loading state from \"{}\"", load_dir.to_string());
+
     if let None = &ud.config.load {
         debug!("Load dir not found");
         return;
+    }
+    else {
+        let load_dir = ud.config.load.as_ref().unwrap();
+        debug!("Loading state from \"{}\"", load_dir.to_string());
     }
 
     let load_path = format!("{}/http.jsonl", ud.config.load.as_ref().unwrap());
