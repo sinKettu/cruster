@@ -2,22 +2,23 @@
 /// This module turned out to be not very pleasant and convenient. I would like to rewrite it in the future.
 /// 
 
+use http::Response;
 use bstr::ByteSlice;
 use hyper::{Body, Client};
 use tokio::runtime::Runtime;
 use std::{time::Instant, thread};
-use http::Response;
 use cursive::{Cursive, views::TextView};
 
 use super::RepeaterRequestHandler;
 use crate::{
-    siv_ui::{sivuserdata::SivUserData, req_res_spanned::response_wrapper_to_spanned},
     utils::CrusterError,
-    cruster_proxy::request_response::{
-        HyperResponseWrapper,
-    }
+    cruster_proxy::request_response::HyperResponseWrapper,
+    siv_ui::{sivuserdata::SivUserData, req_res_spanned::response_wrapper_to_spanned},
 };
 
+/// This routine sending request using `Hyper` lib. Instead of blocking on sending, it creates thread
+/// and push this to cursive's callback, that checks if thread is finished. Such trick helps UI to
+/// process other events while waiting for sending is completed.
 pub(super) fn send_hyper_request(siv: &mut Cursive, req: hyper::Request<Body>, beginning: Instant, idx: usize) {
     let scheme = req.uri().scheme().unwrap().as_str();
     let send_result = if scheme.starts_with("https") {
@@ -46,7 +47,8 @@ pub(super) fn send_hyper_request(siv: &mut Cursive, req: hyper::Request<Body>, b
     ).expect("Could not await for request is sent from repeater!");
 }
 
-
+/// Routine takes handler for a thread sending request and checks if it is finished. When sending is finished
+/// routine checks if response is redirect, in this case it will call `follow_redirect` routine.
 fn wait_for_response(siv: &mut Cursive, handler: RepeaterRequestHandler, beginning: Instant, idx: usize) {
     if handler.is_finished() {
         let send_result = handler.join().unwrap();
@@ -100,6 +102,7 @@ fn wait_for_response(siv: &mut Cursive, handler: RepeaterRequestHandler, beginni
     }
 }
 
+/// Routine builds new request to follow redirect and checks redirects depth to avoid infinit redirects
 fn follow_redirect(siv: &mut Cursive, rsp: Response<Body>, beginning: Instant, idx: usize) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
     let repeater_state = &mut ud.repeater_state[idx];
@@ -161,6 +164,7 @@ fn follow_redirect(siv: &mut Cursive, rsp: Response<Body>, beginning: Instant, i
     }
 }
 
+/// Routine converts `Response` structure from `Hyper` lib to printable format for UI
 fn hyper_response_to_view_content(siv: &mut Cursive, rsp: Response<Body>, idx: usize) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
     let repeater_state = &mut ud.repeater_state[idx];
