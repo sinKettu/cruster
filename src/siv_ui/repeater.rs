@@ -1,4 +1,5 @@
 mod request_executor;
+mod repeater_state_implementation;
 
 use cursive::{
     Cursive,
@@ -23,17 +24,13 @@ use cursive::{
 };
 
 // use log::debug;
-use base64;
-use regex::Regex;
-use hyper::body;
 use serde::{Serialize, Deserialize};
-use http::{HeaderValue, header::HeaderName, HeaderMap};
-use std::{str::FromStr, thread::JoinHandle, time::Instant};
+use http::HeaderMap;
+use std::{thread::JoinHandle, time::Instant};
 
-use super::views_stack;
+use super::{views_stack, req_res_spanned::response_wrapper_to_spanned};
 use crate::utils::CrusterError;
 use super::{sivuserdata::SivUserData, http_table};
-use bstr::ByteSlice;
 
 type RepeaterRequestHandler = JoinHandle<Result<hyper::Response<hyper::body::Body>, hyper::Error>>;
 
@@ -47,12 +44,12 @@ pub(super) struct RepeaterParameters {
 
 #[derive(Clone)]
 pub(super) struct RepeaterState {
-    name: String,
-    request: String,
-    response: TextContent,
-    saved_headers: HeaderMap,
-    redirects_reached: usize,
-    parameters: RepeaterParameters,
+    pub(super) name: String,
+    pub(super) request: String,
+    pub(super) response: TextContent,
+    pub(super) saved_headers: HeaderMap,
+    pub(super) redirects_reached: usize,
+    pub(super) parameters: RepeaterParameters,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -61,53 +58,6 @@ pub(super) struct RepeaterStateSerializable {
     request: String,
     response: Option<String>,
     parameters: RepeaterParameters
-}
-
-impl From<&RepeaterState> for RepeaterStateSerializable {
-    fn from(rs: &RepeaterState) -> Self {
-        let rsp_content = rs.response.get_content();
-        let rsp_raw = rsp_content.source();
-        let rsp = if rsp_raw.is_empty() {
-            None
-        }
-        else {
-            Some(base64::encode(rsp_raw.as_bytes()))
-        };
-
-        RepeaterStateSerializable {
-            name: rs.name.clone(),
-            request: base64::encode(rs.request.as_bytes()),
-            response: rsp,
-            parameters: rs.parameters.clone()
-        }
-    }
-}
-
-impl From<RepeaterStateSerializable> for RepeaterState {
-    fn from(rss: RepeaterStateSerializable) -> Self {
-        let response = match rss.response.as_ref() {
-            Some(rsp) => {
-                let rsp_raw = base64::decode(rsp).unwrap();
-                TextContent::new(rsp_raw.to_str().unwrap())
-            },
-            None => {
-                TextContent::new("")
-            }
-        };
-        
-        // TODO: handle errors. Possibly it should be rewritten as TryInto
-        let req_raw = base64::decode(rss.request).unwrap();
-        let req_str = String::from_utf8(req_raw).unwrap();
-
-        RepeaterState {
-            name: rss.name,
-            request: req_str,
-            response,
-            saved_headers: HeaderMap::default(),
-            redirects_reached: 0,
-            parameters: rss.parameters
-        }
-    }
 }
 
 pub(super) fn draw_repeater_select(siv: &mut Cursive) {
@@ -167,7 +117,7 @@ pub(super) fn create_and_draw_repeater(siv: &mut Cursive) {
         };
 
         let res_str = if let Some(res) = pair.response.as_ref() {
-            TextContent::new(res.to_string())
+            TextContent::new(response_wrapper_to_spanned(res))
         }
         else {
             TextContent::new("")
@@ -322,113 +272,20 @@ fn save_parameters(siv: &mut Cursive, idx: usize) {
 }
 
 fn send_request(siv: &mut Cursive, idx: usize) {
-    // TODO: all regexes from this method can be reviewed
-    // May be will be rewritten with special parser module
     let ud: &mut SivUserData = siv.user_data().unwrap();
     let repeater_state = &mut ud.repeater_state[idx];
-    let req_fl = repeater_state.request.splitn(2, "\r\n").collect::<Vec<&str>>()[0];
-    let fl_regex = Regex::new(r"^(?P<method>[\w]+) (?P<path>.*) (?P<version>HTTP/(\d+\.)?\d+)$").unwrap();
-
-    let (method, uri, version) =  match fl_regex.captures(req_fl) {
-        Some(captures) => {
-            let method = &captures["method"];
-            let path = &captures["path"];
-            let version = &captures["version"];
-
-            let scheme = if repeater_state.parameters.https { "https" } else { "http" };
-            let hostname = repeater_state.parameters.address.as_str();
-            let uri = format!("{}://{}{}", scheme, hostname, path);
-
-            (method.to_string(), uri, version.to_string())
-        },
-        None => {
-            let err_str = format!("Could parse first line of request in repeater: {}", req_fl.clone());
-            ud.push_error(CrusterError::RegexError(err_str));
-
-            return;
-        }
-    };
-
-    let version = if version == "HTTP/0.9" {
-        http::version::Version::HTTP_09
-    }
-    else if version == "HTTP/1.0" {
-        http::version::Version::HTTP_10
-    }
-    else if version == "HTTP/1.1" {
-        http::version::Version::HTTP_11
-    }
-    else if version == "HTTP/2" || version == "HTTP/2.0" {
-        http::version::Version::HTTP_2
-    }
-    else if version == "HTTP/3" || version == "HTTP/3.0" {
-        http::version::Version::HTTP_3
-    }
-    else {
-        let err_str = format!("Unknown HTTP version of request in repeater: {}", &version);
-        ud.push_error(CrusterError::UndefinedError(err_str));
-
-        return;
-    };
-
-    let mut request_builder = hyper::Request::builder()
-        .method(method.as_str())
-        .uri(uri)
-        .version(version);
-
-    let header_re = Regex::new(r"^(?P<name>[\d\w_\-]+): (?P<val>.*)$").unwrap();
-    let mut body = String::with_capacity(repeater_state.request.len());
-    let mut the_following_is_body = false;
-    for line in repeater_state.request.split("\r\n").skip(1) {
-        if line.is_empty() {
-            the_following_is_body = true;
-            continue;
-        }
-
-        if the_following_is_body {
-            body.push_str(line);
-            body.push_str("\r\n");
-            continue;
-        }
-
-        match header_re.captures(line) {
-            Some(cap) => {
-                let str_name = &cap["name"];
-                //  TODO handle unwrappings
-                let name = HeaderName::from_str(str_name).unwrap();
-                // TODO parse something like \x0e in headers
-                let str_val = &cap["val"];
-                //  TODO handle unwrappings
-                let val = HeaderValue::from_str(str_val).unwrap();
-                let headers = request_builder.headers_mut().unwrap();
-
-                headers.insert(name, val);
-            },
-            None => {
-                let str_err = CrusterError::RegexError(
-                    format!("Could not parse headers in repeater from {}", line)
-                );
-                ud.push_error(str_err);
-
-                return;
-            }
-        }
-    }
-
-    repeater_state.saved_headers = request_builder.headers_ref().unwrap().clone();
-    match request_builder.body(body::Body::from(body)) {
+    
+    match repeater_state.make_http_request() {
         Ok(request) => {
             repeater_state.redirects_reached = 1;
             repeater_state.response.set_content("");
-            // ud.push_error(CrusterError::UndefinedError(uri.clone()));
+            repeater_state.saved_headers = request.headers().clone();
+
             ud.status.set_message("Sending...");
             request_executor::send_hyper_request(siv, request, Instant::now(), idx);
         },
-        Err(e) => {
-            let err = CrusterError::HyperRequestBuildingError(
-                format!("Could not parse request: {}", e.to_string())
-            );
-
+        Err(err) => {
+            ud.status.set_message("Error when trying to repeat request");
             ud.push_error(err);
         }
     }

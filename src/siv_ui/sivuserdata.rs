@@ -106,7 +106,7 @@ impl SivUserData {
                             continue;
                         }
                         let rs: RepeaterStateSerializable = json::from_str(&line)?;
-                        let rss = RepeaterState::from(rs);
+                        let rss = RepeaterState::try_from(rs)?;
                         self.repeater_state.push(rss);
                     }
                 }

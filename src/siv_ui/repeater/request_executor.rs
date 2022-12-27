@@ -6,16 +6,15 @@ use bstr::ByteSlice;
 use hyper::{Body, Client};
 use tokio::runtime::Runtime;
 use std::{time::Instant, thread};
-use http::{Response, HeaderValue};
+use http::Response;
 use cursive::{Cursive, views::TextView};
 
 use super::RepeaterRequestHandler;
 use crate::{
-    siv_ui::sivuserdata::SivUserData,
+    siv_ui::{sivuserdata::SivUserData, req_res_spanned::response_wrapper_to_spanned},
     utils::CrusterError,
     cruster_proxy::request_response::{
         HyperResponseWrapper,
-        HyperRequestWrapper
     }
 };
 
@@ -122,34 +121,8 @@ fn follow_redirect(siv: &mut Cursive, rsp: Response<Body>, beginning: Instant, i
         let next_uri = rsp.headers().get("location");
         if let Some(next_uri) = next_uri {
             let next_uri = next_uri.as_bytes().to_str_lossy().to_string();
-            let splited: Vec<&str> = next_uri.split("/").take(3).collect();
-            let host = splited[2].to_string();
-            let mut request_builder = hyper::Request::builder()
-                .uri(next_uri);
-
-            // TODO: rewrite here
-            for (k, v) in repeater_state.saved_headers.iter() {
-                request_builder.headers_mut().unwrap().insert(k, v.clone());
-            }
-
-            request_builder
-                .headers_mut()
-                .unwrap()
-                .insert("host", HeaderValue::from_str(&host).unwrap());
-
-            // TODO: handle error
-            let request = request_builder.body(Body::empty()).unwrap();
-
-            let possible_wrapper = thread::spawn(move || {
-                let runtime = Runtime::new().unwrap();
-                let wrapper = runtime.block_on(HyperRequestWrapper::from_hyper(request));
-                return wrapper;
-            }).join().unwrap();
-
-            match possible_wrapper {
-                Ok((wrapper, request)) => {
-                    repeater_state.request = wrapper.to_string();
-
+            match repeater_state.make_request_to_redirect(&next_uri) {
+                Ok(request) => {
                     siv.cb_sink().send(
                         Box::new(
                             move |s: &mut Cursive| {
@@ -169,13 +142,13 @@ fn follow_redirect(siv: &mut Cursive, rsp: Response<Body>, beginning: Instant, i
                         Box::new(
                             move |s: &mut Cursive| { send_hyper_request(s, request, beginning, idx); }
                         )
-                    ).expect("Could not await for request is sent from repeater!");              
+                    ).expect("Could not await for request is sent from repeater!");
                 },
-                Err(e) => {
-                    ud.status.set_message(format!("Error while sending request in repeater: {}", e.to_string()));
-                    ud.push_error(e);
+                Err(err) => {
+                    ud.status.set_message(format!("Error while trying to follow redirect in repeater: {}", err.to_string()));
+                    ud.push_error(err);
                 }
-            }
+            }   
         }
     }
     else {
@@ -202,7 +175,7 @@ fn hyper_response_to_view_content(siv: &mut Cursive, rsp: Response<Body>, idx: u
         ud.push_error(err);
     }
     else {
-        let wrapper = possible_wrapper.unwrap().0.to_string();
-        repeater_state.response.set_content(wrapper);
+        let wrapper = possible_wrapper.unwrap().0;
+        repeater_state.response.set_content(response_wrapper_to_spanned(&wrapper));
     }
 }
