@@ -27,6 +27,7 @@ use cursive::{
 };
 
 use super::{sivuserdata::SivUserData, ProxyDataForTable, http_table::HTTPTable};
+use crate::http_storage::RequestResponsePair;
 
 pub(super) fn draw_filter(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
@@ -96,15 +97,12 @@ fn apply(siv: &mut Cursive, content: &str) {
             let mut items: Vec<ProxyDataForTable> = Vec::with_capacity(ud.http_storage.len());
             for pair in ud.http_storage.into_iter() {
                 let req = pair.request.as_ref().unwrap();
-
                 let in_scope = ud.is_uri_in_socpe(&req.uri);
                 if ! in_scope {
                     continue;
                 }
 
-                let res = pair.response.as_ref();
-
-                if req.serach_with_re(&re) || (res.is_some() && res.unwrap().serach_with_re(&re)) {
+                if is_pair_match_filter(pair, &re) {
                     let mut table_record = ProxyDataForTable {
                         id: pair.index,
                         method: req.method.clone(),
@@ -123,7 +121,6 @@ fn apply(siv: &mut Cursive, content: &str) {
                     items.push(table_record);
                     ud.table_id_ref.insert(id, items.len() - 1);
                 }
-                
             }
 
             siv.call_on_name(table_name, move |table: &mut HTTPTable| { table.set_items(items); });
@@ -147,4 +144,11 @@ fn hide_filter(siv: &mut Cursive, content: Option<&str>) {
     }
 
     siv.call_on_name("views-stack", |sv: &mut StackView| { sv.pop_layer() });
+}
+
+pub(super) fn is_pair_match_filter(pair: &RequestResponsePair, re: &Regex) -> bool {
+    let req = pair.request.as_ref().unwrap();
+    let res = pair.response.as_ref();
+
+    return req.serach_with_re(&re) || (res.is_some() && res.unwrap().serach_with_re(&re));
 }

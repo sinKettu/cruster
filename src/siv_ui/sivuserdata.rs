@@ -118,6 +118,24 @@ impl SivUserData {
 
         Ok(())
     }
+
+    pub(super) fn is_http_pair_match_filter(&mut self, id: usize) -> bool {
+        let pair = self.http_storage.get_by_id(id);
+        if pair.is_none() {
+            return false;
+        }
+
+        if self.filter_content.is_empty() {
+            return true;
+        }
+
+        let re = Regex::new(&self.filter_content);
+        if re.is_err() {
+            return false;
+        }
+
+        return super::filter_view::is_pair_match_filter(pair.unwrap(), re.as_ref().unwrap());
+    }
 }
 
 pub(super) fn make_scope(siv: &mut Cursive) {

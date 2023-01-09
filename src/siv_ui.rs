@@ -205,7 +205,7 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
                     if !rx.is_scope_strict() || fit_scope {
                         let table_record = rx.http_storage.put_request(req, hash);
 
-                        if fit_scope {
+                        if fit_scope && rx.is_http_pair_match_filter(table_record.id) {
                             let id = table_record.id;
                             table.insert_item(table_record);
                             let last_index = table.borrow_items().len() - 1;
@@ -255,6 +255,7 @@ fn get_pair_id_from_table_record(siv: &mut Cursive, item: usize) -> Option<usize
             }
     }).unwrap();
 
+    // TODO: make it sane, move to draw_request_response()
     if let None = id_option {
         let err = CrusterError::ProxyTableIndexOutOfRange(format!("Could not get record with index {}.", item));
         let ud: &mut SivUserData = siv.user_data().unwrap();
