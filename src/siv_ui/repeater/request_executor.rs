@@ -16,6 +16,49 @@ use crate::{
     siv_ui::{sivuserdata::SivUserData, req_res_spanned::response_wrapper_to_spanned},
 };
 
+async fn execute_request(req: hyper::Request<Body>, state_index: usize, sink: cursive::CbSink) {
+    let scheme = req.uri().scheme().unwrap().as_str();
+    let sending_result = if scheme.starts_with("https") {
+        let tls = hyper_tls::HttpsConnector::new();
+        let client = Client::builder().build::<_, hyper::Body>(tls);
+        client.request(req).await
+    }
+    else {
+        let client = Client::new();
+        client.request(req).await
+    };
+
+    match sending_result {
+        Ok(rsp) => {
+            // On this moment we should check for redirect
+            let conversion_result = HyperResponseWrapper::from_hyper(rsp).await;
+            match conversion_result {
+                Ok((wrapper, _)) => {
+                    // TODO: send with sink
+                    let spanned = response_wrapper_to_spanned(&wrapper);
+                },
+                Err(e) => {
+                    // TODO: send with sink
+                    let _err = CrusterError::from(e);
+                }
+            }
+        },
+        Err(e) => {
+            // TODO: send with sink
+            let _err = CrusterError::from(e);
+        }
+    }
+}
+
+pub(super) fn send_request_detached(req: hyper::Request<Body>, state_index: usize, sink: cursive::CbSink) {
+    let _thrd = thread::spawn(
+        move || {
+            let runtime = Runtime::new().unwrap();
+            runtime.block_on(execute_request(req, state_index, sink))
+        }
+    );
+}
+
 /// This routine sending request using `Hyper` lib. Instead of blocking on sending, it creates thread
 /// and push this to cursive's callback, that checks if thread is finished. Such trick helps UI to
 /// process other events while waiting for sending is completed.
