@@ -306,8 +306,8 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         config.load = Some(lpath);
     }
 
-    config.tls_cer_name = find_file_or_dir(&workplace, &config.tls_cer_name)?;
-    config.tls_key_name = find_file_or_dir(&workplace, &config.tls_key_name)?;
+    config.tls_cer_name = resolve_path(&workplace, &config.tls_cer_name)?;
+    config.tls_key_name = resolve_path(&workplace, &config.tls_key_name)?;
 
     if matches.is_present("strict-scope") {
         if let Some(scope) = config.scope.as_mut() {
