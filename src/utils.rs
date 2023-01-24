@@ -35,6 +35,11 @@ use crate::CrusterWrapper;
 use regex::Error as regex_error;
 
 use log::debug;
+use std::string::FromUtf8Error;
+use http::{
+    header::{InvalidHeaderName, InvalidHeaderValue},
+    Error as HTTPError
+};
 
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
@@ -61,6 +66,12 @@ pub(crate) enum CrusterError {
     JobDurateTooLongError(String),
     Base64DecodeError(String),
     StorePathNotFoundError(String),
+    RegexError(String),
+    HyperRequestBuildingError(String),
+    ParseUtf8Error(String),
+    HeaderNameParseError(String),
+    HeaderValueParseError(String),
+    HTTPBuildingError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -155,6 +166,38 @@ impl From<regex_error> for CrusterError {
     }
 }
 
+impl From<FromUtf8Error> for CrusterError {
+    fn from(e: FromUtf8Error) -> Self {
+        Self::ParseUtf8Error(
+            format!("Could not decode byte array as UTF-8: {}", e.to_string())
+        )
+    }
+}
+
+impl From<InvalidHeaderName> for CrusterError {
+    fn from(e: InvalidHeaderName) -> Self {
+        Self::HeaderNameParseError(
+            format!("Error while parsing header name: {}", e.to_string())
+        )
+    }
+}
+
+impl From<InvalidHeaderValue> for CrusterError {
+    fn from(e: InvalidHeaderValue) -> Self {
+        Self::HeaderValueParseError(
+            format!("Error while parsing header value: {}", e.to_string())
+        )
+    }
+}
+
+impl From<HTTPError> for CrusterError {
+    fn from(e: HTTPError) -> Self {
+        Self::HTTPBuildingError(
+            format!("Error while building HTTP Request: {}", e.to_string())
+        )
+    }
+}
+
 impl fmt::Display for CrusterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -191,9 +234,30 @@ impl fmt::Display for CrusterError {
             CrusterError::Base64DecodeError(s) => {
                 write!(f, "{}", s)
             },
+            CrusterError::RegexError(s) => {
+                write!(f, "{}", s)
+            },
             CrusterError::StorePathNotFoundError(s) => {
                 write!(f, "{}", s)
             }
+            CrusterError::IOError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::ParseUtf8Error(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::HeaderNameParseError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::HeaderValueParseError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::HTTPBuildingError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::HyperBodyParseError(s) => {
+                write!(f, "{}", s)
+            },
             _ => { write!(f, "{:?}", self) }
         }
     }
@@ -288,3 +352,4 @@ pub(crate) fn generate_key_and_cer(key_path: &str, cer_path: &str) {
     fs::write(cer_path, new_cert.serialize_pem().unwrap()).unwrap();
     fs::write(key_path, new_cert.serialize_private_key_pem()).unwrap();
 }
+

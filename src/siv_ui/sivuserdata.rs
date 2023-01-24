@@ -1,8 +1,15 @@
+use std::fs;
 use regex::Regex;
+use serde_json as json;
+use std::collections::HashMap;
+use std::io::{Write, BufReader, BufRead};
 use cursive::{views::TextContent, Cursive};
 use tokio::sync::mpsc::Receiver as TokioReceiver;
 
+use super::repeater;
 use super::status_bar;
+use super::repeater::RepeaterState;
+use super::repeater::RepeaterStateSerializable;
 use crate::{
     config::Config,
     cruster_proxy::request_response::CrusterWrapper,
@@ -10,7 +17,6 @@ use crate::{
     http_storage::HTTPStorage,
     scope
 };
-use std::collections::HashMap;
 
 pub(super) struct SivUserData {
     pub(super) config: Config,
@@ -19,6 +25,7 @@ pub(super) struct SivUserData {
     pub(super) http_storage: HTTPStorage,
     pub(super) request_view_content: TextContent,
     pub(super) response_view_content: TextContent,
+    pub(super) filter_content: String,
     pub(super) active_http_table_name: &'static str,
     pub(super) errors: Vec<CrusterError>,
     pub(super) status: status_bar::StatusBarContent,
@@ -26,6 +33,11 @@ pub(super) struct SivUserData {
     pub(super) include: Option<Vec<Regex>>,
     pub(super) exclude: Option<Vec<Regex>>,
     pub(super) table_id_ref: HashMap<usize, usize>,
+    pub(super) repeater_state: Vec<repeater::RepeaterState>,
+}
+
+pub(super) trait GetCrusterUserData {
+    fn get_cruster_userdata(&mut self) -> &mut SivUserData;
 }
 
 impl SivUserData {
@@ -74,6 +86,59 @@ impl SivUserData {
         else {
             false
         }
+    }
+
+    pub(super) fn store_repeater_state(&self, pth: &str) -> Result<(), CrusterError> {
+        let mut fout = fs::OpenOptions::new().write(true).create(true).open(pth)?;
+        for rs in self.repeater_state.iter() {
+            let serializable = RepeaterStateSerializable::from(rs);
+            let jsn = json::to_string(&serializable)?;
+            let _bytes_written = fout.write(jsn.as_bytes())?;
+            let _one_byte_written = fout.write("\n".as_bytes())?;
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn load_repeater_state(&mut self, pth: &str) -> Result<(), CrusterError> {
+        match std::fs::File::open(pth) {
+            Ok(fin) => {
+                let reader = BufReader::new(fin);
+                for read_result in reader.lines() {
+                    if let Ok(line) = read_result {
+                        if line.is_empty() {
+                            continue;
+                        }
+                        let rs: RepeaterStateSerializable = json::from_str(&line)?;
+                        let rss = RepeaterState::try_from(rs)?;
+                        self.repeater_state.push(rss);
+                    }
+                }
+            },
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub(super) fn is_http_pair_match_filter(&mut self, id: usize) -> bool {
+        let pair = self.http_storage.get_by_id(id);
+        if pair.is_none() {
+            return false;
+        }
+
+        if self.filter_content.is_empty() {
+            return true;
+        }
+
+        let re = Regex::new(&self.filter_content);
+        if re.is_err() {
+            return false;
+        }
+
+        return super::filter_view::is_pair_match_filter(pair.unwrap(), re.as_ref().unwrap());
     }
 }
 

@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.4.4`
+`v0.4.5`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -14,13 +14,17 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 - Interactive text interface:
   - Table visualization of HTTP messgages went through proxy;
   - Requests/Responses highlighted visualization;
+  - Filtering content;
+  - Manual requests repeater;
 - Dump mode (`-d`);
 - Process requests/responses basing on scope (`-I`, `-E`);
 - ... *Coming soon*...
 
+You can find more detailed description in [Usage.md](https://github.com/sinKettu/cruster/blob/master/docs/Usage.md)
+
 ## Usage
 
-Just run `cruster` and it will create working directory in `~/.cruster`, putting there _base config_, _TLS certificate_ with _key_. Then it will be listening to requests on address `127.0.0.1:8080`.
+Just run `cruster` and it will create working directory in `~/.cruster`, putting there *base config*, *TLS certificate* with *key*. Then it will be listening to requests on address `127.0.0.1:8080`.
 
 To use this proxy with browser you must import CA certificate of proxy (stored by default in `~/.cruster/cruster.cer`) into browser manually.
 
@@ -28,7 +32,7 @@ To use this proxy with browser you must import CA certificate of proxy (stored b
 
 ``` shell
 $ cruster -h
-Cruster 0.4.4
+Cruster 0.4.5
 Andrey Ivanov<avangard.jazz@gmail.com>
 
 USAGE:
@@ -59,13 +63,24 @@ OPTIONS:
 ### Navigation on text user interface
 
 ``` text
-? - Show help view
-q - Quit
-e - Show error logs view
-t - Show fullscreen HTTP proxy table
-<Enter>
-│     <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
+? - Show this help view
+<Enter> -
+    <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
+    <On Filter View> - Apply written filter
+    <On Repeater View> - Apply edited request / Send
 <Esc> - Close secondary view (i.e. help, errors, etc.)
+<Shift> + r - Repeat request selected on table
+<Shift> + s - Store proxy data on drive, file path is configured on start
+<Shift> + f - Set filter for table
+e - Show error logs view
+i -
+    <On Repeater View> - Edit request
+p -
+    <On Repeater View> - Show parameters
+r - Show active repeaters
+t - Show fullscreen HTTP proxy table
+q - Quit
+
 ```
 
 ### Dump mode
@@ -106,19 +121,25 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
 
-> There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below.
+- Known problem #1:
+
+    > There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below (`Using OpenSSL for Local CA`). This issue is fixed in newer version, Cruster will be uptaed soon.
+
+- Known problem #2:
+
+    > There are a known problem with Cursive (TUI lib) working with `crossterm` backend (rust-written), TUI can blink. There is a possible way to fix it, I'll try to implement it in newer version of Cruster. If you faced with this problem, you can use `ncurses` backend.
 
 ### Using OpenSSL for Local CA
 
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -126,7 +147,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked 
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## RoadMap
@@ -135,9 +156,9 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.4" --locked 
 - [X] Navigate over Requests/Responses text.
 - [X] Requests/Responses syntax highlight.
 - [ ] Intercepting requests/responses.
-- [ ] Manual repeater for requests.
-- [ ] Projects (like in Burp or ZAP).
-- [ ] Store projects and history on drive.
+- [X] Manual repeater for requests.
+- [X] Projects (like in Burp or ZAP), *this thing will be developing with further improvements of Cruster*.
+- [X] Store projects and history on drive.
 - [ ] **Scripting engine based on YAML syntax to write testcases and checks**.
 - [ ] **Scripting engine based on Python to write testcases and checks**.
 - [X] WS(S) support.

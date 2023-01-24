@@ -14,12 +14,12 @@ use cursive::{
     },
     event::{
         Key,
-    },
+    }, utils::span::SpannedString,
 };
 use cursive_table_view::TableView;
 use std::cmp::Ordering;
 
-use super::{BasicColumn, ProxyDataForTable, SivUserData, draw_request_and_response};
+use super::{BasicColumn, ProxyDataForTable, SivUserData, draw_request_and_response, req_res_spanned, views_stack};
 use crate::utils::CrusterError;
 
 // use log::debug;
@@ -66,8 +66,6 @@ pub(super) fn new_table() -> HTTPTable {
 
 pub(super) fn make_table_fullscreen(siv: &mut Cursive) {
     if siv.find_name::<HTTPTable>("fs-proxy-table").is_some() { return; }
-
-
 
     let table_items = siv.call_on_name("proxy-table", |table: &mut HTTPTable| {
         // TODO: ensure that popping one is the needed
@@ -129,37 +127,96 @@ fn remove_fullscreen_http_proxy(siv: &mut Cursive) {
 }
 
 fn draw_fullscreen_request_and_response(siv: &mut Cursive) {
-    let (request_content, response_content) = siv.with_user_data(|ud: &mut SivUserData| {
-        let req_content = ud.request_view_content.clone();
-        let res_content = ud.response_view_content.clone();
-        (req_content, res_content)
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    let table_name = ud.active_http_table_name;
+    let possible_selected_id = siv.call_on_name(table_name, |table: &mut HTTPTable| {
+            if let Some(selected_id) = table.item() {
+                let pair_id = table.borrow_item(selected_id).unwrap().id;
+                Some(pair_id)
+            }
+            else {
+                None
+            }
     }).unwrap();
 
-    siv.call_on_name("views-stack", move |sv: &mut StackView| {
-        // Does not work without second clone, I do not know why
-        let request_view = TextView::new_with_content(request_content.clone())
-            .scrollable();
-        let response_view = TextView::new_with_content(response_content.clone())
-            .full_screen()
-            .scrollable();
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    if let Some(table_id) = possible_selected_id {
+        let possible_pair = ud.http_storage.get_by_id(table_id);
 
-        let layout = LinearLayout::horizontal()
-            .child(Dialog::around(request_view).title("Request").with_name("request-fs"))
-            .child(Dialog::around(response_view).title("Response").with_name("response-fs"))
-            .full_screen();
-
-        let layout_with_event = OnEventView::new(layout)
-            .on_event(Key::Esc, |s: &mut Cursive| {
-                s.call_on_name("views-stack", |sv: &mut StackView| { sv.pop_layer(); });
-            })
-            .on_event(Key::Left, |s: &mut Cursive| {
-                s.focus_name("request-fs").unwrap();
-            })
-            .on_event(Key::Right, |s: &mut Cursive| {
-                s.focus_name("response-fs").unwrap();
-            });
+        match possible_pair {
+            Some(pair) => {
+                if let Some(request) = &pair.request {
+                    let req_spanned = req_res_spanned::request_wrapper_to_spanned(request);
         
-        sv.add_layer(layout_with_event);
-            
-    });    
+                    let res_spanned = if let Some(response) = &pair.response {
+                        req_res_spanned::response_wrapper_to_spanned(response)
+                    }
+                    else {
+                        SpannedString::new()
+                    };
+
+                    let request_view = TextView::new(req_spanned)
+                        .scrollable();
+                    let response_view = TextView::new(res_spanned)
+                        .full_screen()
+                        .scrollable();
+
+                    let layout = LinearLayout::horizontal()
+                        .child(Dialog::around(request_view).title("Request").with_name("request-fs"))
+                        .child(Dialog::around(response_view).title("Response").with_name("response-fs"))
+                        .full_screen();
+
+                    let layout_with_event = OnEventView::new(layout)
+                        .on_event(Key::Esc, |s: &mut Cursive| {
+                            s.call_on_name("views-stack", |sv: &mut StackView| { sv.pop_layer(); });
+                        })
+                        .on_event(Key::Left, |s: &mut Cursive| {
+                            s.focus_name("request-fs").unwrap();
+                        })
+                        .on_event(Key::Right, |s: &mut Cursive| {
+                            s.focus_name("response-fs").unwrap();
+                        });
+                    
+                    views_stack::push_fullscreen_layer(siv, layout_with_event);
+                }
+                else {
+                    ud.push_error(CrusterError::EmptyRequest(format!("Could not draw table record {}, request is empty.", table_id)));
+                }
+            },
+            None => {
+                ud.push_error(
+                    CrusterError::UndefinedError(
+                        format!("Could not find HTTP pair with id {}", table_id)
+                    )
+                )
+            }
+        }
+    }
+}
+
+/// `id` in terms of `HTTPStorage`
+pub(super) fn get_selected_id(siv: &mut Cursive) -> Option<usize> {
+    let ud: &mut SivUserData = siv.user_data().unwrap();
+    let table_name = ud.active_http_table_name;
+    let selected_index = siv.call_on_name(table_name, |table: &mut HTTPTable| {
+        table.item()
+    }).unwrap();
+
+    return match selected_index {
+        Some(table_index) => {
+            siv.call_on_name(table_name, |table: &mut HTTPTable| {
+                match table.borrow_item(table_index) {
+                    Some(item) => {
+                        Some(item.id)
+                    },
+                    None => {
+                        None
+                    }
+                }
+            }).unwrap()
+        },
+        None => {
+            None
+        }
+    };
 }

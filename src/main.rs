@@ -23,6 +23,7 @@ use utils::CrusterError;
 
 use cursive::{Cursive, CbSink};
 use crossbeam_channel::Sender as CB_Sender;
+// use log::debug;
 
 async fn shutdown_signal() {
     tokio::signal::ctrl_c()

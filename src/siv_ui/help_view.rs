@@ -18,22 +18,43 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
 
         SpannedString::styled("<Enter> - ", letters_style.clone()),
         SpannedString::styled("\n    <On Proxy Table> - ", BaseColor::Yellow.dark()),
-        SpannedString::styled("Show interactive fullscreen view for selected request and response contents\n", descriptions_style.clone()),
+        SpannedString::styled("Show interactive fullscreen view for selected request and response contents", descriptions_style.clone()),
+        SpannedString::styled("\n    <On Filter View> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Apply written filter", descriptions_style.clone()),
+        SpannedString::styled("\n    <On Repeater View> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Apply edited request / Send\n", descriptions_style.clone()),
 
         SpannedString::styled("<Esc> - ", letters_style.clone()),
         SpannedString::styled("Close secondary view (i.e. help, errors, etc.)\n", descriptions_style.clone()),
 
+        SpannedString::styled("<Shift> + r - ", letters_style.clone()),
+        SpannedString::styled("Repeat request selected on table\n", descriptions_style.clone()),
+
+        SpannedString::styled("<Shift> + s - ", letters_style.clone()),
+        SpannedString::styled("Store proxy data on drive, file path is configured on start\n", descriptions_style.clone()),
+
+        SpannedString::styled("<Shift> + f - ", letters_style.clone()),
+        SpannedString::styled("Set filter for table\n", descriptions_style.clone()),
+
         SpannedString::styled("e - ", letters_style.clone()),
         SpannedString::styled("Show error logs view\n", descriptions_style.clone()),
 
-        SpannedString::styled("q - ", letters_style.clone()),
-        SpannedString::styled("Quit\n", descriptions_style.clone()),
+        SpannedString::styled("i - ", letters_style.clone()),
+        SpannedString::styled("\n    <On Repeater View> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Edit request\n", descriptions_style.clone()),
 
-        SpannedString::styled("S - ", letters_style.clone()),
-        SpannedString::styled("Store proxy data on drive, file path is configured on start\n", descriptions_style.clone()),
+        SpannedString::styled("p - ", letters_style.clone()),
+        SpannedString::styled("\n    <On Repeater View> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Show parameters\n", descriptions_style.clone()),
+
+        SpannedString::styled("r - ", letters_style.clone()),
+        SpannedString::styled("Show active repeaters\n", descriptions_style.clone()),
 
         SpannedString::styled("t - ", letters_style.clone()),
         SpannedString::styled("Show fullscreen HTTP proxy table\n", descriptions_style.clone()),
+
+        SpannedString::styled("q - ", letters_style.clone()),
+        SpannedString::styled("Quit\n", descriptions_style.clone()),
     ];
 
     let mut result = SpannedString::<Style>::default();

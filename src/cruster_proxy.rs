@@ -20,16 +20,16 @@ use hudsucker::{
 };
 use std::{
     cmp::min,
-    hash::{Hash, Hasher},
     net::SocketAddr,
+    hash::{Hash, Hasher},
     collections::hash_map::DefaultHasher
 };
-use crate::CrusterError;
 
 use cursive::{Cursive, CbSink};
 
-use super::siv_ui::put_proxy_data_to_storage;
+use crate::CrusterError;
 use crate::siv_ui::error_view;
+use super::siv_ui::put_proxy_data_to_storage;
 
 fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> usize {
     let mut hasher = DefaultHasher::new();

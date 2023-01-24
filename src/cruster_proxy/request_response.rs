@@ -16,6 +16,7 @@ use std::fmt::Display;
 use std::ffi::CString;
 
 use crate::CrusterError;
+use regex::Regex;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -34,11 +35,12 @@ impl Display for HyperRequestWrapper {
                 "{}{}: {}\r\n",
                 headers,
                 k.as_str(),
-                v.to_str().unwrap()
+                v.as_bytes().to_str_lossy()
             );
         }
 
         // Crutch because of binary string which are incompatible with c-strings in cursive
+        // TODO: check with crossterm, may be should use feature-toggle here
         let body = self.body.to_str_lossy().to_string();
         let body = if CString::new(body.as_bytes()).is_ok() {
             body
@@ -181,6 +183,27 @@ impl HyperRequestWrapper {
             }
         };
     }
+
+    pub(crate) fn serach_with_re(&self, re: &Regex) -> bool {
+        let fl = format!("{} {} {}\r\n", &self.method, &self.uri, &self.version);
+        if re.find(&fl).is_some() {
+            return true;
+        }
+
+        let found_in_headers: bool = self.headers
+            .iter()
+            .any(|(k, v)| {
+                let hl = format!("{}: {}", k.as_str(), v.as_bytes().to_str_lossy().as_ref());
+                re.find(&hl).is_some()
+            });
+        
+        if found_in_headers {
+            return true;
+        }
+
+        let body = self.body.as_slice().to_str_lossy();
+        return re.find(&body).is_some();
+    }
 }
 
 // -----------------------------------------------------------------------------------------------//
@@ -198,11 +221,12 @@ impl Display for HyperResponseWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut headers = String::default();
         for (k, v) in self.headers.iter() {
-            let header_line = format!("{}: {}\r\n", k.as_str(), v.to_str().unwrap());
+            let header_line = format!("{}: {}\r\n", k.as_str(), v.as_bytes().to_str_lossy());
             headers.push_str(&header_line);
         }
 
         // Crutch because of binary string which are incompatible with c-strings in cursive
+        // TODO: check with crossterm, may be should use feature-toggle here
         let body = self.body.to_str_lossy().to_string();
         let body = if CString::new(body.as_bytes()).is_ok() {
             body
@@ -303,6 +327,27 @@ impl HyperResponseWrapper {
                 self.body.len()
             }
         }
+    }
+
+    pub(crate) fn serach_with_re(&self, re: &Regex) -> bool {
+        let fl = format!("{} {}\r\n", &self.version, &self.status);
+        if re.find(&fl).is_some() {
+            return true;
+        }
+
+        let found_in_headers: bool = self.headers
+            .iter()
+            .any(|(k, v)| {
+                let hl = format!("{}: {}", k.as_str(), v.as_bytes().to_str_lossy().as_ref());
+                re.find(&hl).is_some()
+            });
+        
+        if found_in_headers {
+            return true;
+        }
+
+        let body = self.body.as_slice().to_str_lossy();
+        return re.find(&body).is_some();
     }
 }
 

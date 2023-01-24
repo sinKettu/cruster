@@ -1,11 +1,14 @@
-pub(super) mod error_view;
+mod repeater;
 mod help_view;
+mod quit_popup;
 mod http_table;
-mod req_res_spanned;
 mod status_bar;
+mod views_stack;
 mod sivuserdata;
+mod filter_view;
+mod req_res_spanned;
+pub(super) mod error_view;
 
-// use log::debug;
 use cursive::{Cursive, };
 use cursive::{traits::*, };
 use cursive::{CursiveExt, };
@@ -19,8 +22,9 @@ use std::rc::Rc;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use tokio::sync::mpsc::Receiver;
-use std::thread::{self, JoinHandle};
+// use std::thread::{self, JoinHandle, sleep};
 
+use std::time::Instant;
 use crate::config::Config;
 use sivuserdata::{SivUserData};
 use crate::utils::CrusterError;
@@ -28,6 +32,14 @@ use status_bar::StatusBarContent;
 use crate::http_storage::HTTPStorage;
 use crate::siv_ui::http_table::HTTPTable;
 use crate::cruster_proxy::request_response::CrusterWrapper;
+use self::sivuserdata::GetCrusterUserData;
+
+impl GetCrusterUserData for Cursive {
+    fn get_cruster_userdata(&mut self) -> &mut SivUserData {
+        let ud: &mut SivUserData = self.user_data().expect("FATAL: cannot get user data from Cursive storage");
+        return ud;
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum BasicColumn {
@@ -82,11 +94,14 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
 pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(CrusterWrapper, usize)>, err_rx: Receiver<CrusterError>) {
     let help_message = Rc::new(help_view::make_help_message());
 
-    siv.add_global_callback('q', |s| s.quit());
+    siv.add_global_callback('q', |s| quit_popup::draw_popup(s));
     siv.add_global_callback('e', |s| error_view::draw_error_view(s));
     siv.add_global_callback('?', move |s| help_view::draw_help_view(s, &help_message));
     siv.add_global_callback('t', |s| { http_table::make_table_fullscreen(s) });
-    siv.add_global_callback('S', |s| { store_proxy_data(s) });
+    siv.add_global_callback('S', |s| { store_cruster_state(s) });
+    siv.add_global_callback('F', |s| { filter_view::draw_filter(s) });
+    siv.add_global_callback('r', |s| { repeater::draw_repeater_select(s) });
+    siv.add_global_callback('R', |s| { repeater::create_and_draw_repeater(s) });
 
     // siv.set_autorefresh(true);
     siv.set_theme(cursive::theme::Theme {
@@ -101,7 +116,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             palette[View] = TerminalDefault;
             palette[Primary] = White.light();
             palette[TitlePrimary] = Green.light();
-            palette[Secondary] = Red.light();
+            palette[Secondary] = Green.light();
             palette[Highlight] = White.light();
             palette[HighlightText] = BaseColor::Black.dark();
         }),
@@ -125,6 +140,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             http_storage: HTTPStorage::default(),
             request_view_content: request_view_content.clone(),
             response_view_content: response_view_content.clone(),
+            filter_content: "".to_string(),
             active_http_table_name: "proxy-table",
             errors: Vec::new(),
             status: StatusBarContent::new(status_bar_message.clone(), status_bar_stats.clone()),
@@ -132,6 +148,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
             include: None,
             exclude: None,
             table_id_ref: HashMap::default(),
+            repeater_state: vec![],
         }
     );
 
@@ -143,7 +160,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
 
     siv.cb_sink().send(
         Box::new(
-            |s: &mut Cursive| { load_data_if_need(s) }
+            |s: &mut Cursive| { load_cruster_state(s) }
         )
     ).expect("Could not register action to load data from file!");
 
@@ -181,6 +198,7 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
     
     siv.add_fullscreen_layer(base_layout);
 
+    debug!("Starting Cursive loop");
     siv.run();
 }
 
@@ -195,7 +213,7 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
                     if !rx.is_scope_strict() || fit_scope {
                         let table_record = rx.http_storage.put_request(req, hash);
 
-                        if fit_scope {
+                        if fit_scope && rx.is_http_pair_match_filter(table_record.id) {
                             let id = table_record.id;
                             table.insert_item(table_record);
                             let last_index = table.borrow_items().len() - 1;
@@ -245,6 +263,7 @@ fn get_pair_id_from_table_record(siv: &mut Cursive, item: usize) -> Option<usize
             }
     }).unwrap();
 
+    // TODO: make it sane, move to draw_request_response()
     if let None = id_option {
         let err = CrusterError::ProxyTableIndexOutOfRange(format!("Could not get record with index {}.", item));
         let ud: &mut SivUserData = siv.user_data().unwrap();
@@ -280,39 +299,8 @@ fn draw_request_and_response(siv: &mut Cursive, item: usize) {
     }
 }
 
-fn poll_storing_thread(siv: &mut Cursive, thrd: JoinHandle<Result<(), CrusterError>>) {
-    if thrd.is_finished() {
-        let ud: &mut SivUserData = siv.user_data().unwrap();
-        match thrd.join() {
-            Ok(storing_result) => {
-                match storing_result {
-                    Ok(_) => {
-                        ud.status.clear_message();
-                    },
-                    Err(err) => {
-                        ud.push_error(err);
-                        ud.status.set_message("Error occured while storing data...");
-                    }
-                }
-            },
-            Err(e) => {
-                let err = CrusterError::UndefinedError(
-                    format!("Thread with process of storing proxy data failed: {:?}", e)
-                );
-                ud.push_error(err);
-                ud.status.set_message("Error occured while storing data...");
-            }
-        }
-        ud.data_storing_started = false;
-    }
-    else {
-        siv.cb_sink().send(Box::new(
-            |s: &mut Cursive| { poll_storing_thread(s, thrd) }
-        )).expect("FATAL: Cannot set calback on UI after spawning thread to store proxy data!");
-    }
-}
-
-fn store_proxy_data(siv: &mut Cursive) {
+/// For now it stores http history + repeater state
+fn store_cruster_state(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
     if ud.config.store.is_none() {
         ud.push_error(
@@ -329,41 +317,102 @@ fn store_proxy_data(siv: &mut Cursive) {
     }
 
     ud.data_storing_started = true;
-    ud.status.set_message("Storing proxy data...");
-    let storage_clone = ud.http_storage.clone();
-    let path_to_save = ud.config.store.as_ref().unwrap().clone();
-    let thrd = thread::spawn(move || { storage_clone.store(&path_to_save, None) });
+    ud.status.set_message("Storing state...");
+    
+    debug!("Dir to store: {}", ud.config.store.as_ref().unwrap());
+    let path_to_save = ud.config.store.as_ref().unwrap();
+    let http_path = format!("{}/http.jsonl", path_to_save);
+    let rs_path = format!("{}/repeater.jsonl", path_to_save);
 
-    siv.cb_sink().send(Box::new(
-        |s: &mut Cursive| { poll_storing_thread(s, thrd) }
-    )).expect("FATAL: Cannot set calback on UI after spawning thread to store proxy data!");
+    let http_storing_result = ud.http_storage.store(&http_path, None);
+    if let Err(err) = http_storing_result {
+        ud.push_error(err);
+        ud.status.set_message("Error when storing http data");
+    }
+
+    let rs_storing_result = ud.store_repeater_state(&rs_path);
+    if let Err(err) = rs_storing_result {
+        ud.push_error(err);
+        ud.status.set_message("Error when storing repeater state");
+    }
+
+    ud.data_storing_started = false;
+    ud.status.set_message("Storing completed");
 }
 
-fn load_data_if_need(siv: &mut Cursive) {
+fn load_cruster_state(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
-    debug!("{:?}", &ud.config.load);
+
     if let None = &ud.config.load {
+        debug!("Load dir not found");
         return;
     }
+    else {
+        let load_dir = ud.config.load.as_ref().unwrap();
+        debug!("Loading state from \"{}\"", load_dir.to_string());
+    }
 
-    let load_path = ud.config.load.as_ref().unwrap();
-
+    let load_path = format!("{}/http.jsonl", ud.config.load.as_ref().unwrap());
     let result = if ud.is_scope_strict() {
-        ud.http_storage.load_with_strict_scope(load_path, ud.include.as_ref(), ud.exclude.as_ref())
+        ud.http_storage.load_with_strict_scope(
+            &load_path,
+            ud.include.as_ref(),
+            ud.exclude.as_ref()
+        )
     }
     else {
-        ud.http_storage.load(load_path)
+        ud.http_storage.load(&load_path)
     };
 
     if let Err(e) = result {
         ud.push_error(e);
+        ud.status.set_message("Error while loading HTTP data from file");
+    }
+    
+    let load_path = format!("{}/repeater.jsonl", ud.config.load.as_ref().unwrap());
+    let result = ud.load_repeater_state(&load_path);
+
+    if let Err(err) = result {
+        ud.push_error(err);
+        ud.status.set_message("Error while loading repeater state from file");
     }
 
+    fill_table_using_scope(siv);
+}
+
+// fn load_data_if_need(siv: &mut Cursive) {
+//     let ud: &mut SivUserData = siv.user_data().unwrap();
+//     debug!("{:?}", &ud.config.load);
+//     if let None = &ud.config.load {
+//         return;
+//     }
+
+//     let load_path = ud.config.load.as_ref().unwrap();
+
+//     let result = if ud.is_scope_strict() {
+//         ud.http_storage.load_with_strict_scope(load_path, ud.include.as_ref(), ud.exclude.as_ref())
+//     }
+//     else {
+//         ud.http_storage.load(load_path)
+//     };
+
+//     if let Err(e) = result {
+//         ud.push_error(e);
+//     }
+
+//     fill_table_using_scope(siv);
+// }
+
+fn fill_table_using_scope(siv: &mut Cursive) {
+    let a = Instant::now();
+    let ud: &mut SivUserData = siv.user_data().unwrap();
     let mut items: Vec<ProxyDataForTable> = Vec::with_capacity(ud.http_storage.len() * 2);
+    ud.table_id_ref.clear();
+
     for pair in ud.http_storage.into_iter() {
         let req = pair.request.as_ref().unwrap();
-        let in_scope = ud.is_uri_in_socpe(&req.uri);
 
+        let in_scope = ud.is_uri_in_socpe(&req.uri);
         if ! in_scope {
             continue;
         }
@@ -389,6 +438,7 @@ fn load_data_if_need(siv: &mut Cursive) {
 
     let table_name = ud.active_http_table_name;
     ud.update_status();
+    debug!("Took: {} ms", Instant::now().duration_since(a).as_millis());
     siv.call_on_name(table_name, move |t: &mut HTTPTable| {
         t.set_items(items);
     });
