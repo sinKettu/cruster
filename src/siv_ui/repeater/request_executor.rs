@@ -1,7 +1,7 @@
-use std::thread;
+use std::{thread, str::FromStr};
 use hyper::{Body, Client};
 use tokio::runtime::Runtime;
-use http::{Response, HeaderMap, Request};
+use http::{Response, HeaderMap, Request, header::HeaderName, HeaderValue};
 use cursive::{Cursive, utils::span::SpannedString, theme::Style};
 
 use crate::{
@@ -42,6 +42,9 @@ async fn prepare_for_redirect(rsp_headers: &HeaderMap, saved_headers: &HeaderMap
     match rsp_headers.get("location") {
         Some(location) => {
             let uri = location.to_str()?;
+            let first_line_splitted: Vec<&str> = uri.split('/').collect();
+            let host = first_line_splitted[2].clone();
+
             let mut request_builder = hyper::Request::builder()
                 .method("GET")
                 .uri(uri);
@@ -53,6 +56,14 @@ async fn prepare_for_redirect(rsp_headers: &HeaderMap, saved_headers: &HeaderMap
                     .ok_or(CrusterError::HyperRequestBuildingError(possible_error_message.clone()))?
                     .insert(k.clone(), v.clone());
             }
+
+            request_builder
+                .headers_mut()
+                .ok_or(CrusterError::HyperRequestBuildingError(possible_error_message.clone()))?
+                .insert(
+                    HeaderName::from_str("Host").unwrap(),
+                    HeaderValue::from_str(host).unwrap()
+                );
             
             let request = request_builder.body(Body::empty())?;
             return Ok(Some(request));
@@ -85,7 +96,7 @@ async fn handle_sending(
         match prepare_for_redirect(rsp_headers, &saved_headers).await? {
             Some(redirect_request) => {
                 if redirect_counter >= 10 {
-                    let err = format!("Too many redirect reached in repeater #{}", state_index);
+                    let err = format!("Too many redirects reached in repeater #{}", state_index);
                     return Err(CrusterError::UndefinedError(err));
                 }
 

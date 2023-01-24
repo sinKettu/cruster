@@ -255,6 +255,9 @@ impl fmt::Display for CrusterError {
             CrusterError::HTTPBuildingError(s) => {
                 write!(f, "{}", s)
             },
+            CrusterError::HyperBodyParseError(s) => {
+                write!(f, "{}", s)
+            },
             _ => { write!(f, "{:?}", self) }
         }
     }
