@@ -36,6 +36,10 @@ pub(super) struct SivUserData {
     pub(super) repeater_state: Vec<repeater::RepeaterState>,
 }
 
+pub(super) trait GetCrusterUserData {
+    fn get_cruster_userdata(&mut self) -> &mut SivUserData;
+}
+
 impl SivUserData {
     pub(super) fn receive_data_from_proxy(&mut self) -> Option<(CrusterWrapper, usize)> {
         match self.proxy_receiver.try_recv() {

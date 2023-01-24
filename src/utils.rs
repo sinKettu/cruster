@@ -36,7 +36,10 @@ use regex::Error as regex_error;
 
 use log::debug;
 use std::string::FromUtf8Error;
-use http::header::{InvalidHeaderName, InvalidHeaderValue};
+use http::{
+    header::{InvalidHeaderName, InvalidHeaderValue},
+    Error as HTTPError
+};
 
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
@@ -67,7 +70,8 @@ pub(crate) enum CrusterError {
     HyperRequestBuildingError(String),
     ParseUtf8Error(String),
     HeaderNameParseError(String),
-    HeaderValueParseError(String)
+    HeaderValueParseError(String),
+    HTTPBuildingError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -186,6 +190,14 @@ impl From<InvalidHeaderValue> for CrusterError {
     }
 }
 
+impl From<HTTPError> for CrusterError {
+    fn from(e: HTTPError) -> Self {
+        Self::HTTPBuildingError(
+            format!("Error while building HTTP Request: {}", e.to_string())
+        )
+    }
+}
+
 impl fmt::Display for CrusterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -238,6 +250,9 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::HeaderValueParseError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::HTTPBuildingError(s) => {
                 write!(f, "{}", s)
             },
             _ => { write!(f, "{:?}", self) }

@@ -32,6 +32,14 @@ use status_bar::StatusBarContent;
 use crate::http_storage::HTTPStorage;
 use crate::siv_ui::http_table::HTTPTable;
 use crate::cruster_proxy::request_response::CrusterWrapper;
+use self::sivuserdata::GetCrusterUserData;
+
+impl GetCrusterUserData for Cursive {
+    fn get_cruster_userdata(&mut self) -> &mut SivUserData {
+        let ud: &mut SivUserData = self.user_data().expect("FATAL: cannot get user data from Cursive storage");
+        return ud;
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 enum BasicColumn {

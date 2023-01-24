@@ -24,15 +24,12 @@ use cursive::{
 };
 
 // use log::debug;
-use serde::{Serialize, Deserialize};
 use http::HeaderMap;
-use std::{thread::JoinHandle, time::Instant};
+use serde::{Serialize, Deserialize};
 
-use super::{views_stack, req_res_spanned::response_wrapper_to_spanned};
 use crate::utils::CrusterError;
 use super::{sivuserdata::SivUserData, http_table};
-
-type RepeaterRequestHandler = JoinHandle<Result<hyper::Response<hyper::body::Body>, hyper::Error>>;
+use super::{views_stack, req_res_spanned::response_wrapper_to_spanned, sivuserdata::GetCrusterUserData};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct RepeaterParameters {
@@ -280,9 +277,11 @@ fn send_request(siv: &mut Cursive, idx: usize) {
             repeater_state.redirects_reached = 1;
             repeater_state.response.set_content("");
             repeater_state.saved_headers = request.headers().clone();
+            let need_redirect = repeater_state.parameters.redirects;
 
             ud.status.set_message("Sending...");
-            request_executor::send_hyper_request(siv, request, Instant::now(), idx);
+            // request_executor::send_hyper_request(siv, request, Instant::now(), idx);
+            request_executor::send_request_detached(request, idx, need_redirect, siv.cb_sink().clone());
         },
         Err(err) => {
             ud.status.set_message("Error when trying to repeat request");
@@ -291,3 +290,54 @@ fn send_request(siv: &mut Cursive, idx: usize) {
     }
 }
 
+fn handle_repeater_event(siv: &mut Cursive, state_idx: usize, event: request_executor::RepeaterEvent) {
+    match event {
+        request_executor::RepeaterEvent::Ready(response) => {
+            let ud: &mut SivUserData = siv.user_data().unwrap();
+            match ud.repeater_state.get_mut(state_idx) {
+                Some(state) => {
+                    state.response.set_content(response);
+                    ud.status.set_message(format!("Repeater #{} is finished", state_idx));
+                },
+                None => {
+                    let err = CrusterError::UndefinedError(
+                        format!("Could not find repeater state #{} after processing request finished", state_idx)
+                    );
+                    ud.push_error(err);
+                    ud.status.set_message(format!("Error in repeater #{}", state_idx));
+                }
+            }
+        },
+        request_executor::RepeaterEvent::Error(err) => {
+            let ud = siv.get_cruster_userdata();
+            ud.push_error(err);
+            ud.status.set_message(format!("Error in repeater #{}", state_idx));
+        },
+        request_executor::RepeaterEvent::RequestChanged(request) => {
+            let saved_request = request.clone();
+            let result = siv.call_on_name("repeater-request-static", |tv: &mut TextView| {
+                tv.set_content(request);
+            });
+
+            if result.is_none() {
+                let ud = siv.get_cruster_userdata();
+                match ud.repeater_state.get_mut(state_idx) {
+                    Some(state) => {
+                        state.request = saved_request;
+                    },
+                    None => {
+                        let err = CrusterError::UndefinedError(
+                            format!("Could not find repeater state #{} while processing redirects", state_idx)
+                        );
+                        ud.push_error(err);
+                        ud.status.set_message(format!("Error in repeater #{}", state_idx));
+                    }
+                }
+            }
+            else {
+                let ud = siv.get_cruster_userdata();
+                ud.status.set_message(format!("Repeater #{} is following redirects", state_idx));
+            }
+        }
+    }
+}

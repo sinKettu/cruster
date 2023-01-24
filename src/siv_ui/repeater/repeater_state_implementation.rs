@@ -1,15 +1,15 @@
 // use log::debug;
 use base64;
-use http::{HeaderMap, header::HeaderName, HeaderValue, Request};
 use bstr::ByteSlice;
 use cursive::views::TextContent;
+use http::{HeaderMap, header::HeaderName, HeaderValue, Request};
 
-use super::{RepeaterStateSerializable, RepeaterState};
-use crate::{utils::CrusterError, cruster_proxy::request_response::HyperRequestWrapper};
 use regex::Regex;
-use std::{str::FromStr, thread};
+use std::str::FromStr;
 use hyper::{body, Body};
-use tokio::runtime::Runtime;
+
+use crate::utils::CrusterError;
+use super::{RepeaterStateSerializable, RepeaterState};
 
 impl From<&RepeaterState> for RepeaterStateSerializable {
     fn from(rs: &RepeaterState) -> Self {
@@ -192,42 +192,42 @@ impl RepeaterState {
         };
     }
 
-    pub(super) fn make_request_to_redirect(&mut self, next_uri: &str) -> Result<Request<Body>, CrusterError> {
-        let mut request_builder = hyper::Request::builder()
-            .uri(next_uri);
+    // pub(super) fn make_request_to_redirect(&mut self, next_uri: &str) -> Result<Request<Body>, CrusterError> {
+    //     let mut request_builder = hyper::Request::builder()
+    //         .uri(next_uri);
 
-        if let None = request_builder.headers_ref() {
-            let err = "Unknown error, while trying to parse request in repeater. Please check request's syntax".to_string();
-            return Err(CrusterError::UndefinedError(err));
-        }
+    //     if let None = request_builder.headers_ref() {
+    //         let err = "Unknown error, while trying to parse request in repeater. Please check request's syntax".to_string();
+    //         return Err(CrusterError::UndefinedError(err));
+    //     }
 
-        for (k, v) in self.saved_headers.iter() {
-            request_builder.headers_mut().unwrap().insert(k, v.clone());
-        }
+    //     for (k, v) in self.saved_headers.iter() {
+    //         request_builder.headers_mut().unwrap().insert(k, v.clone());
+    //     }
 
-        let splited: Vec<&str> = next_uri.split("/").take(3).collect();
-        let host = splited[2].to_string();
+    //     let splited: Vec<&str> = next_uri.split("/").take(3).collect();
+    //     let host = splited[2].to_string();
 
-        request_builder
-            .headers_mut()
-            .unwrap()
-            .insert("host", HeaderValue::from_str(&host).unwrap());
+    //     request_builder
+    //         .headers_mut()
+    //         .unwrap()
+    //         .insert("host", HeaderValue::from_str(&host).unwrap());
 
-        let request = request_builder.body(Body::empty()).unwrap();
-        let possible_wrapper = thread::spawn(move || {
-            let runtime = Runtime::new().unwrap();
-            let wrapper = runtime.block_on(HyperRequestWrapper::from_hyper(request));
-            return wrapper;
-        }).join().unwrap();
+    //     let request = request_builder.body(Body::empty()).unwrap();
+    //     let possible_wrapper = thread::spawn(move || {
+    //         let runtime = Runtime::new().unwrap();
+    //         let wrapper = runtime.block_on(HyperRequestWrapper::from_hyper(request));
+    //         return wrapper;
+    //     }).join().unwrap();
 
-        return match possible_wrapper {
-            Ok((wrapper, request)) => {
-                self.request = wrapper.to_string();
-                Ok(request)
-            },
-            Err(err) => {
-                Err(err)
-            }
-        };
-    }
+    //     return match possible_wrapper {
+    //         Ok((wrapper, request)) => {
+    //             self.request = wrapper.to_string();
+    //             Ok(request)
+    //         },
+    //         Err(err) => {
+    //             Err(err)
+    //         }
+    //     };
+    // }
 }
