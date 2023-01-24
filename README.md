@@ -15,6 +15,7 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
   - Table visualization of HTTP messgages went through proxy;
   - Requests/Responses highlighted visualization;
   - Filtering content;
+  - Manual requests repeater;
 - Dump mode (`-d`);
 - Process requests/responses basing on scope (`-I`, `-E`);
 - ... *Coming soon*...
@@ -23,7 +24,7 @@ You can find more detailed description in [Usage.md](https://github.com/sinKettu
 
 ## Usage
 
-Just run `cruster` and it will create working directory in `~/.cruster`, putting there _base config_, _TLS certificate_ with _key_. Then it will be listening to requests on address `127.0.0.1:8080`.
+Just run `cruster` and it will create working directory in `~/.cruster`, putting there *base config*, *TLS certificate* with *key*. Then it will be listening to requests on address `127.0.0.1:8080`.
 
 To use this proxy with browser you must import CA certificate of proxy (stored by default in `~/.cruster/cruster.cer`) into browser manually.
 
@@ -118,7 +119,13 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
 
-> There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below.
+- Known problem #1:
+
+    > There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below (`Using OpenSSL for Local CA`). This issue is fixed in newer version, Cruster will be uptaed soon.
+
+- Known problem #2:
+
+    > There are a known problem with Cursive (TUI lib) working with `crossterm` backend (rust-written), TUI can blink. There is a possible way to fix it, I'll try to implement it in newer version of Cruster. If you faced with this problem, you can use `ncurses` backend.
 
 ### Using OpenSSL for Local CA
 
@@ -143,7 +150,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked 
 - [X] Requests/Responses syntax highlight.
 - [ ] Intercepting requests/responses.
 - [X] Manual repeater for requests.
-- [X] Projects (like in Burp or ZAP).
+- [X] Projects (like in Burp or ZAP), *this thing will be developing with further improvements of Cruster*.
 - [X] Store projects and history on drive.
 - [ ] **Scripting engine based on YAML syntax to write testcases and checks**.
 - [ ] **Scripting engine based on Python to write testcases and checks**.

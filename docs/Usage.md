@@ -64,3 +64,20 @@ When you store or load, you can control by `scope`, which requests/responses sho
 [Here](https://github.com/sinKettu/cruster/blob/master/docs/Stored%20HTTP%20Data%20Format.md) you can find description of format of stored data.
 
 For now, stored data is the only way to get bodies or some headers' values in their origin form, because they can be too long to render them in terminal or they can have unusual encoding, which will be decoded lossely.
+
+## Repeater
+
+![repeater](https://github.com/sinKettu/cruster/raw/master/static/repeater.png)
+
+Select request in proxy table and press `<Shift> + r`, you will get into repeater view. With pressing `p` you can see possible parameters for repeater:
+
+- Name of repeater
+- Hostname (IP) where request will be sent to
+- Flag to use HTTP**S**
+- Flag to follow redirects
+
+Press `i` and you can edit request in your terminal (`Esc` to save and stop editing).
+
+With `<Enter>` request will be sent using all specified parameters.
+
+Also you can press `r` on proxy table to see previously used repeaters (they are stored with proxy history).
