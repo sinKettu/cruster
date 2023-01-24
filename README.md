@@ -65,12 +65,19 @@ OPTIONS:
 ``` text
 ? - Show this help view
 <Enter> -
-     <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
-     <On Filter View> - Apply written filter
+    <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
+    <On Filter View> - Apply written filter
+    <On Repeater View> - Apply edited request / Send
 <Esc> - Close secondary view (i.e. help, errors, etc.)
+<Shift> + r - Repeat request selected on table
 <Shift> + s - Store proxy data on drive, file path is configured on start
 <Shift> + f - Set filter for table
 e - Show error logs view
+i -
+    <On Repeater View> - Edit request
+p -
+    <On Repeater View> - Show parameters
+r - Show active repeaters
 t - Show fullscreen HTTP proxy table
 q - Quit
 
