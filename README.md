@@ -114,6 +114,17 @@ http <== <!doctype html><html i
 http <==
 ```
 
+## Features
+
+Cruster contains the following features (in terms of Rust):
+
+- `rcgen-ca` - use `Rcgen` to build local CA;
+- `crosstrem` - use `Crossterm` as Text User Interface backend (cross-platform);
+- `default` - includes previous two features, enabled by default;
+- `openssl-ca` - use `OpenSSL` to build local CA; requires `OpenSSL` (`libssl`) to be installed;
+- `ncurses` - use `Ncurses` as Text User Interface backend; requires `Ncurses` (`libncurses`/`libncurses5`) to be installed;
+- `termion` - use `Termion` as Text User Interface backend;
+
 ## Installation
 
 The only option for now is to install from source code with `git` and `cargo`. You can use the following command:
@@ -126,13 +137,11 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --locked
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
 
-- Known problem #1:
+> In some case `crossterm` and `termion` backends can flicker. It is a known `cursive` [issue](https://github.com/gyscos/cursive/issues/667). For Cruster [buffered backend](https://github.com/agavrilov/cursive_buffered_backend) is implemented, but it is not for sure, that buffering will cover all cases. If you faced with such problem, you can use `ncurses` backend.
 
-    > There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below (`Using OpenSSL for Local CA`). This issue is fixed in newer version, Cruster will be uptaed soon.
+Also there is a problem with `Hudsucker` old version:
 
-- Known problem #2:
-
-    > There are a known problem with Cursive (TUI lib) working with `crossterm` backend (rust-written), TUI can blink. There is a possible way to fix it, I'll try to implement it in newer version of Cruster. If you faced with this problem, you can use `ncurses` backend.
+> There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below (`Using OpenSSL for Local CA`). This issue is fixed in newer version, Cruster will be uptaed soon.
 
 ### Using OpenSSL for Local CA
 
