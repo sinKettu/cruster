@@ -1,7 +1,7 @@
 use std::{thread, str::FromStr};
 use hyper::{Body, Client};
 use tokio::runtime::Runtime;
-use http::{Response, HeaderMap, Request, header::HeaderName, HeaderValue};
+use http::{Response, HeaderMap, Request, header::HeaderName, HeaderValue, Version};
 use cursive::{Cursive, utils::span::SpannedString, theme::Style};
 
 use crate::{
@@ -38,7 +38,12 @@ async fn execute_request(req: hyper::Request<Body>) -> Result<Response<Body>, Cr
     };
 }
 
-async fn prepare_for_redirect(rsp_headers: &HeaderMap, saved_headers: &HeaderMap) -> Result<Option<Request<Body>>, CrusterError> {
+async fn prepare_for_redirect(
+    rsp_headers: &HeaderMap,
+    saved_headers: &HeaderMap,
+    saved_version: &Version
+) -> Result<Option<Request<Body>>, CrusterError> {
+
     match rsp_headers.get("location") {
         Some(location) => {
             let uri = location.to_str()?;
@@ -48,7 +53,7 @@ async fn prepare_for_redirect(rsp_headers: &HeaderMap, saved_headers: &HeaderMap
             let mut request_builder = hyper::Request::builder()
                 .method("GET")
                 // TODO: Set initial HTTP version later
-                .version(http::version::Version::HTTP_2)
+                .version(saved_version.clone())
                 .uri(uri);
             
             let possible_error_message = "Could not build request in repeater after reaching redirect".to_string();
@@ -85,6 +90,7 @@ async fn handle_sending(
 
     let mut actual_request = req;
     let saved_headers = actual_request.headers().clone();
+    let saved_version = actual_request.version();
     let mut redirect_counter: u8 = 0;
     loop {
         let rsp = execute_request(actual_request).await?;
@@ -95,7 +101,7 @@ async fn handle_sending(
         }
 
         let rsp_headers = rsp.headers();
-        match prepare_for_redirect(rsp_headers, &saved_headers).await? {
+        match prepare_for_redirect(rsp_headers, &saved_headers, &saved_version).await? {
             Some(redirect_request) => {
                 if redirect_counter >= 10 {
                     let err = format!("Too many redirects reached in repeater #{}", state_index);
