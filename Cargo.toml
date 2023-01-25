@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.4.6"
+version = "0.5.0"
 edition = "2021"
 authors = ["Andrey Ivanov"]
 description = "Something between MitMProxy, Burp Suite/ZAP and Nuclei"
@@ -27,6 +27,7 @@ rustls-pemfile = { version = "1.0.1", optional = true}
 cursive = { version = "0.20.0", default_features = false, optional = true }
 cursive_table_view = "0.14.0"
 crossbeam-channel = "0.5.6"
+cursive_buffered_backend = "0.6.1"
 # ---------------------------------------------------------------------
 # Configuration
 shellexpand = "2.1.0"
