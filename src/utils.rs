@@ -145,7 +145,7 @@ impl From<tokio_SendError<(CrusterWrapper, usize)>> for CrusterError {
 impl From<hyper::Error> for CrusterError {
     fn from(e: hyper::Error) -> Self {
         Self::HyperBodyParseError(
-            format!("Unable to parse hyper body: {}", e.to_string())
+            format!("Unable to parse hyper request or response: {}", e.to_string())
         )
     }
 }

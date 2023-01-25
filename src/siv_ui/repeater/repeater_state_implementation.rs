@@ -6,7 +6,7 @@ use http::{HeaderMap, header::HeaderName, HeaderValue, Request};
 
 use regex::Regex;
 use std::str::FromStr;
-use hyper::{body, Body};
+use hyper::{body, Body, Version};
 
 use crate::utils::CrusterError;
 use super::{RepeaterStateSerializable, RepeaterState};
@@ -101,19 +101,19 @@ impl RepeaterState {
         };
 
         let version = if version == "HTTP/0.9" {
-            http::version::Version::HTTP_09
+            Version::HTTP_09
         }
         else if version == "HTTP/1.0" {
-            http::version::Version::HTTP_10
+            Version::HTTP_10
         }
         else if version == "HTTP/1.1" {
-            http::version::Version::HTTP_11
+            Version::HTTP_11
         }
         else if version == "HTTP/2" || version == "HTTP/2.0" {
-            http::version::Version::HTTP_2
+            Version::HTTP_2
         }
         else if version == "HTTP/3" || version == "HTTP/3.0" {
-            http::version::Version::HTTP_3
+            Version::HTTP_3
         }
         else {
             let err_str = format!("Unknown HTTP version of request in repeater: {}", &version);

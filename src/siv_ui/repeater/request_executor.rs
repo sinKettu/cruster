@@ -1,8 +1,8 @@
-use std::{thread, str::FromStr};
-use hyper::{Body, Client};
+use hyper::{Body, Client, Version, client::{connect::Connect, HttpConnector}};
 use tokio::runtime::Runtime;
-use http::{Response, HeaderMap, Request, header::HeaderName, HeaderValue, Version};
+use std::{thread, str::FromStr};
 use cursive::{Cursive, utils::span::SpannedString, theme::Style};
+use http::{Response, HeaderMap, Request, header::HeaderName, HeaderValue};
 
 use crate::{
     utils::CrusterError,
@@ -20,12 +20,30 @@ async fn execute_request(req: hyper::Request<Body>) -> Result<Response<Body>, Cr
     let scheme = req.uri().scheme().unwrap().as_str();
     let sending_result = if scheme.starts_with("https") {
         let tls = hyper_tls::HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(tls);
-        client.request(req).await
+        // there is an issue with HTTP/2 in Hyper: https://github.com/hyperium/hyper/issues/2417
+        if req.version() == Version::HTTP_2 {
+            let mut client_builder = Client::builder();
+            client_builder.http2_only(true);
+            let client = client_builder.build::<_, hyper::Body>(tls);
+            client.request(req).await
+        }
+        else {
+            let client = Client::builder().build::<_, hyper::Body>(tls);
+            client.request(req).await
+        }
     }
     else {
-        let client = Client::new();
-        client.request(req).await
+        if req.version() == Version::HTTP_2 {
+            let mut builder = Client::builder();
+            builder.http2_only(true);
+            let client = builder.build::<_, hyper::Body>(HttpConnector::new());
+            
+            client.request(req).await
+        }
+        else {
+            let client = Client::new();
+            client.request(req).await
+        }
     };
 
     return match sending_result {
@@ -52,7 +70,6 @@ async fn prepare_for_redirect(
 
             let mut request_builder = hyper::Request::builder()
                 .method("GET")
-                // TODO: Set initial HTTP version later
                 .version(saved_version.clone())
                 .uri(uri);
             
