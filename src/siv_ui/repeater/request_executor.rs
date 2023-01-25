@@ -1,4 +1,4 @@
-use hyper::{Body, Client, Version, client::{connect::Connect, HttpConnector}};
+use hyper::{Body, Client, Version, client::HttpConnector};
 use tokio::runtime::Runtime;
 use std::{thread, str::FromStr};
 use cursive::{Cursive, utils::span::SpannedString, theme::Style};
