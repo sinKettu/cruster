@@ -47,6 +47,8 @@ async fn prepare_for_redirect(rsp_headers: &HeaderMap, saved_headers: &HeaderMap
 
             let mut request_builder = hyper::Request::builder()
                 .method("GET")
+                // TODO: Set initial HTTP version later
+                .version(http::version::Version::HTTP_2)
                 .uri(uri);
             
             let possible_error_message = "Could not build request in repeater after reaching redirect".to_string();

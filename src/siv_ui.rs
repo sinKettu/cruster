@@ -126,10 +126,10 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
     let response_view_content = TextContent::new("");
 
     let status_bar_message = TextContent::new(
-        StyledString::styled(" Status bar will be here soon...", BaseColor::Black.light())
+        StyledString::styled(" Status bar will be here soon...", BaseColor::White.dark())
     );
     let status_bar_stats = TextContent::new(
-        StyledString::styled("Press '?' to get help", BaseColor::Black.light())
+        StyledString::styled("Press '?' to get help", BaseColor::White.dark())
     );
 
     siv.set_user_data(

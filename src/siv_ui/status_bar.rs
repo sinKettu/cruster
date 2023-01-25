@@ -25,20 +25,12 @@ impl Default for StatusBarContent {
 }
 
 impl StatusBarContent {
-    // pub(super) fn with_message(m: TextContent) -> Self {
-    //     StatusBarContent { message: m, ..Default::default() }
-    // }
-
     pub(super) fn new(m: TextContent, s: TextContent) -> Self {
         StatusBarContent {
             message: m.clone(),
             stats: s.clone()
         }
     }
-
-    // pub(super) fn get_content(&self) -> (TextContent, TextContent) {
-    //     return (self.message.clone(), self.stats.clone());
-    // }
 
     pub(super) fn set_message<T: Display>(&mut self, m: T) {
         self.message.set_content(StyledString::styled(format!(" {}", m), BaseColor::Black.light()));
