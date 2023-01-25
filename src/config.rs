@@ -66,7 +66,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let default_config = tilde("~/.cruster/config.yaml");
 
     let matches = App::new("Cruster")
-        .version("0.4.5")
+        .version("0.4.6")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .arg(

@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.4.5`
+`v0.4.6`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -32,7 +32,7 @@ To use this proxy with browser you must import CA certificate of proxy (stored b
 
 ``` shell
 $ cruster -h
-Cruster 0.4.5
+Cruster 0.4.6
 Andrey Ivanov<avangard.jazz@gmail.com>
 
 USAGE:
@@ -121,7 +121,7 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
@@ -139,7 +139,7 @@ This command will install `Cruster` using `rcgen` library to build local certifi
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -147,7 +147,22 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked 
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.5" --locked --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked --no-default-features --features ncurses,rcgen-ca
+```
+
+## With Docker
+
+Instead of usual installation you can use Cruster from a docker container. You can build your own:
+
+``` shell
+$ cd cruster && sudo docker build . -t local/cruster
+```
+
+Or use ready one:
+
+``` shell
+$ sudo docker pull sinfox/cruster:latest
+$ sudo docker run -it sinfox/cruster
 ```
 
 ## RoadMap
