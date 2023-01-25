@@ -11,12 +11,12 @@ use log::debug;
 use hudsucker::{
     async_trait::async_trait,
     hyper::{Body, Request, Response},
-    tungstenite::Message,
+    tokio_tungstenite::tungstenite::Message,
     HttpHandler,
-    RequestOrResponse,
     HttpContext,
-    MessageHandler,
-    MessageContext
+    WebSocketHandler,
+    WebSocketContext,
+    RequestOrResponse,
 };
 use std::{
     cmp::min,
@@ -52,8 +52,7 @@ pub(crate) struct CrusterHandler {
 
 #[derive(Clone)]
 pub(crate) struct CrusterWSHandler {
-    pub(crate) dump: bool,
-    pub(crate) from_client: bool
+    pub(crate) dump: bool
 }
 
 #[async_trait]
@@ -241,20 +240,47 @@ impl CrusterHandler {
 // ---------------------------------------------------------------------------------------------- //
 
 #[async_trait]
-impl MessageHandler for CrusterWSHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
-        if self.dump {
-            println!(
-                "wskt {} {}, {}: {:?}",
-                {if self.from_client { "==>" } else { "<==" }},
-                _ctx.client_addr,
-                _ctx.server_uri,
-                &msg
-            );
-            Some(msg)
-        }
-        else {
-            Some(msg)
+impl WebSocketHandler for CrusterWSHandler {
+    async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
+        // if self.dump {
+        //     println!(
+        //         "wskt {} {}, {}: {:?}",
+        //         {if self.from_client { "==>" } else { "<==" }},
+        //         _ctx.,
+        //         _ctx.server_uri,
+        //         &msg
+        //     );
+        //     Some(msg)
+        // }
+        // else {
+        //     Some(msg)
+        // }
+
+        match _ctx {
+            WebSocketContext::ClientToServer { src, dst, .. } => {
+                if self.dump {
+                    println!(
+                        "wskt ==> {}, {}: {:?}",
+                        src,
+                        dst,
+                        &msg
+                    )
+                }
+                
+                Some(msg)
+            },
+            WebSocketContext::ServerToClient { src, dst, .. } => {
+                if self.dump {
+                    println!(
+                        "wskt ==> {}, {}: {:?}",
+                        src,
+                        dst,
+                        &msg
+                    )
+                }
+
+                Some(msg)
+            }
         }
     }
 }

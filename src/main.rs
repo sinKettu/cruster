@@ -52,16 +52,9 @@ async fn start_proxy(
                 request_hash: 0
             }
         )
-        .with_incoming_message_handler(
+        .with_websocket_handler(
             CrusterWSHandler {
-                dump: dump_mode,
-                from_client: false
-            }
-        )
-        .with_outgoing_message_handler(
-            CrusterWSHandler {
-                dump: dump_mode,
-                from_client: true
+                dump: dump_mode
             }
         )
         .build();
