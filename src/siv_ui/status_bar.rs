@@ -33,18 +33,18 @@ impl StatusBarContent {
     }
 
     pub(super) fn set_message<T: Display>(&mut self, m: T) {
-        self.message.set_content(StyledString::styled(format!(" {}", m), BaseColor::Black.light()));
+        self.message.set_content(StyledString::styled(format!(" {}", m), BaseColor::White.dark()));
     }
 
     pub(super) fn clear_message(&mut self) {
-        self.message.set_content(StyledString::styled(" ", BaseColor::Black.light()));
+        self.message.set_content(StyledString::styled(" ", BaseColor::White.dark()));
     }
 
     pub(super) fn set_stats(&mut self, e: usize, r: usize) {
         self.stats.set_content(
             StyledString::styled(
                 format!("Errors: {} ▾ Requests: {} ▾ Press '?' to get help ", e, r),
-                Style::from(BaseColor::Black.light()).combine(Effect::Underline)
+                Style::from(BaseColor::White.dark()).combine(Effect::Underline)
             )
         );
     }

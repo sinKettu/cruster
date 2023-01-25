@@ -6,7 +6,7 @@ use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style,
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
 fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
-    let mut result = SpannedString::from(SpannedString::styled("?", BaseColor::Black.light()));
+    let mut result = SpannedString::from(SpannedString::styled("?", BaseColor::White.dark()));
 
     let query_without_question = &query_str[1..];
     let split_by_amp: Vec<&str> = query_without_question.split("&").collect();
@@ -39,7 +39,7 @@ fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
         }
 
         if idx + 1 < split_by_amp.len() {
-            result.append(SpannedString::styled("&", BaseColor::Black.light()));
+            result.append(SpannedString::styled("&", BaseColor::White.dark()));
         }
     }
 
@@ -132,7 +132,7 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
                 first_line.append("\r\n");
                 first_line.append(tmp);
 
-                let tmp = StyledString::styled("--- BODY IS TOO LARGE TO SHOW ---", BaseColor::Black.light());
+                let tmp = StyledString::styled("--- BODY IS TOO LARGE TO SHOW ---", BaseColor::White.dark());
                 first_line.append(tmp);
             }
             else {
@@ -140,7 +140,7 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
             }
         },
         Err(_) => {
-            let tmp = StyledString::styled("--- INCOMPATIBLE SET OF BYTES ---", BaseColor::Black.light());
+            let tmp = StyledString::styled("--- INCOMPATIBLE SET OF BYTES ---", BaseColor::White.dark());
             first_line.append(tmp);
         }
     }
@@ -168,7 +168,7 @@ pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> Spanned
                 first_line.append("\r\n");
                 first_line.append(tmp);
 
-                let tmp = StyledString::styled("--- BODY IS TOO LARGE TO SHOW ---", BaseColor::Black.light());
+                let tmp = StyledString::styled("--- BODY IS TOO LARGE TO SHOW ---", BaseColor::White.dark());
                 first_line.append(tmp);
             }
             else {
@@ -176,7 +176,7 @@ pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> Spanned
             }
         },
         Err(_) => {
-            let tmp = StyledString::styled("--- INCOMPATIBLE SET OF BYTES ---", BaseColor::Black.light());
+            let tmp = StyledString::styled("--- INCOMPATIBLE SET OF BYTES ---", BaseColor::White.dark());
             first_line.append(tmp);
         }
     }
