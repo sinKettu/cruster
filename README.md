@@ -132,23 +132,21 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --locked
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0"
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
 
 > In some case `crossterm` and `termion` backends can flicker. It is a known `cursive` [issue](https://github.com/gyscos/cursive/issues/667). For Cruster [buffered backend](https://github.com/agavrilov/cursive_buffered_backend) is implemented, but it is not for sure, that buffering will cover all cases. If you faced with such problem, you can use `ncurses` backend.
 
-Also there is a problem with `Hudsucker` old version:
-
-> There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below (`Using OpenSSL for Local CA`). This issue is fixed in newer version, Cruster will be uptaed soon.
+If, for some reason, you do not want to use `rcgen` to handle certificates, you can use openssl, see below.
 
 ### Using OpenSSL for Local CA
 
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --locked --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -156,7 +154,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --locked 
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --locked --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## With Docker
