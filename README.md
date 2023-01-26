@@ -114,7 +114,7 @@ http <== <!doctype html><html i
 http <==
 ```
 
-## Features
+## Features and Compilation
 
 Cruster contains the following features (in terms of Rust):
 
@@ -124,6 +124,18 @@ Cruster contains the following features (in terms of Rust):
 - `openssl-ca` - use `OpenSSL` to build local CA; requires `OpenSSL` (`libssl`) to be installed;
 - `ncurses` - use `Ncurses` as Text User Interface backend; requires `Ncurses` (`libncurses`/`libncurses5`/`libncursesw5`) to be installed;
 - `termion` - use `Termion` as Text User Interface backend;
+
+All features can be devided in two groups:
+
+- *CA backend*:
+  - `rcgen-ca`
+  - `openssl-ca`
+- *TUI backend*:
+  - `crossterm`
+  - `ncurses`
+  - `termion`
+
+To successfully compile `Cruster` one feature from each group must be defined (`default` feature do it by default).
 
 ## Installation
 
@@ -162,10 +174,16 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --no-defa
 Instead of usual installation you can use Cruster from a docker container. You can build your own:
 
 ``` shell
-$ cd cruster && sudo docker build . -t local/cruster
+$ cd cruster && sudo docker build . -f docker/Dockerfile -t local/cruster
 ```
 
-Or use ready one:
+Also you can build a version with use of `openssl` and `ncurses`:
+
+``` shell
+$ cd cruster && sudo docker build . -f docker/Dockerfile-openssl-ncurses -t local/cruster
+```
+
+Or you can use ready image:
 
 ``` shell
 $ sudo docker pull sinfox/cruster:latest
@@ -185,7 +203,8 @@ $ sudo docker run -it sinfox/cruster
 - [ ] **Scripting engine based on Python to write testcases and checks**.
 - [X] WS(S) support.
 - [ ] Improve documentation.
-- [ ] WS(S) proxy history visualization (like for HTTP(S));
+- [ ] WS(S) proxy history visualization (like for HTTP(S)).
+- [ ] Reverse proxy mode.
 - [ ] And much more ...
 
 ## Gratitude
