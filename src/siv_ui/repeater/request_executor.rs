@@ -1,6 +1,6 @@
-use hyper::{Body, Client, Version, client::HttpConnector};
 use tokio::runtime::Runtime;
 use std::{thread, str::FromStr};
+use hyper::{Body, Client, Version, client::HttpConnector};
 use cursive::{Cursive, utils::span::SpannedString, theme::Style};
 use http::{Response, HeaderMap, Request, header::HeaderName, HeaderValue};
 
@@ -19,7 +19,12 @@ pub(super) enum RepeaterEvent {
 async fn execute_request(req: hyper::Request<Body>) -> Result<Response<Body>, CrusterError> {
     let scheme = req.uri().scheme().unwrap().as_str();
     let sending_result = if scheme.starts_with("https") {
-        let tls = hyper_tls::HttpsConnector::new();
+        let tls = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_webpki_roots()
+            .https_or_http()
+            .enable_http1();
+
+        let tls = tls.build();
         // there is an issue with HTTP/2 in Hyper: https://github.com/hyperium/hyper/issues/2417
         if req.version() == Version::HTTP_2 {
             let mut client_builder = Client::builder();

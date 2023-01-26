@@ -7,7 +7,7 @@ mod scope;
 
 use std::net::{IpAddr, SocketAddr};
 
-#[cfg(feature = "default")]
+#[cfg(feature = "rcgen-ca")]
 use hudsucker::{ProxyBuilder, certificate_authority::{RcgenAuthority as HudSuckerCA}};
 
 #[cfg(feature = "openssl-ca")]

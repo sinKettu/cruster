@@ -9,9 +9,17 @@ mod filter_view;
 mod req_res_spanned;
 pub(super) mod error_view;
 
+#[cfg(feature = "termion")]
+use cursive_buffered_backend;
+
+#[cfg(feature = "crossterm")]
+use cursive_buffered_backend;
+
+#[cfg(feature = "ncurses")]
+use cursive::CursiveExt;
+
 use cursive::{Cursive, };
 use cursive::{traits::*, };
-use cursive_buffered_backend;
 use cursive_table_view::TableViewItem;
 use cursive::utils::markup::StyledString;
 use cursive::theme::{BaseColor, BorderStyle, Palette, };
