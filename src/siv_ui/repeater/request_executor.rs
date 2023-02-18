@@ -1,6 +1,6 @@
 use reqwest;
-use tokio::runtime::Runtime;
 use std::{thread, str::FromStr};
+use tokio::runtime::Runtime;
 use cursive::{Cursive, utils::span::SpannedString, theme::Style};
 
 use crate::{
@@ -89,7 +89,7 @@ async fn send_reqwest(req: reqwest::Request, state_index: usize, redirects: bool
         }
         else {
             let wrapper = HyperResponseWrapper::from_reqwest(rsp).await?;
-            let styled_text = req_res_spanned::response_wrapper_to_spanned(&wrapper);
+            let styled_text = req_res_spanned::response_to_spanned_full(&wrapper);
             return Ok(styled_text);
         }
     }

@@ -148,7 +148,7 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
     return first_line;
 }
 
-pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> SpannedString<Style> {
+fn response_to_spanned_with_length_limit(res: &HyperResponseWrapper, limit: usize) -> SpannedString<Style> {
     let mut first_line = SpannedString::default();
     let status = SpannedString::styled(&res.status, BaseColor::Yellow.light());
 
@@ -163,8 +163,8 @@ pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> Spanned
     let body_str = res.body.to_str_lossy();
     match CString::new(body_str.as_bytes()) {
         Ok(_) => {
-            if body_str.len() > 4000 {
-                let tmp = &body_str[..4000];
+            if limit > 0 && body_str.len() > limit {
+                let tmp = &body_str[..limit];
                 first_line.append("\r\n");
                 first_line.append(tmp);
 
@@ -182,4 +182,12 @@ pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> Spanned
     }
 
     return first_line;
+}
+
+pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> SpannedString<Style> {
+    return response_to_spanned_with_length_limit(res, 4000);
+}
+
+pub(super) fn response_to_spanned_full(res: &HyperResponseWrapper) -> SpannedString<Style> {
+    return response_to_spanned_with_length_limit(res, 0);
 }
