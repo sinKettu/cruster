@@ -63,7 +63,6 @@ impl Display for HyperRequestWrapper {
 
 impl HyperRequestWrapper {
     pub(crate) async fn from_hyper(req: Request<Body>) -> Result<(Self, Request<Body>), CrusterError> {
-        // TODO сделать через parts
         let (parts, body) = req.into_parts();
         let uri = parts.uri.clone().to_string();
         let method = parts.method.clone().to_string();
@@ -96,6 +95,40 @@ impl HyperRequestWrapper {
         };
 
         return Ok((request_wrapper, reconstructed_request));
+    }
+
+    pub(crate) async fn from_reqwest(req: reqwest::Request) -> Result<Self, CrusterError> {
+        let uri = req.url().to_string();
+        let method = req.method().to_string();
+        let headers = req.headers().clone();
+
+        let version = match req.version() {
+            reqwest::Version::HTTP_11 => "HTTP/1.1".to_string(),
+            reqwest::Version::HTTP_09 => "HTTP/0.1".to_string(),
+            reqwest::Version::HTTP_10 => "HTTP/1.0".to_string(),
+            reqwest::Version::HTTP_2 => "HTTP/2".to_string(),
+            reqwest::Version::HTTP_3 => "HTTP/2".to_string(),
+            _ => "HTTP/UNKNOWN".to_string()
+        };
+
+        let body: Vec<u8> = match req.body() {
+            Some(body) => {
+                body.as_bytes().unwrap().to_vec()
+            },
+            None => {
+                vec![]
+            }
+        };
+
+        let wrapper = HyperRequestWrapper {
+            uri,
+            method,
+            version,
+            headers,
+            body
+        };
+
+        Ok(wrapper)
     }
 
     pub(crate) fn get_request_path(&self) -> String {
@@ -267,33 +300,10 @@ impl HyperResponseWrapper {
             _ => "HTTP/UNKNOWN".to_string() // TODO: Think once more
         };
 
-        // Copy headers and determine if body is compressed
+        // Copy headers
         let mut headers = HeaderMap::new();
-        // let mut body_compressed: BodyCompressedWith = BodyCompressedWith::NONE;
         for (k, v) in &rsp_parts.headers.clone() {
             headers.insert(k.clone(), v.clone());
-            // if k.as_str().to_lowercase() == "content-encoding" {
-            //     match v.to_str() {
-            //         Ok(s) => {
-            //             if s.contains("gzip") {
-            //                 body_compressed = BodyCompressedWith::GZIP;
-            //             }
-            //             else if s.contains("deflate") {
-            //                 body_compressed = BodyCompressedWith::DEFLATE;
-            //             }
-            //             else if s.contains("br") {
-            //                 body_compressed = BodyCompressedWith::BR;
-            //             }
-            //             else {
-            //                 body_compressed = BodyCompressedWith::NONE;
-            //             }
-            //         },
-            //         Err(_) => {
-            //             // nothing to do here
-            //             debug!("Could not parse header to UTF-8");
-            //         }
-            //     }
-            // }
         }
 
         let body = match hyper::body::to_bytes(rsp_body).await {
@@ -312,6 +322,31 @@ impl HyperResponseWrapper {
         };
 
         return Ok((response_wrapper, reconstructed_response));
+    }
+
+    pub(crate) async fn from_reqwest(rsp: reqwest::Response) -> Result<Self, CrusterError> {
+        let status = rsp.status().to_string();
+        let wrapper_headers = rsp.headers().clone();
+
+        let version = match rsp.version() {
+            reqwest::Version::HTTP_11 => "HTTP/1.1".to_string(),
+            reqwest::Version::HTTP_09 => "HTTP/0.1".to_string(),
+            reqwest::Version::HTTP_10 => "HTTP/1.0".to_string(),
+            reqwest::Version::HTTP_2 => "HTTP/2".to_string(),
+            reqwest::Version::HTTP_3 => "HTTP/2".to_string(),
+            _ => "HTTP/UNKNOWN".to_string() // TODO: Think once more
+        };
+
+        let body = rsp.bytes().await?.to_vec();
+
+        let wrapper = HyperResponseWrapper {
+            status,
+            version,
+            headers: wrapper_headers,
+            body
+        };
+
+        return Ok(wrapper);
     }
 
     pub(crate) fn get_length(&self) -> usize {

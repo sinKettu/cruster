@@ -31,15 +31,18 @@ use serde_yaml;
 use time::OffsetDateTime;
 use time::macros::datetime;
 use tokio::sync::mpsc::error::{SendError as tokio_SendError, TryRecvError};
-use crate::CrusterWrapper;
 use regex::Error as regex_error;
+use reqwest::Error as ReqwestErr;
 
 use log::debug;
 use std::string::FromUtf8Error;
 use http::{
     header::{InvalidHeaderName, InvalidHeaderValue},
-    Error as HTTPError
+    Error as HTTPError,
+    method::InvalidMethod
 };
+
+use crate::CrusterWrapper;
 
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
@@ -67,11 +70,13 @@ pub(crate) enum CrusterError {
     Base64DecodeError(String),
     StorePathNotFoundError(String),
     RegexError(String),
-    HyperRequestBuildingError(String),
+    // HyperRequestBuildingError(String),
     ParseUtf8Error(String),
     HeaderNameParseError(String),
     HeaderValueParseError(String),
     HTTPBuildingError(String),
+    ReqwestError(String),
+    InvalidHTTPMethod(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -198,6 +203,22 @@ impl From<HTTPError> for CrusterError {
     }
 }
 
+impl From<ReqwestErr> for CrusterError {
+    fn from(value: ReqwestErr) -> Self {
+        Self::ReqwestError(
+            format!("Error when using Reqwest lib: {}", value.to_string())
+        )
+    }
+}
+
+impl From<InvalidMethod> for CrusterError {
+    fn from(value: InvalidMethod) -> Self {
+        Self::InvalidHTTPMethod(
+            format!("Cannot build HTTP method: {}", value.to_string())
+        )
+    }
+}
+
 impl fmt::Display for CrusterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -256,6 +277,12 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::HyperBodyParseError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::ReqwestError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::InvalidHTTPMethod(s) => {
                 write!(f, "{}", s)
             },
             _ => { write!(f, "{:?}", self) }
