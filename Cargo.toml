@@ -11,8 +11,10 @@ description = "Something between MitMProxy, Burp Suite/ZAP and Nuclei"
 # General
 async-trait = "0.1.7"
 regex = "1.6.0"
+rustls = "0.20.8"
+reqwest = { version = "0.11.14", default_features = false, features = ["rustls-tls", "gzip", "brotli", "deflate", "multipart", "stream"]}
 hyper = { version = "0.14.7", features = ["http1", "http2", "client"] }
-hyper-rustls = { version = "0.23.2", features = ["webpki-roots", "http2"]}
+hyper-rustls = { version = "0.23.2", features = ["webpki-roots", "http2", "http1"]}
 # reqwest = { version = "0.11.13", features = ["blocking"] }
 bstr = "0.2.1"
 rand = { version = "0.8.0"}
@@ -28,6 +30,7 @@ cursive = { version = "0.20.0", default_features = false, optional = true }
 cursive_table_view = "0.14.0"
 crossbeam-channel = "0.5.6"
 cursive_buffered_backend = "0.6.1"
+cli-clipboard = "0.4.0"
 # ---------------------------------------------------------------------
 # Configuration
 shellexpand = "2.1.0"

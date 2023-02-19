@@ -19,7 +19,15 @@ use cursive::{
 use cursive_table_view::TableView;
 use std::cmp::Ordering;
 
-use super::{BasicColumn, ProxyDataForTable, SivUserData, draw_request_and_response, req_res_spanned, views_stack};
+use super::{
+    BasicColumn,
+    ProxyDataForTable,
+    SivUserData,
+    draw_request_and_response,
+    req_res_spanned,
+    views_stack,
+    clipboard::{CopyToClipboard, CopySubject}, sivuserdata::GetCrusterUserData
+};
 use crate::utils::CrusterError;
 
 // use log::debug;
@@ -156,11 +164,13 @@ fn draw_fullscreen_request_and_response(siv: &mut Cursive) {
                     };
 
                     let request_view = TextView::new(req_spanned)
+                        .with_name("request-fs-content")
                         .scrollable();
                     let response_view = TextView::new(res_spanned)
+                        .with_name("response-fs-content")
                         .full_screen()
                         .scrollable();
-
+                    
                     let layout = LinearLayout::horizontal()
                         .child(Dialog::around(request_view).title("Request").with_name("request-fs"))
                         .child(Dialog::around(response_view).title("Response").with_name("response-fs"))
@@ -175,6 +185,33 @@ fn draw_fullscreen_request_and_response(siv: &mut Cursive) {
                         })
                         .on_event(Key::Right, |s: &mut Cursive| {
                             s.focus_name("response-fs").unwrap();
+                        })
+                        .on_event('r', |s: &mut Cursive| {
+                            if let Err(err) = s.copy_to_clipboard(CopySubject::FullScreenRequest) {
+                                s.get_cruster_userdata().push_error(err);
+                                s.get_cruster_userdata().status.set_message("Copy to clibpoard failed");
+                            }
+                            else {
+                                s.get_cruster_userdata().status.set_message("Copied!");
+                            }
+                        })
+                        .on_event('s', |s: &mut Cursive| {
+                            if let Err(err) = s.copy_to_clipboard(CopySubject::FullScreenResponse) {
+                                s.get_cruster_userdata().push_error(err);
+                                s.get_cruster_userdata().status.set_message("Copy to clibpoard failed");
+                            }
+                            else {
+                                s.get_cruster_userdata().status.set_message("Copied!");
+                            }
+                        })
+                        .on_event('f', |s: &mut Cursive| {
+                            if let Err(err) = s.copy_to_clipboard(CopySubject::FullScreenRequestAndResponse) {
+                                s.get_cruster_userdata().push_error(err);
+                                s.get_cruster_userdata().status.set_message("Copy to clibpoard failed");
+                            }
+                            else {
+                                s.get_cruster_userdata().status.set_message("Copied!");
+                            }
                         });
                     
                     views_stack::push_fullscreen_layer(siv, layout_with_event);

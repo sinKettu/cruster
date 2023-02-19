@@ -39,6 +39,10 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
         SpannedString::styled("e - ", letters_style.clone()),
         SpannedString::styled("Show error logs view\n", descriptions_style.clone()),
 
+        SpannedString::styled("f - ", letters_style.clone()),
+        SpannedString::styled("\n    <On FullScreen Request/Response> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Copy request and response content to clipboard\n", descriptions_style.clone()),
+
         SpannedString::styled("i - ", letters_style.clone()),
         SpannedString::styled("\n    <On Repeater View> - ", BaseColor::Yellow.dark()),
         SpannedString::styled("Edit request\n", descriptions_style.clone()),
@@ -48,7 +52,14 @@ pub(super) fn make_help_message() -> SpannedString<Style> {
         SpannedString::styled("Show parameters\n", descriptions_style.clone()),
 
         SpannedString::styled("r - ", letters_style.clone()),
-        SpannedString::styled("Show active repeaters\n", descriptions_style.clone()),
+        SpannedString::styled("\n    <On Proxy Table> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Show active repeaters", descriptions_style.clone()),
+        SpannedString::styled("\n    <On FullScreen Request/Response> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Copy request content to clipboard\n", descriptions_style.clone()),
+
+        SpannedString::styled("s - ", letters_style.clone()),
+        SpannedString::styled("\n    <On FullScreen Request/Response> - ", BaseColor::Yellow.dark()),
+        SpannedString::styled("Copy response content to clipboard\n", descriptions_style.clone()),
 
         SpannedString::styled("t - ", letters_style.clone()),
         SpannedString::styled("Show fullscreen HTTP proxy table\n", descriptions_style.clone()),

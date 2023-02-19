@@ -7,6 +7,7 @@ mod views_stack;
 mod sivuserdata;
 mod filter_view;
 mod req_res_spanned;
+mod clipboard;
 pub(super) mod error_view;
 
 #[cfg(feature = "termion")]
