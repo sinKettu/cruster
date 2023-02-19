@@ -1,6 +1,6 @@
-use bstr::ByteSlice;
 use http::HeaderMap;
-use std::{ffi::CString, collections::HashMap};
+use bstr::ByteSlice;
+use std::ffi::CString;
 use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style, BaseColor, Effect}};
 
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
@@ -47,9 +47,21 @@ fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
 }
 
 fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
-    let mut tmp_storage: HashMap<&str, SpannedString<Style>> = HashMap::default();
-    for (k, v) in headers.iter() {
-        let k_str = k.as_str();
+    let mut result: SpannedString<Style> = SpannedString::default();
+
+    let mut keys_list: Vec<String> = headers
+        .keys()
+        .into_iter()
+        .map(|key| {
+            key.to_string()
+        })
+        .collect();
+
+    keys_list.sort();
+
+    for key in keys_list.iter() {
+        let k_str = key.as_str();
+        let v = headers.get(key).unwrap();
         let hval = if let Ok(hval) = v.to_str() {
             StyledString::from(hval)
         }
@@ -58,31 +70,9 @@ fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
             spanned_hval
         };
 
-        let key_found = tmp_storage.get_mut(k_str);
-        match key_found {
-            Some(val) => {
-                // CRUTCH
-                // TODO: read RFC, determine the better way
-                if k_str == "cookie" {
-                    val.append("; ");
-                }
-                else {
-                    val.append(",");
-                }
-                
-                val.append(hval);
-            },
-            None => {
-                tmp_storage.insert(k_str, hval);
-            }
-        }
-    }
-
-    let mut result: SpannedString<Style> = SpannedString::default();
-    for (k, v) in tmp_storage {
-        result.append(StyledString::styled(k, BaseColor::Blue.dark()));
+        result.append(StyledString::styled(k_str, BaseColor::Blue.dark()));
         result.append(": ");
-        result.append(v);
+        result.append(hval);
         result.append("\r\n");
     }
 

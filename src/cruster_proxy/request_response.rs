@@ -30,11 +30,21 @@ pub(crate) struct HyperRequestWrapper {
 impl Display for HyperRequestWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut headers = String::default();
-        for (k, v) in self.headers.iter() {
+        let mut keys_list: Vec<&str> = self.headers
+            .keys()
+            .into_iter()
+            .map(|k| {
+                k.as_str()
+            })
+            .collect();
+
+        keys_list.sort();
+        for key in keys_list {
+            let v = self.headers.get(key).unwrap();
             headers = format!(
                 "{}{}: {}\r\n",
                 headers,
-                k.as_str(),
+                key,
                 v.as_bytes().to_str_lossy()
             );
         }
@@ -253,8 +263,18 @@ pub(crate) struct HyperResponseWrapper {
 impl Display for HyperResponseWrapper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut headers = String::default();
-        for (k, v) in self.headers.iter() {
-            let header_line = format!("{}: {}\r\n", k.as_str(), v.as_bytes().to_str_lossy());
+        let mut keys_list: Vec<&str> = self.headers
+            .keys()
+            .into_iter()
+            .map(|k| {
+                k.as_str()
+            })
+            .collect();
+
+        keys_list.sort();
+        for key in keys_list {
+            let v = self.headers.get(key).unwrap();
+            let header_line = format!("{}: {}\r\n", key, v.as_bytes().to_str_lossy());
             headers.push_str(&header_line);
         }
 
