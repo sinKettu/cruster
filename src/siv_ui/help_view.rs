@@ -7,7 +7,8 @@ use cursive::{
     theme::{Style, Effect, BaseColor},
 };
 use std::{rc::Rc, ops::Deref};
-use super::sivuserdata::SivUserData;
+use super::sivuserdata::{SivUserData, GetCrusterUserData};
+use super::clipboard::{CopyToClipboard, CopySubject};
 
 pub(super) fn make_help_message() -> SpannedString<Style> {
     let letters_style: Style = BaseColor::Green.light().into();
@@ -84,7 +85,16 @@ pub(super) fn draw_help_view(siv: &mut Cursive, content: &Rc<SpannedString<Style
     let help = TextView::new(content.deref().clone())
         .with_name("help-popup");
     let help = OnEventView::new(help)
-        .on_event(cursive::event::Key::Esc, |s| { s.pop_layer(); });
+        .on_event(cursive::event::Key::Esc, |s| { s.pop_layer(); })
+        .on_event('c', |s: &mut Cursive| {
+            if let Err(err) = s.copy_to_clipboard(CopySubject::Help) {
+                s.get_cruster_userdata().push_error(err);
+                s.get_cruster_userdata().status.set_message("Copy to clibpoard failed");
+            }
+            else {
+                s.get_cruster_userdata().status.set_message("Copied!");
+            }
+        });
 
     let help = Dialog::around(help)
         .title("Help")

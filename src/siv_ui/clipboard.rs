@@ -6,7 +6,8 @@ use crate::utils::CrusterError;
 pub(super) enum CopySubject {
     FullScreenRequest,
     FullScreenResponse,
-    FullScreenRequestAndResponse
+    FullScreenRequestAndResponse,
+    Help
 }
 
 pub(super) trait CopyToClipboard {
@@ -104,6 +105,20 @@ impl CopyToClipboard for Cursive {
                 else {
                     Some(Ok(()))
                 }
+            },
+            CopySubject::Help => {
+                self.call_on_name("help-popup", |req: &mut TextView| {
+                    let content = req.get_content();
+                    if let Err(err) = ctx.set_contents(content.source().to_string()) {
+                        return Err(
+                            CrusterError::UndefinedError(
+                                format!("Could not set clipboard's content: {}", err.to_string())
+                            )
+                        );
+                    }
+
+                    Ok(())
+                })
             }
         };
 
