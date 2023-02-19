@@ -154,10 +154,10 @@ fn draw_fullscreen_request_and_response(siv: &mut Cursive) {
         match possible_pair {
             Some(pair) => {
                 if let Some(request) = &pair.request {
-                    let req_spanned = req_res_spanned::request_wrapper_to_spanned(request);
+                    let req_spanned = req_res_spanned::request_wrapper_to_spanned_full(request);
         
                     let res_spanned = if let Some(response) = &pair.response {
-                        req_res_spanned::response_wrapper_to_spanned(response)
+                        req_res_spanned::response_to_spanned_full(response)
                     }
                     else {
                         SpannedString::new()

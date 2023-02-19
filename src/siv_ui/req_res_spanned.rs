@@ -80,7 +80,7 @@ fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
     return result;
 }
 
-pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedString<Style> {
+fn request_wrapper_to_spanned_with_limit(req: &HyperRequestWrapper, limit: usize) -> SpannedString<Style> {
     let mut first_line = SpannedString::default();
     let method = SpannedString::styled(&req.method, Style::from(BaseColor::White.light()).combine(Effect::Bold));
     first_line.append(method);
@@ -117,8 +117,8 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
     let body_str = req.body.to_str_lossy();
     match CString::new(body_str.as_bytes()) {
         Ok(_) => {
-            if body_str.len() > 4000 {
-                let tmp = &body_str[..4000];
+            if limit > 0 && body_str.len() > limit {
+                let tmp = &body_str[..limit];
                 first_line.append("\r\n");
                 first_line.append(tmp);
 
@@ -136,6 +136,14 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
     }
 
     return first_line;
+}
+
+pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedString<Style> {
+    request_wrapper_to_spanned_with_limit(req, 4000)
+}
+
+pub(super) fn request_wrapper_to_spanned_full(req: &HyperRequestWrapper) -> SpannedString<Style> {
+    request_wrapper_to_spanned_with_limit(req, 0)
 }
 
 fn response_to_spanned_with_length_limit(res: &HyperResponseWrapper, limit: usize) -> SpannedString<Style> {
