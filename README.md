@@ -64,7 +64,7 @@ OPTIONS:
 
 ``` text
 ? - Show this help view
-<Enter> -
+<Enter> - 
     <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
     <On Filter View> - Apply written filter
     <On Repeater View> - Apply edited request / Send
@@ -73,11 +73,17 @@ OPTIONS:
 <Shift> + s - Store proxy data on drive, file path is configured on start
 <Shift> + f - Set filter for table
 e - Show error logs view
-i -
+f - 
+    <On FullScreen Request/Response> - Copy request and response content to clipboard
+i - 
     <On Repeater View> - Edit request
-p -
+p - 
     <On Repeater View> - Show parameters
-r - Show active repeaters
+r - 
+    <On Proxy Table> - Show active repeaters
+    <On FullScreen Request/Response> - Copy request content to clipboard
+s - 
+    <On FullScreen Request/Response> - Copy response content to clipboard
 t - Show fullscreen HTTP proxy table
 q - Quit
 
