@@ -137,8 +137,9 @@ impl RepeaterState {
         let header_re = Regex::new(r"^(?P<name>[\d\w_\-]+): (?P<val>.*)$").unwrap();
         let mut body = String::with_capacity(self.request.len());
         let mut the_following_is_body = false;
-        for line in self.request.split("\r\n").skip(1) {
-            if line.is_empty() {
+        for line in self.request.split("\n").skip(1) {
+            let trimmed_line = line.trim_end();
+            if trimmed_line.is_empty() {
                 the_following_is_body = true;
                 continue;
             }
@@ -149,7 +150,7 @@ impl RepeaterState {
                 continue;
             }
 
-            match header_re.captures(line) {
+            match header_re.captures(trimmed_line) {
                 Some(cap) => {
                     let str_name = &cap["name"];
                     let name = match HeaderName::from_str(str_name) {
