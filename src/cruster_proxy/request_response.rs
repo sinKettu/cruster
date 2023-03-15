@@ -207,12 +207,17 @@ impl HyperRequestWrapper {
     }
 
     pub(crate) fn get_hostname(&self) -> String {
-        self.uri
-            .split("/")
-            .skip(2)
-            .take(1)
-            .collect::<Vec<&str>>()[0]
-            .to_string()
+        if self.method == "CONNECT" {
+            return self.uri.clone();
+        }
+        else {
+            return self.uri
+                .split("/")
+                .skip(2)
+                .take(1)
+                .collect::<Vec<&str>>()[0]
+                .to_string()
+        }
     }
 
     pub(crate) fn get_scheme(&self) -> String {

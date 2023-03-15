@@ -30,6 +30,7 @@ use cursive::{Cursive, CbSink};
 use crate::CrusterError;
 use crate::siv_ui::error_view;
 use super::siv_ui::put_proxy_data_to_storage;
+use http::Method;
 
 fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> usize {
     let mut hasher = DefaultHasher::new();
@@ -58,6 +59,10 @@ pub(crate) struct CrusterWSHandler {
 #[async_trait]
 impl HttpHandler for CrusterHandler {
     async fn handle_request(&mut self, _ctx: &HttpContext, req: Request<Body> ) -> RequestOrResponse {
+        if req.method() == Method::CONNECT {
+            return RequestOrResponse::Request(req);
+        }
+        
         if self.dump {
             let (parts, body) = req.into_parts();
             println!("http ==> {} {}", parts.method.clone().to_string(), parts.uri.clone().to_string());
