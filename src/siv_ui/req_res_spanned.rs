@@ -61,6 +61,7 @@ fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
 
     for key in keys_list.iter() {
         let k_str = key.as_str();
+        // TODO: rewrite it with get_all()
         let v = headers.get(key).unwrap();
         let hval = if let Ok(hval) = v.to_str() {
             StyledString::from(hval)
