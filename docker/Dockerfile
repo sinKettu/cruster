@@ -1,17 +1,17 @@
 FROM ubuntu:22.04
 
 RUN mkdir /opt/cruster \
-    && adduser --shell /bin/bash --home /opt/cruster cruster \
+    && useradd -u 4242 --shell /bin/bash --home /opt/cruster cruster \
     && chown -R cruster /opt/cruster \
     && chmod u+rwx /opt/cruster
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-        build-essential=12.9ubuntu3 \
-        git=1:2.34.1-1ubuntu1.6 \
-        ca-certificates=20211016ubuntu0.22.04.1 \
-        curl=7.81.0-1ubuntu1.7 \
-        locales=2.35-0ubuntu3.1 \
+        build-essential \
+        git \
+        ca-certificates \
+        curl \
+        locales \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_US.UTF-8
