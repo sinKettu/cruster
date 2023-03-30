@@ -2,11 +2,12 @@
 use base64;
 use bstr::ByteSlice;
 use cursive::views::TextContent;
-use http::{HeaderMap, header::HeaderName, HeaderValue, Request};
+use http::{HeaderMap, header::HeaderName, HeaderValue};
 
 use regex::Regex;
 use std::str::FromStr;
-use hyper::{body, Body};
+use hyper::Version;
+use reqwest;
 
 use crate::utils::CrusterError;
 use super::{RepeaterStateSerializable, RepeaterState};
@@ -76,9 +77,7 @@ impl TryFrom<RepeaterStateSerializable> for RepeaterState {
 }
 
 impl RepeaterState {
-    // TODO: all regexes from this method can be reviewed
-    // May be will be rewritten with special parser module
-    pub(super) fn make_http_request(&self) -> Result<Request<Body>, CrusterError> {
+    pub(super) fn make_reqwest(&self) -> Result<reqwest::Request, CrusterError> {
         let req_fl = self.request.splitn(2, "\r\n").collect::<Vec<&str>>()[0];
         let fl_regex = Regex::new(r"^(?P<method>[\w]+) (?P<path>\S+) (?P<version>HTTP/(\d+\.)?\d+)$").unwrap();
 
@@ -101,35 +100,46 @@ impl RepeaterState {
         };
 
         let version = if version == "HTTP/0.9" {
-            http::version::Version::HTTP_09
+            Version::HTTP_09
         }
         else if version == "HTTP/1.0" {
-            http::version::Version::HTTP_10
+            Version::HTTP_10
         }
         else if version == "HTTP/1.1" {
-            http::version::Version::HTTP_11
+            Version::HTTP_11
         }
         else if version == "HTTP/2" || version == "HTTP/2.0" {
-            http::version::Version::HTTP_2
+            return Err(
+                CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
+            );
         }
         else if version == "HTTP/3" || version == "HTTP/3.0" {
-            http::version::Version::HTTP_3
+            return Err(
+                CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
+            );
         }
         else {
             let err_str = format!("Unknown HTTP version of request in repeater: {}", &version);
             return Err(CrusterError::UndefinedError(err_str));
         };
 
-        let mut request_builder = hyper::Request::builder()
-            .method(method.as_str())
-            .uri(uri)
+        let method = reqwest::Method::from_str(&method)?;
+        let url = match reqwest::Url::from_str(&uri) {
+            Ok(url) => url,
+            Err(err) => return Err(CrusterError::CouldParseRequestPathError(err.to_string()))
+        };
+
+        let client = reqwest::Client::new();
+        let request = client.request(method, url)
             .version(version);
 
+        let mut new_headers = HeaderMap::new();
         let header_re = Regex::new(r"^(?P<name>[\d\w_\-]+): (?P<val>.*)$").unwrap();
         let mut body = String::with_capacity(self.request.len());
         let mut the_following_is_body = false;
-        for line in self.request.split("\r\n").skip(1) {
-            if line.is_empty() {
+        for line in self.request.split("\n").skip(1) {
+            let trimmed_line = line.trim_end();
+            if trimmed_line.is_empty() {
                 the_following_is_body = true;
                 continue;
             }
@@ -140,7 +150,7 @@ impl RepeaterState {
                 continue;
             }
 
-            match header_re.captures(line) {
+            match header_re.captures(trimmed_line) {
                 Some(cap) => {
                     let str_name = &cap["name"];
                     let name = match HeaderName::from_str(str_name) {
@@ -163,16 +173,7 @@ impl RepeaterState {
                         }
                     };
 
-                    match request_builder.headers_mut() {
-                        Some(headers) => {
-                            headers.insert(name, val);
-                        },
-                        None => {
-                            let err = "Unknown error, while trying to parse request in repeater. Please check request's syntax".to_string();
-                            return Err(CrusterError::UndefinedError(err));
-                        }
-                    }
-                    
+                    new_headers.insert(name, val);
                 },
                 None => {
                     let err = CrusterError::RegexError(format!("Could not parse headers in repeater from {}", line));
@@ -181,53 +182,12 @@ impl RepeaterState {
             }
         }
 
-        return match request_builder.body(body::Body::from(body)) {
-            Ok(request) => {
-                Ok(request)
-            },
-            Err(e) => {
-                let err = CrusterError::HyperRequestBuildingError(format!("Could build request: {}", e.to_string()));
-                Err(err)
-            }
-        };
+        let request = request
+            .headers(new_headers)
+            .body(body)
+            .build()?;
+        
+
+        Ok(request)
     }
-
-    // pub(super) fn make_request_to_redirect(&mut self, next_uri: &str) -> Result<Request<Body>, CrusterError> {
-    //     let mut request_builder = hyper::Request::builder()
-    //         .uri(next_uri);
-
-    //     if let None = request_builder.headers_ref() {
-    //         let err = "Unknown error, while trying to parse request in repeater. Please check request's syntax".to_string();
-    //         return Err(CrusterError::UndefinedError(err));
-    //     }
-
-    //     for (k, v) in self.saved_headers.iter() {
-    //         request_builder.headers_mut().unwrap().insert(k, v.clone());
-    //     }
-
-    //     let splited: Vec<&str> = next_uri.split("/").take(3).collect();
-    //     let host = splited[2].to_string();
-
-    //     request_builder
-    //         .headers_mut()
-    //         .unwrap()
-    //         .insert("host", HeaderValue::from_str(&host).unwrap());
-
-    //     let request = request_builder.body(Body::empty()).unwrap();
-    //     let possible_wrapper = thread::spawn(move || {
-    //         let runtime = Runtime::new().unwrap();
-    //         let wrapper = runtime.block_on(HyperRequestWrapper::from_hyper(request));
-    //         return wrapper;
-    //     }).join().unwrap();
-
-    //     return match possible_wrapper {
-    //         Ok((wrapper, request)) => {
-    //             self.request = wrapper.to_string();
-    //             Ok(request)
-    //         },
-    //         Err(err) => {
-    //             Err(err)
-    //         }
-    //     };
-    // }
 }

@@ -7,11 +7,20 @@ mod views_stack;
 mod sivuserdata;
 mod filter_view;
 mod req_res_spanned;
+mod clipboard;
 pub(super) mod error_view;
+
+#[cfg(feature = "termion")]
+use cursive_buffered_backend;
+
+#[cfg(feature = "crossterm")]
+use cursive_buffered_backend;
+
+#[cfg(feature = "ncurses")]
+use cursive::CursiveExt;
 
 use cursive::{Cursive, };
 use cursive::{traits::*, };
-use cursive::{CursiveExt, };
 use cursive_table_view::TableViewItem;
 use cursive::utils::markup::StyledString;
 use cursive::theme::{BaseColor, BorderStyle, Palette, };
@@ -199,6 +208,36 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(Crust
     siv.add_fullscreen_layer(base_layout);
 
     debug!("Starting Cursive loop");
+
+    #[cfg(feature = "crossterm")]
+    {
+        let backend_init = || -> std::io::Result<Box<dyn cursive::backend::Backend>> {
+            // let backend = cursive::backends::termion::Backend::init()?;
+            let backend = cursive::backends::crossterm::Backend::init().unwrap();
+            let buffered_backend = cursive_buffered_backend::BufferedBackend::new(backend);
+            Ok(Box::new(buffered_backend))
+        };
+
+        siv
+            .try_run_with(backend_init)
+            .expect("FATAL: could not run Cursive with buffered crossterm backend");
+    }
+
+    #[cfg(feature = "termion")]
+    {
+        let backend_init = || -> std::io::Result<Box<dyn cursive::backend::Backend>> {
+            // let backend = cursive::backends::termion::Backend::init()?;
+            let backend = cursive::backends::termion::Backend::init().unwrap();
+            let buffered_backend = cursive_buffered_backend::BufferedBackend::new(backend);
+            Ok(Box::new(buffered_backend))
+        };
+
+        siv
+            .try_run_with(backend_init)
+            .expect("FATAL: could not run Cursive with buffered termion backend");
+    }
+
+    #[cfg(feature = "ncurses")]
     siv.run();
 }
 

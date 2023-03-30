@@ -272,7 +272,7 @@ fn send_request(siv: &mut Cursive, idx: usize) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
     let repeater_state = &mut ud.repeater_state[idx];
     
-    match repeater_state.make_http_request() {
+    match repeater_state.make_reqwest() {
         Ok(request) => {
             repeater_state.redirects_reached = 1;
             repeater_state.response.set_content("");

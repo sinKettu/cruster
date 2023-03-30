@@ -1,6 +1,6 @@
-use bstr::ByteSlice;
 use http::HeaderMap;
-use std::{ffi::CString, collections::HashMap};
+use bstr::ByteSlice;
+use std::{ffi::CString, borrow::Cow};
 use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style, BaseColor, Effect}};
 
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
@@ -47,42 +47,34 @@ fn query_to_spanned(query_str: &str) -> SpannedString<Style> {
 }
 
 fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
-    let mut tmp_storage: HashMap<&str, SpannedString<Style>> = HashMap::default();
-    for (k, v) in headers.iter() {
-        let k_str = k.as_str();
-        let hval = if let Ok(hval) = v.to_str() {
-            StyledString::from(hval)
-        }
-        else {
-            let spanned_hval = StyledString::from(v.as_bytes().to_str_lossy());
-            spanned_hval
-        };
-
-        let key_found = tmp_storage.get_mut(k_str);
-        match key_found {
-            Some(val) => {
-                // CRUTCH
-                // TODO: read RFC, determine the better way
-                if k_str == "cookie" {
-                    val.append("; ");
-                }
-                else {
-                    val.append(",");
-                }
-                
-                val.append(hval);
-            },
-            None => {
-                tmp_storage.insert(k_str, hval);
-            }
-        }
-    }
-
     let mut result: SpannedString<Style> = SpannedString::default();
-    for (k, v) in tmp_storage {
-        result.append(StyledString::styled(k, BaseColor::Blue.dark()));
+
+    let mut keys_list: Vec<String> = headers
+        .keys()
+        .into_iter()
+        .map(|key| {
+            key.to_string()
+        })
+        .collect();
+
+    keys_list.sort();
+
+    for key in keys_list.iter() {
+        let k_str = key.as_str();
+        // TODO: handle set-cookie separately
+        let v_iter = headers
+            .get_all(key)
+            .iter()
+            .map(|val| {
+                val.as_bytes().to_str_lossy()
+            })
+            .collect::<Vec<Cow<str>>>()
+            .join("; ");
+
+        let hval = StyledString::from(v_iter);
+        result.append(StyledString::styled(k_str, BaseColor::Blue.dark()));
         result.append(": ");
-        result.append(v);
+        result.append(hval);
         result.append("\r\n");
     }
 
@@ -90,7 +82,7 @@ fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
     return result;
 }
 
-pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedString<Style> {
+fn request_wrapper_to_spanned_with_limit(req: &HyperRequestWrapper, limit: usize) -> SpannedString<Style> {
     let mut first_line = SpannedString::default();
     let method = SpannedString::styled(&req.method, Style::from(BaseColor::White.light()).combine(Effect::Bold));
     first_line.append(method);
@@ -127,8 +119,52 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
     let body_str = req.body.to_str_lossy();
     match CString::new(body_str.as_bytes()) {
         Ok(_) => {
-            if body_str.len() > 4000 {
-                let tmp = &body_str[..4000];
+            if limit > 0 && body_str.len() > limit {
+                let tmp = &body_str[..limit];
+                first_line.append("\r\n");
+                first_line.append(tmp);
+
+                let tmp = StyledString::styled("--- BODY IS TOO LARGE TO SHOW ---", BaseColor::White.dark());
+                first_line.append(tmp);
+            }
+            else {
+                first_line.append(body_str);
+            }
+        },
+        Err(_) => {
+            let tmp = StyledString::styled("--- INCOMPATIBLE SET OF BYTES ---", BaseColor::White.dark());
+            first_line.append(tmp);
+        }
+    }
+
+    return first_line;
+}
+
+pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedString<Style> {
+    request_wrapper_to_spanned_with_limit(req, 4000)
+}
+
+pub(super) fn request_wrapper_to_spanned_full(req: &HyperRequestWrapper) -> SpannedString<Style> {
+    request_wrapper_to_spanned_with_limit(req, 0)
+}
+
+fn response_to_spanned_with_length_limit(res: &HyperResponseWrapper, limit: usize) -> SpannedString<Style> {
+    let mut first_line = SpannedString::default();
+    let status = SpannedString::styled(&res.status, BaseColor::Yellow.light());
+
+    first_line.append(&res.version);
+    first_line.append(" ");
+    first_line.append(status);
+    first_line.append("\r\n");
+
+    let headers_content = header_map_to_spanned(&res.headers);
+    first_line.append(headers_content);
+
+    let body_str = res.body.to_str_lossy();
+    match CString::new(body_str.as_bytes()) {
+        Ok(_) => {
+            if limit > 0 && body_str.len() > limit {
+                let tmp = &body_str[..limit];
                 first_line.append("\r\n");
                 first_line.append(tmp);
 
@@ -149,37 +185,9 @@ pub(super) fn request_wrapper_to_spanned(req: &HyperRequestWrapper) -> SpannedSt
 }
 
 pub(super) fn response_wrapper_to_spanned(res: &HyperResponseWrapper) -> SpannedString<Style> {
-    let mut first_line = SpannedString::default();
-    let status = SpannedString::styled(&res.status, BaseColor::Yellow.light());
+    return response_to_spanned_with_length_limit(res, 4000);
+}
 
-    first_line.append(&res.version);
-    first_line.append(" ");
-    first_line.append(status);
-    first_line.append("\r\n");
-
-    let headers_content = header_map_to_spanned(&res.headers);
-    first_line.append(headers_content);
-
-    let body_str = res.body.to_str_lossy();
-    match CString::new(body_str.as_bytes()) {
-        Ok(_) => {
-            if body_str.len() > 4000 {
-                let tmp = &body_str[..4000];
-                first_line.append("\r\n");
-                first_line.append(tmp);
-
-                let tmp = StyledString::styled("--- BODY IS TOO LARGE TO SHOW ---", BaseColor::White.dark());
-                first_line.append(tmp);
-            }
-            else {
-                first_line.append(body_str);
-            }
-        },
-        Err(_) => {
-            let tmp = StyledString::styled("--- INCOMPATIBLE SET OF BYTES ---", BaseColor::White.dark());
-            first_line.append(tmp);
-        }
-    }
-
-    return first_line;
+pub(super) fn response_to_spanned_full(res: &HyperResponseWrapper) -> SpannedString<Style> {
+    return response_to_spanned_with_length_limit(res, 0);
 }

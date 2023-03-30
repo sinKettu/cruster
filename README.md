@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.4.6`
+`v0.5.0`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -32,7 +32,7 @@ To use this proxy with browser you must import CA certificate of proxy (stored b
 
 ``` shell
 $ cruster -h
-Cruster 0.4.6
+Cruster 0.5.0
 Andrey Ivanov<avangard.jazz@gmail.com>
 
 USAGE:
@@ -64,7 +64,7 @@ OPTIONS:
 
 ``` text
 ? - Show this help view
-<Enter> -
+<Enter> - 
     <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
     <On Filter View> - Apply written filter
     <On Repeater View> - Apply edited request / Send
@@ -73,11 +73,17 @@ OPTIONS:
 <Shift> + s - Store proxy data on drive, file path is configured on start
 <Shift> + f - Set filter for table
 e - Show error logs view
-i -
+f - 
+    <On FullScreen Request/Response> - Copy request and response content to clipboard
+i - 
     <On Repeater View> - Edit request
-p -
+p - 
     <On Repeater View> - Show parameters
-r - Show active repeaters
+r - 
+    <On Proxy Table> - Show active repeaters
+    <On FullScreen Request/Response> - Copy request content to clipboard
+s - 
+    <On FullScreen Request/Response> - Copy response content to clipboard
 t - Show fullscreen HTTP proxy table
 q - Quit
 
@@ -114,6 +120,29 @@ http <== <!doctype html><html i
 http <==
 ```
 
+## Features and Compilation
+
+Cruster contains the following features (in terms of Rust):
+
+- `rcgen-ca` - use `Rcgen` to build local CA;
+- `crosstrem` - use `Crossterm` as Text User Interface backend (cross-platform);
+- `default` - includes previous two features, enabled by default;
+- `openssl-ca` - use `OpenSSL` to build local CA; requires `OpenSSL` (`libssl`) to be installed;
+- `ncurses` - use `Ncurses` as Text User Interface backend; requires `Ncurses` (`libncurses`/`libncurses5`/`libncursesw5`) to be installed;
+- `termion` - use `Termion` as Text User Interface backend;
+
+All features can be devided in two groups:
+
+- *CA backend*:
+  - `rcgen-ca`
+  - `openssl-ca`
+- *TUI backend*:
+  - `crossterm`
+  - `ncurses`
+  - `termion`
+
+To successfully compile `Cruster` one feature from each group must be defined (`default` feature do it by default).
+
 ## Installation
 
 The only option for now is to install from source code with `git` and `cargo`. You can use the following command:
@@ -121,25 +150,21 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0"
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
 
-- Known problem #1:
+> In some case `crossterm` and `termion` backends can flicker. It is a known `cursive` [issue](https://github.com/gyscos/cursive/issues/667). For Cruster the [buffered backend](https://github.com/agavrilov/cursive_buffered_backend) is implemented, but it is not for sure, that buffering will cover all cases. If you faced with such problem, you can use `ncurses` backend.
 
-    > There are a problem with using `rcgen`, because of which local CA can wrongly sign site's certificates and browsers will be refusing them (problem is not in `rcgen` library): https://github.com/omjadas/hudsucker/issues/39. There is a way to avoid this problem, while it would not be solved, see below (`Using OpenSSL for Local CA`). This issue is fixed in newer version, Cruster will be uptaed soon.
-
-- Known problem #2:
-
-    > There are a known problem with Cursive (TUI lib) working with `crossterm` backend (rust-written), TUI can blink. There is a possible way to fix it, I'll try to implement it in newer version of Cruster. If you faced with this problem, you can use `ncurses` backend.
+If, for some reason, you do not want to use `rcgen` to handle certificates, you can use openssl, see below.
 
 ### Using OpenSSL for Local CA
 
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -147,7 +172,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked 
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.5.0" --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## With Docker
@@ -155,10 +180,16 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.4.6" --locked 
 Instead of usual installation you can use Cruster from a docker container. You can build your own:
 
 ``` shell
-$ cd cruster && sudo docker build . -t local/cruster
+$ cd cruster && sudo docker build . -f docker/Dockerfile -t local/cruster
 ```
 
-Or use ready one:
+Also you can build a version with use of `openssl` and `ncurses`:
+
+``` shell
+$ cd cruster && sudo docker build . -f docker/Dockerfile-openssl-ncurses -t local/cruster
+```
+
+Or you can use ready image:
 
 ``` shell
 $ sudo docker pull sinfox/cruster:latest
@@ -178,7 +209,8 @@ $ sudo docker run -it sinfox/cruster
 - [ ] **Scripting engine based on Python to write testcases and checks**.
 - [X] WS(S) support.
 - [ ] Improve documentation.
-- [ ] WS(S) proxy history visualization (like for HTTP(S));
+- [ ] WS(S) proxy history visualization (like for HTTP(S)).
+- [ ] Reverse proxy mode.
 - [ ] And much more ...
 
 ## Gratitude

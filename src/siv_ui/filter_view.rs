@@ -50,8 +50,7 @@ pub(super) fn draw_filter(siv: &mut Cursive) {
             use cursive::theme::BaseColor::*;
             use cursive::theme::PaletteColor::*;
 
-            palette[View] = Red.light();
-            palette[Secondary] = BaseColor::Black.dark();
+            palette[Secondary] = Green.light();
         }),
     };
 

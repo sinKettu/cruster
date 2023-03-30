@@ -11,12 +11,12 @@ use log::debug;
 use hudsucker::{
     async_trait::async_trait,
     hyper::{Body, Request, Response},
-    tungstenite::Message,
+    tokio_tungstenite::tungstenite::Message,
     HttpHandler,
-    RequestOrResponse,
     HttpContext,
-    MessageHandler,
-    MessageContext
+    WebSocketHandler,
+    WebSocketContext,
+    RequestOrResponse,
 };
 use std::{
     cmp::min,
@@ -30,6 +30,7 @@ use cursive::{Cursive, CbSink};
 use crate::CrusterError;
 use crate::siv_ui::error_view;
 use super::siv_ui::put_proxy_data_to_storage;
+use http::Method;
 
 fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> usize {
     let mut hasher = DefaultHasher::new();
@@ -52,13 +53,16 @@ pub(crate) struct CrusterHandler {
 
 #[derive(Clone)]
 pub(crate) struct CrusterWSHandler {
-    pub(crate) dump: bool,
-    pub(crate) from_client: bool
+    pub(crate) dump: bool
 }
 
 #[async_trait]
 impl HttpHandler for CrusterHandler {
     async fn handle_request(&mut self, _ctx: &HttpContext, req: Request<Body> ) -> RequestOrResponse {
+        if req.method() == Method::CONNECT {
+            return RequestOrResponse::Request(req);
+        }
+        
         if self.dump {
             let (parts, body) = req.into_parts();
             println!("http ==> {} {}", parts.method.clone().to_string(), parts.uri.clone().to_string());
@@ -241,20 +245,47 @@ impl CrusterHandler {
 // ---------------------------------------------------------------------------------------------- //
 
 #[async_trait]
-impl MessageHandler for CrusterWSHandler {
-    async fn handle_message(&mut self, _ctx: &MessageContext, msg: Message) -> Option<Message> {
-        if self.dump {
-            println!(
-                "wskt {} {}, {}: {:?}",
-                {if self.from_client { "==>" } else { "<==" }},
-                _ctx.client_addr,
-                _ctx.server_uri,
-                &msg
-            );
-            Some(msg)
-        }
-        else {
-            Some(msg)
+impl WebSocketHandler for CrusterWSHandler {
+    async fn handle_message(&mut self, _ctx: &WebSocketContext, msg: Message) -> Option<Message> {
+        // if self.dump {
+        //     println!(
+        //         "wskt {} {}, {}: {:?}",
+        //         {if self.from_client { "==>" } else { "<==" }},
+        //         _ctx.,
+        //         _ctx.server_uri,
+        //         &msg
+        //     );
+        //     Some(msg)
+        // }
+        // else {
+        //     Some(msg)
+        // }
+
+        match _ctx {
+            WebSocketContext::ClientToServer { src, dst, .. } => {
+                if self.dump {
+                    println!(
+                        "wskt ==> {}, {}: {:?}",
+                        src,
+                        dst,
+                        &msg
+                    )
+                }
+                
+                Some(msg)
+            },
+            WebSocketContext::ServerToClient { src, dst, .. } => {
+                if self.dump {
+                    println!(
+                        "wskt ==> {}, {}: {:?}",
+                        src,
+                        dst,
+                        &msg
+                    )
+                }
+
+                Some(msg)
+            }
         }
     }
 }

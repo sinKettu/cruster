@@ -7,7 +7,7 @@ mod scope;
 
 use std::net::{IpAddr, SocketAddr};
 
-#[cfg(feature = "default")]
+#[cfg(feature = "rcgen-ca")]
 use hudsucker::{ProxyBuilder, certificate_authority::{RcgenAuthority as HudSuckerCA}};
 
 #[cfg(feature = "openssl-ca")]
@@ -52,16 +52,9 @@ async fn start_proxy(
                 request_hash: 0
             }
         )
-        .with_incoming_message_handler(
+        .with_websocket_handler(
             CrusterWSHandler {
-                dump: dump_mode,
-                from_client: false
-            }
-        )
-        .with_outgoing_message_handler(
-            CrusterWSHandler {
-                dump: dump_mode,
-                from_client: true
+                dump: dump_mode
             }
         )
         .build();

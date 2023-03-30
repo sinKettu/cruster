@@ -1,7 +1,6 @@
+use reqwest;
 use std::{thread, str::FromStr};
-use hyper::{Body, Client};
 use tokio::runtime::Runtime;
-use http::{Response, HeaderMap, Request, header::HeaderName, HeaderValue, Version};
 use cursive::{Cursive, utils::span::SpannedString, theme::Style};
 
 use crate::{
@@ -9,6 +8,7 @@ use crate::{
     siv_ui::req_res_spanned,
     cruster_proxy::request_response::{HyperResponseWrapper, HyperRequestWrapper},
 };
+use http::{HeaderMap, HeaderValue};
 
 pub(super) enum RepeaterEvent {
     Ready(SpannedString<Style>),
@@ -16,154 +16,137 @@ pub(super) enum RepeaterEvent {
     RequestChanged(String),
 }
 
-async fn execute_request(req: hyper::Request<Body>) -> Result<Response<Body>, CrusterError> {
-    let scheme = req.uri().scheme().unwrap().as_str();
-    let sending_result = if scheme.starts_with("https") {
-        let tls = hyper_tls::HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(tls);
-        client.request(req).await
-    }
-    else {
-        let client = Client::new();
-        client.request(req).await
-    };
-
-    return match sending_result {
-        Ok(rsp) => {
-           Ok(rsp)
-        },
-        Err(e) => {
-            Err(CrusterError::from(e))
-        }
-    };
+fn send_ready_event(txt: SpannedString<Style>, state_index: usize, sink: cursive::CbSink) {
+    sink.send(
+        Box::new(
+            move |siv: &mut Cursive| {
+                super::handle_repeater_event(
+                    siv,
+                    state_index,
+                    RepeaterEvent::Ready(txt)
+                )
+            }
+        )
+    ).expect("FATAL: Could not synchronize threads while repeating (Ready case).");
 }
 
-async fn prepare_for_redirect(
-    rsp_headers: &HeaderMap,
-    saved_headers: &HeaderMap,
-    saved_version: &Version
-) -> Result<Option<Request<Body>>, CrusterError> {
+fn send_error_event(err: CrusterError, state_index: usize, sink: cursive::CbSink) {
+    sink.send(
+        Box::new(
+            move |siv: &mut Cursive| {
+                super::handle_repeater_event(
+                    siv,
+                    state_index,
+                    RepeaterEvent::Error(err)
+                )
+            }
+        )
+    ).expect("FATAL: Could not synchronize threads while repeating (Error case).");
+}
 
-    match rsp_headers.get("location") {
-        Some(location) => {
-            let uri = location.to_str()?;
-            let first_line_splitted: Vec<&str> = uri.split('/').collect();
-            let host = first_line_splitted[2].clone();
+fn send_request_changed_event(request: String, state_index: usize, sink: cursive::CbSink) {
+    sink.send(
+        Box::new(
+            move |siv: &mut Cursive| {
+                super::handle_repeater_event(
+                    siv,
+                    state_index,
+                    RepeaterEvent::RequestChanged(request)
+                )
+            }
+        )
+    ).expect("FATAL: Could not synchronize threads while repeating (RequestChanged case).");
+}
 
-            let mut request_builder = hyper::Request::builder()
-                .method("GET")
-                // TODO: Set initial HTTP version later
-                .version(saved_version.clone())
-                .uri(uri);
-            
-            let possible_error_message = "Could not build request in repeater after reaching redirect".to_string();
-            for (k, v) in saved_headers.into_iter() {
-                request_builder
-                    .headers_mut()
-                    .ok_or(CrusterError::HyperRequestBuildingError(possible_error_message.clone()))?
-                    .insert(k.clone(), v.clone());
+fn forge_request_for_redirect(client: &reqwest::Client, rsp_hdrs: &HeaderMap<HeaderValue>, req_hdrs: &mut HeaderMap<HeaderValue>, prev_url: &reqwest::Url) -> Result<reqwest::Request, CrusterError> {
+    // Get Location header from response or handle error
+    let location = match rsp_hdrs.get("location") {
+        Some(location_str) => {
+            let possible_location = reqwest::Url::from_str(location_str.to_str()?);
+            if let Err(_) = possible_location {
+                return Err(CrusterError::UndefinedError("Could not follow redirect because could not parse URL from 'Location'".to_string()));
             }
 
-            request_builder
-                .headers_mut()
-                .ok_or(CrusterError::HyperRequestBuildingError(possible_error_message.clone()))?
-                .insert(
-                    HeaderName::from_str("Host").unwrap(),
-                    HeaderValue::from_str(host).unwrap()
-                );
-            
-            let request = request_builder.body(Body::empty())?;
-            return Ok(Some(request));
+            possible_location.unwrap()
         },
         None => {
-            return Ok(None);
+            return Err(CrusterError::UndefinedError("Could not follow redirect because did not found 'Location'".to_string()));
         }
-    }
+    };
+
+    // Define new Host header for request (use from Location or previous one)
+    let prev_host = req_hdrs.get("host").unwrap().to_str()?;
+    let next_host = location
+        .host_str()
+        .unwrap_or(prev_host)
+        .to_string();
+
+    // Try to remove, because inserting does not rewrite existing
+    req_hdrs.remove("host");
+    req_hdrs.remove("referer");
+
+    let request = client.request(reqwest::Method::GET, location)
+        .headers(req_hdrs.to_owned())
+        .header("Host", next_host)
+        .header("Referer", prev_url.to_string())
+        .build()?;
+
+    return Ok(request);
 }
 
-async fn handle_sending(
-    req: hyper::Request<Body>,
-    state_index: usize,
-    need_redirect: bool,
-    sink: cursive::CbSink
-) -> Result<SpannedString<Style>, CrusterError> {
+async fn send_reqwest(req: reqwest::Request, state_index: usize, redirects: bool, sink: cursive::CbSink) -> Result<SpannedString<Style>, CrusterError> {
+    let client = reqwest::ClientBuilder::new()
+        .http1_only()
+        .use_rustls_tls()
+        .redirect(reqwest::redirect::Policy::none());
 
-    let mut actual_request = req;
-    let saved_headers = actual_request.headers().clone();
-    let saved_version = actual_request.version();
-    let mut redirect_counter: u8 = 0;
+    let client = client.build()?;
+    let mut headers_backup = req.headers().clone();
+    let mut url_backup = req.url().clone();
+    let mut request = req;
+    let mut redirect_count: u8 = 0;
+
     loop {
-        let rsp = execute_request(actual_request).await?;
-        if ! need_redirect {
-            let wrapper = HyperResponseWrapper::from_hyper(rsp).await?;
-            let rsp_text = req_res_spanned::response_wrapper_to_spanned(&wrapper.0);
-            return Ok(rsp_text);
-        }
-
-        let rsp_headers = rsp.headers();
-        match prepare_for_redirect(rsp_headers, &saved_headers, &saved_version).await? {
-            Some(redirect_request) => {
-                if redirect_counter >= 10 {
-                    let err = format!("Too many redirects reached in repeater #{}", state_index);
-                    return Err(CrusterError::UndefinedError(err));
-                }
-
-                let (wrapper, request) = HyperRequestWrapper::from_hyper(redirect_request).await?;
-                sink.send(
-                    Box::new(
-                        move |siv: &mut Cursive| {
-                            super::handle_repeater_event(
-                                siv,
-                                state_index,
-                                RepeaterEvent::RequestChanged(wrapper.to_string())
-                            )
-                        }
-                    )
-                ).expect("FATAL: Could not synchronize threads while repeating (RequestChanged case).");
-
-                actual_request = request;
-                redirect_counter += 1;
-            },
-            None => {
-                let wrapper = HyperResponseWrapper::from_hyper(rsp).await?;
-                let rsp_text = req_res_spanned::response_wrapper_to_spanned(&wrapper.0);
-                return Ok(rsp_text);
+        let rsp = client.execute(request).await?;
+        // Manual redirects implementation because reqwest does not change Host header and always reaches maximum count
+        if rsp.status().is_redirection() && redirects {
+            if redirect_count >= 10 {
+                return Err(CrusterError::UndefinedError("Redirects max count reached".to_string()));
             }
+
+            redirect_count += 1;
+            
+            request = forge_request_for_redirect(
+                &client,
+                rsp.headers(),
+                &mut headers_backup,
+                &url_backup
+            )?;
+
+            headers_backup = request.headers().clone();
+            url_backup = request.url().clone();
+
+            let str_request = HyperRequestWrapper::from_reqwest(request.try_clone().unwrap())
+                .await?
+                .to_string();
+
+            send_request_changed_event(str_request, state_index, sink.clone());
+        }
+        else {
+            let wrapper = HyperResponseWrapper::from_reqwest(rsp).await?;
+            let styled_text = req_res_spanned::response_to_spanned_full(&wrapper);
+            return Ok(styled_text);
         }
     }
 }
 
-pub(super) fn send_request_detached(req: hyper::Request<Body>, state_index: usize, redirects: bool, sink: cursive::CbSink) {
+pub(super) fn send_request_detached(req: reqwest::Request, state_index: usize, redirects: bool, sink: cursive::CbSink) {
     let _thrd = thread::spawn(
         move || {
             let runtime = Runtime::new().unwrap();
-            match runtime.block_on(handle_sending(req, state_index, redirects, sink.clone())) {
-                Ok(response_text) => {
-                    sink.send(
-                        Box::new(
-                            move |siv: &mut Cursive| {
-                                super::handle_repeater_event(
-                                    siv,
-                                    state_index,
-                                    RepeaterEvent::Ready(response_text)
-                                )
-                            }
-                        )
-                    ).expect("FATAL: Could not synchronize threads while repeating (Ready case).");
-                },
-                Err(e) => {
-                    sink.send(
-                        Box::new(
-                            move |siv: &mut Cursive| {
-                                super::handle_repeater_event(
-                                    siv,
-                                    state_index,
-                                    RepeaterEvent::Error(e)
-                                )
-                            }
-                        )
-                    ).expect("FATAL: Could not synchronize threads while repeating (Error case).");
-                }
+            match runtime.block_on(send_reqwest(req, state_index, redirects, sink.clone())) {
+                Ok(response_text) => send_ready_event(response_text, state_index, sink),
+                Err(e) => send_error_event(e, state_index, sink)
             }
         }
     );
