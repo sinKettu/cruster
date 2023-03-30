@@ -19,6 +19,13 @@ pub(crate) struct Scope {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct Dump {
+    pub(crate) enabled: bool,
+    pub(crate) verbosity: u8,
+    pub(crate) color: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct Config {
     pub(crate) tls_key_name: String,
     pub(crate) tls_cer_name: String,
@@ -26,9 +33,9 @@ pub(crate) struct Config {
     pub(crate) port: u16,
     pub(crate) store: Option<String>,
     pub(crate) debug_file: Option<String>,
-    pub(crate) dump_mode: bool,
     pub(crate) load: Option<String>,
     pub(crate) scope: Option<Scope>,
+    pub(crate) dump_mode: Option<Dump>
 }
 
 impl Default for Config {
@@ -39,10 +46,16 @@ impl Default for Config {
             address: "127.0.0.1".to_string(),
             port: 8080_u16,
             debug_file: None,
-            dump_mode: false,
             store: None,
             load: None,
             scope: None,
+            dump_mode: Some(
+                Dump {
+                    enabled: false,
+                    verbosity: 0,
+                    color: true
+                }
+            ),
         }
     }
 }
@@ -374,8 +387,10 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         }
     }
 
-    if matches.is_present("dump-mode") || config.dump_mode {
-        config.dump_mode = true;
+    if matches.is_present("dump-mode") {
+        if let Some(dm) = config.dump_mode.as_mut() {
+            dm.enabled = true;
+        }
     }
 
     Ok(config)

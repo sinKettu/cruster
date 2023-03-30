@@ -24,6 +24,7 @@ use std::{net::{IpAddr, SocketAddr}, process::exit};
 use crossbeam_channel::Sender as CB_Sender;
 use crossbeam_channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
 use cruster_proxy::{CrusterHandler, CrusterWSHandler, events::ProxyEvents};
+use dump::DumpMode;
 
 // use log::debug;
 
@@ -102,7 +103,7 @@ async fn main() -> Result<(), utils::CrusterError> {
         }
     );
 
-    if config.dump_mode {
+    if config.dump_mode_enabled() {
         tokio::task::spawn(
             async move {
                 dump::launch_dump(rx).await;

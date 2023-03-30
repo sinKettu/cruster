@@ -1,7 +1,22 @@
-use crate::cruster_proxy::events::{ProxyEvents};
+use crate::{cruster_proxy::events::{ProxyEvents}, config::Config};
 use crossbeam_channel::Receiver;
 use hudsucker::WebSocketContext;
 use bstr::ByteSlice;
+
+pub(crate) trait DumpMode {
+    fn dump_mode_enabled(&self) -> bool;
+}
+
+impl DumpMode for Config {
+    fn dump_mode_enabled(&self) -> bool {
+        return if let Some(dm) = self.dump_mode.as_ref() {
+            dm.enabled
+        }
+        else {
+            false
+        }
+    }
+}
 
 pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>) {
     loop {
