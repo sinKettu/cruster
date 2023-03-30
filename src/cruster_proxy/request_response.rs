@@ -12,7 +12,7 @@ use hudsucker::{
 
 use http::HeaderMap;
 use bstr::ByteSlice;
-use std::fmt::Display;
+use std::{fmt::Display, borrow::Cow};
 use std::ffi::CString;
 
 use crate::CrusterError;
@@ -40,12 +40,20 @@ impl Display for HyperRequestWrapper {
 
         keys_list.sort();
         for key in keys_list {
-            let v = self.headers.get(key).unwrap();
+            let v_iter = self.headers
+                .get_all(key)
+                .iter()
+                .map(|val| {
+                    val.as_bytes().to_str_lossy()
+                })
+                .collect::<Vec<Cow<str>>>()
+                .join("; ");
+
             headers = format!(
                 "{}{}: {}\r\n",
                 headers,
                 key,
-                v.as_bytes().to_str_lossy()
+                v_iter
             );
         }
 
@@ -278,8 +286,16 @@ impl Display for HyperResponseWrapper {
 
         keys_list.sort();
         for key in keys_list {
-            let v = self.headers.get(key).unwrap();
-            let header_line = format!("{}: {}\r\n", key, v.as_bytes().to_str_lossy());
+            let v_iter = self.headers
+                .get_all(key)
+                .iter()
+                .map(|val| {
+                    val.as_bytes().to_str_lossy()
+                })
+                .collect::<Vec<Cow<str>>>()
+                .join("; ");
+
+            let header_line = format!("{}: {}\r\n", key, v_iter);
             headers.push_str(&header_line);
         }
 

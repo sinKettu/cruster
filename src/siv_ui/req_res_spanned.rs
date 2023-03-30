@@ -1,6 +1,6 @@
 use http::HeaderMap;
 use bstr::ByteSlice;
-use std::ffi::CString;
+use std::{ffi::CString, borrow::Cow};
 use cursive::{utils::{span::SpannedString, markup::StyledString}, theme::{Style, BaseColor, Effect}};
 
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
@@ -61,16 +61,17 @@ fn header_map_to_spanned(headers: &HeaderMap) -> SpannedString<Style> {
 
     for key in keys_list.iter() {
         let k_str = key.as_str();
-        // TODO: rewrite it with get_all()
-        let v = headers.get(key).unwrap();
-        let hval = if let Ok(hval) = v.to_str() {
-            StyledString::from(hval)
-        }
-        else {
-            let spanned_hval = StyledString::from(v.as_bytes().to_str_lossy());
-            spanned_hval
-        };
+        // TODO: handle set-cookie separately
+        let v_iter = headers
+            .get_all(key)
+            .iter()
+            .map(|val| {
+                val.as_bytes().to_str_lossy()
+            })
+            .collect::<Vec<Cow<str>>>()
+            .join("; ");
 
+        let hval = StyledString::from(v_iter);
         result.append(StyledString::styled(k_str, BaseColor::Blue.dark()));
         result.append(": ");
         result.append(hval);
