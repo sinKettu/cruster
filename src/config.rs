@@ -38,6 +38,16 @@ pub(crate) struct Config {
     pub(crate) dump_mode: Option<Dump>
 }
 
+impl Default for Dump {
+    fn default() -> Self {
+        Dump {
+            enabled: false,
+            verbosity: 0,
+            color: true
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -49,13 +59,7 @@ impl Default for Config {
             store: None,
             load: None,
             scope: None,
-            dump_mode: Some(
-                Dump {
-                    enabled: false,
-                    verbosity: 0,
-                    color: true
-                }
-            ),
+            dump_mode: None,
         }
     }
 }
@@ -74,6 +78,8 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let strict_help = "If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from ui";
     let include_help = "Regex for URI to include in scope, i.e. ^https?://www\\.google\\.com/.*$. Option can repeat.";
     let exclude_help = "Regex for URI to exclude from scope, i.e. ^https?://www\\.google\\.com/.*$. Processed after include regex if any. Option can repeat.";
+    let verbosity_help = "Verbosity in dump mode, ignored in intercative mode. 0: request/response first line, 
+1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body";
     
     let default_workplace = tilde("~/.cruster");
     let default_config = tilde("~/.cruster/config.yaml");
@@ -170,6 +176,12 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .multiple(true)
                 .number_of_values(1)
                 .help(exclude_help)
+        )
+        .arg(
+            Arg::with_name("verbosity")
+                .short("v")
+                .multiple(true)
+                .help(verbosity_help)
         )
         .get_matches();
 
@@ -390,6 +402,25 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     if matches.is_present("dump-mode") {
         if let Some(dm) = config.dump_mode.as_mut() {
             dm.enabled = true;
+        }
+        else {
+            config.dump_mode = Some(
+                Dump {
+                    enabled: true,
+                    ..Dump::default()
+                }
+            );
+        }
+    }
+
+    if matches.is_present("verbosity") {
+        if let Some(dm) = config.dump_mode.as_mut() {
+            let mut count = matches.occurrences_of("verbosity");
+            if count > 4 {
+                count = 4;
+            }
+
+            dm.verbosity = count as u8;
         }
     }
 

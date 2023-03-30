@@ -106,7 +106,7 @@ async fn main() -> Result<(), utils::CrusterError> {
     if config.dump_mode_enabled() {
         tokio::task::spawn(
             async move {
-                dump::launch_dump(rx).await;
+                dump::launch_dump(rx, config).await;
             }
         );
 
