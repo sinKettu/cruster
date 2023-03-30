@@ -2,6 +2,7 @@ use std::fs;
 use regex::Regex;
 use serde_json as json;
 use std::collections::HashMap;
+use crossbeam_channel::Receiver;
 use std::io::{Write, BufReader, BufRead};
 use cursive::{views::TextContent, Cursive};
 use tokio::sync::mpsc::Receiver as TokioReceiver;
@@ -12,15 +13,15 @@ use super::repeater::RepeaterState;
 use super::repeater::RepeaterStateSerializable;
 use crate::{
     config::Config,
-    cruster_proxy::request_response::CrusterWrapper,
     utils::CrusterError,
     http_storage::HTTPStorage,
     scope
 };
+use crate::cruster_proxy::events::ProxyEvents;
 
 pub(super) struct SivUserData {
     pub(super) config: Config,
-    pub(super) proxy_receiver: TokioReceiver<(CrusterWrapper, usize)>,
+    pub(super) proxy_receiver: Receiver<ProxyEvents>,
     pub(super) proxy_err_receiver: TokioReceiver<CrusterError>,
     pub(super) http_storage: HTTPStorage,
     pub(super) request_view_content: TextContent,
@@ -41,7 +42,7 @@ pub(super) trait GetCrusterUserData {
 }
 
 impl SivUserData {
-    pub(super) fn receive_data_from_proxy(&mut self) -> Option<(CrusterWrapper, usize)> {
+    pub(super) fn receive_data_from_proxy(&mut self) -> Option<ProxyEvents> {
         match self.proxy_receiver.try_recv() {
             Ok(received_data) => {
                 Some(received_data)

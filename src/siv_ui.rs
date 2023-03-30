@@ -30,6 +30,7 @@ use log::debug;
 use std::rc::Rc;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use crossbeam_channel::Receiver as CBReceiver;
 use tokio::sync::mpsc::Receiver;
 // use std::thread::{self, JoinHandle, sleep};
 
@@ -40,8 +41,8 @@ use crate::utils::CrusterError;
 use status_bar::StatusBarContent;
 use crate::http_storage::HTTPStorage;
 use crate::siv_ui::http_table::HTTPTable;
-use crate::cruster_proxy::request_response::CrusterWrapper;
 use self::sivuserdata::GetCrusterUserData;
+use crate::cruster_proxy::events::ProxyEvents;
 
 impl GetCrusterUserData for Cursive {
     fn get_cruster_userdata(&mut self) -> &mut SivUserData {
@@ -100,7 +101,7 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
     }
 }
 
-pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: Receiver<(CrusterWrapper, usize)>, err_rx: Receiver<CrusterError>) {
+pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: CBReceiver<ProxyEvents>, err_rx: Receiver<CrusterError>) {
     let help_message = Rc::new(help_view::make_help_message());
 
     siv.add_global_callback('q', |s| quit_popup::draw_popup(s));
@@ -245,9 +246,10 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
     let mut rx: SivUserData = siv.take_user_data().unwrap();
     siv.screen_mut().call_on_name(rx.active_http_table_name, |table: &mut HTTPTable| {
         let result = rx.receive_data_from_proxy();
-        if let Some((request_or_response, hash)) = result {
-            match request_or_response {
-                CrusterWrapper::Request(req) => {
+        if let Some(event) = result {
+        // if let Some((request_or_response, hash)) = result {
+            match event {
+                ProxyEvents::RequestSent((req, hash)) => {
                     let fit_scope = rx.is_uri_in_socpe(&req.uri);
                     if !rx.is_scope_strict() || fit_scope {
                         let table_record = rx.http_storage.put_request(req, hash);
@@ -260,7 +262,7 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
                         }
                     }
                 },
-                CrusterWrapper::Response(res) => {
+                ProxyEvents::ResponseSent((res, hash)) => {
                     let table_id = rx.http_storage.put_response(res, &hash);
                     if let Some(id) = table_id {
                         if let Some(pair) = rx.http_storage.get_by_id(id) {
@@ -279,6 +281,7 @@ pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
                         }
                     }
                 }
+                _ => {}
             }
         }
         rx.status.set_stats(rx.errors.len(), rx.http_storage.len());

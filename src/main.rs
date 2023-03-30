@@ -4,8 +4,8 @@ mod config;
 mod http_storage;
 mod siv_ui;
 mod scope;
+mod dump;
 
-use std::net::{IpAddr, SocketAddr};
 
 #[cfg(feature = "rcgen-ca")]
 use hudsucker::{ProxyBuilder, certificate_authority::{RcgenAuthority as HudSuckerCA}};
@@ -16,13 +16,15 @@ use hudsucker::{ProxyBuilder, certificate_authority::{OpensslAuthority as HudSuc
 use tokio::{
     self,
     sync::mpsc::{channel, Sender},
-    signal
 };
-use cruster_proxy::{CrusterHandler, CrusterWSHandler, request_response::CrusterWrapper};
-use utils::CrusterError;
 
+use utils::CrusterError;
 use cursive::{Cursive, CbSink};
+use std::{net::{IpAddr, SocketAddr}, process::exit};
 use crossbeam_channel::Sender as CB_Sender;
+use crossbeam_channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
+use cruster_proxy::{CrusterHandler, CrusterWSHandler, events::ProxyEvents};
+
 // use log::debug;
 
 async fn shutdown_signal() {
@@ -34,10 +36,10 @@ async fn shutdown_signal() {
 async fn start_proxy(
         socket_addr: SocketAddr,
         ca: HudSuckerCA,
-        tx: Sender<(CrusterWrapper, usize)>,
+        tx: CrusterSender<ProxyEvents>,
         err_tx: Sender<CrusterError>,
-        cursive_sink: CbSink,
-        dump_mode: bool) {
+        cursive_sink: CbSink
+    ) {
 
     let proxy = ProxyBuilder::new()
         .with_addr(socket_addr)
@@ -45,16 +47,15 @@ async fn start_proxy(
         .with_ca(ca)
         .with_http_handler(
             CrusterHandler {
-                proxy_tx: tx,
+                proxy_tx: tx.clone(),
                 err_tx: err_tx.clone(),
-                dump: dump_mode,
                 cursive_sink,
                 request_hash: 0
             }
         )
         .with_websocket_handler(
             CrusterWSHandler {
-                dump: dump_mode
+                proxy_tx: tx.clone()
             }
         )
         .build();
@@ -83,7 +84,7 @@ async fn main() -> Result<(), utils::CrusterError> {
         config.port
     ));
 
-    let (proxy_tx, ui_rx) = channel(10);
+    let (tx, rx): (CrusterSender<ProxyEvents>, CrusterReceiver<ProxyEvents>) = unbounded();
     let (err_tx, err_rx) = channel(10);
 
     let siv = Cursive::default();
@@ -94,23 +95,29 @@ async fn main() -> Result<(), utils::CrusterError> {
             start_proxy(
                 socket_addr,
                 ca,
-                proxy_tx,
+                tx,
                 err_tx,
                 cb_sink,
-                config.dump_mode
             ).await
-        });
+        }
+    );
 
     if config.dump_mode {
-        match signal::ctrl_c().await {
-            Ok(_) => Ok(()),
+        tokio::task::spawn(
+            async move {
+                dump::launch_dump(rx).await;
+            }
+        );
+
+        match tokio::signal::ctrl_c().await {
+            Ok(_) => { exit(0); },
             Err(err) => {
                 panic!("Unable to listen for shutdown signal: {}", err);
-            },
+            }
         }
     }
     else {
-        siv_ui::bootstrap_ui(siv, config, ui_rx, err_rx);
+        siv_ui::bootstrap_ui(siv, config, rx, err_rx);
         Ok(())
     }
 }
