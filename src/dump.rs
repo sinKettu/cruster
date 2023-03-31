@@ -1,5 +1,6 @@
 use bstr::ByteSlice;
 use std::borrow::Cow;
+use colored::Colorize;
 use crossbeam_channel::Receiver;
 use hudsucker::WebSocketContext;
 
@@ -40,7 +41,11 @@ impl DumpMode for Config {
 fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::config::Config) {
     let verbosity = config.get_verbosity();
     let first_line = format!("{} {} {}", &wrapper.method, &wrapper.uri, &wrapper.version);
-    println!("http {:x} ==> {}", hash, first_line);
+    let hash_str = format!("{:x}", hash);
+    let hash = &hash_str[.. 6].bright_black();
+    let direction = format!("{}{}", "==".green(), ">".bright_green());
+
+    println!("{} {} {} {}", "http".yellow(), hash, direction, first_line);
 
     if verbosity >= 2 {
         let mut headers = String::default();
@@ -64,7 +69,7 @@ fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::conf
                 .join("; ");
 
             headers = format!(
-                "{}http {:x} ==> {}: {}\r\n",
+                "{}http {} ==> {}: {}\r\n",
                 headers,
                 hash,
                 key,
@@ -73,12 +78,12 @@ fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::conf
         }
 
         print!("{}", headers);
-        println!("http {:x} ==>", hash);
+        println!("http {} ==>", hash);
     }
 
     if verbosity >= 4 {
         let body = wrapper.body.to_str_lossy();
-        println!("http {:x} ==> {}", hash, body);
+        println!("http {} ==> {}", hash, body);
     }
 
     if config.get_verbosity() != 0 {
@@ -89,7 +94,11 @@ fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::conf
 fn print_response(wrapper: HyperResponseWrapper, hash: usize, config: &super::config::Config) {
     let verbosity = config.get_verbosity();
     let first_line = format!("{} {}", &wrapper.version, &wrapper.status);
-    println!("http {:x} <== {}", hash, first_line);
+    let hash_str = format!("{:x}", hash);
+    let hash = &hash_str[.. 6].bright_black();
+    let direction = format!("{}{}", "<".bright_green(), "==".green());
+
+    println!("{} {} {} {}", "http".yellow(), hash, direction, first_line);
 
     if verbosity >= 1 {
         let mut headers = String::default();
@@ -113,7 +122,7 @@ fn print_response(wrapper: HyperResponseWrapper, hash: usize, config: &super::co
                 .join("; ");
 
             headers = format!(
-                "{}http {:x} <== {}: {}\r\n",
+                "{}http {} <== {}: {}\r\n",
                 headers,
                 hash,
                 key,
@@ -122,12 +131,12 @@ fn print_response(wrapper: HyperResponseWrapper, hash: usize, config: &super::co
         }
 
         print!("{}", headers);
-        println!("http {:x} <==", hash);
+        println!("http {} <==", hash);
     }
 
     if verbosity >= 3 {
         let body = wrapper.body.to_str_lossy();
-        println!("http {:x} <== {}", hash, body);
+        println!("http {} <== {}", hash, body);
     }
 
     if config.get_verbosity() != 0 {
@@ -140,21 +149,32 @@ fn print_ws_message(msg: &[u8], ctx: &WebSocketContext, config: &super::config::
         WebSocketContext::ClientToServer { src, dst, .. } => {
             let printable_mes = msg.to_str_lossy();
             let verbosity = config.get_verbosity();
+            let src = src.to_string().bright_black();
+            let dst = dst.to_string().bright_black();
+            let direction = format!("{}{}", "==".green(), ">".bright_green());
+            
+
             if verbosity >= 3 {
-                println!("wskt {} ==> {} -- {}...", src, dst, printable_mes);
+                println!("{} {} {} {} {} {}...", "wskt".purple(), src, direction, dst, "--".green(), printable_mes);
             }
             else {
-                println!("wskt {} ==> {} -- {}...", src, dst, &printable_mes[..30]);
+                let limit = if printable_mes.len() < 30 { printable_mes.len() } else { 30 };
+                println!("{} {} {} {} {} {}...", "wskt".purple(), src, direction, dst, "--".green(), &printable_mes[.. limit]);
             }
         },
         WebSocketContext::ServerToClient { src, dst, .. } => {
             let printable_mes = msg.to_str_lossy();
             let verbosity = config.get_verbosity();
+            let src = src.to_string().bright_black();
+            let dst = dst.to_string().bright_black();
+            let direction = format!("{}{}", "<".bright_green(), "==".green());
+
             if verbosity >= 3 {
-                println!("wskt {} <== {} -- {}...", dst, src, printable_mes);
+                println!("{} {} {} {} {} {}...", "wskt".purple(), dst, direction, src, "--".green(), printable_mes);
             }
             else {
-                println!("wskt {} <== {} -- {}...", dst, src, &printable_mes[..30]);
+                let limit = if printable_mes.len() < 30 { printable_mes.len() } else { 30 };
+                println!("{} {} {} {} {} {}...", "wskt".purple(), dst, direction, src, "--".green(), &printable_mes[.. limit]);
             }
         }
     }
