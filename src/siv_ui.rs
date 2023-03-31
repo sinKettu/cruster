@@ -344,7 +344,7 @@ fn draw_request_and_response(siv: &mut Cursive, item: usize) {
 /// For now it stores http history + repeater state
 fn store_cruster_state(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
-    if ud.config.store.is_none() {
+    if ud.config.project.is_none() {
         ud.push_error(
             CrusterError::StorePathNotFoundError(
                 format!("You tried to store data, but did not specify path to store at start.")
@@ -361,8 +361,8 @@ fn store_cruster_state(siv: &mut Cursive) {
     ud.data_storing_started = true;
     ud.status.set_message("Storing state...");
     
-    debug!("Dir to store: {}", ud.config.store.as_ref().unwrap());
-    let path_to_save = ud.config.store.as_ref().unwrap();
+    debug!("Dir to store: {}", ud.config.project.as_ref().unwrap());
+    let path_to_save = ud.config.project.as_ref().unwrap();
     let http_path = format!("{}/http.jsonl", path_to_save);
     let rs_path = format!("{}/repeater.jsonl", path_to_save);
 
@@ -385,16 +385,16 @@ fn store_cruster_state(siv: &mut Cursive) {
 fn load_cruster_state(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
 
-    if let None = &ud.config.load {
+    if let None = &ud.config.project {
         debug!("Load dir not found");
         return;
     }
     else {
-        let load_dir = ud.config.load.as_ref().unwrap();
+        let load_dir = ud.config.project.as_ref().unwrap();
         debug!("Loading state from \"{}\"", load_dir.to_string());
     }
 
-    let load_path = format!("{}/http.jsonl", ud.config.load.as_ref().unwrap());
+    let load_path = format!("{}/http.jsonl", ud.config.project.as_ref().unwrap());
     let result = if ud.is_scope_strict() {
         ud.http_storage.load_with_strict_scope(
             &load_path,
@@ -411,7 +411,7 @@ fn load_cruster_state(siv: &mut Cursive) {
         ud.status.set_message("Error while loading HTTP data from file");
     }
     
-    let load_path = format!("{}/repeater.jsonl", ud.config.load.as_ref().unwrap());
+    let load_path = format!("{}/repeater.jsonl", ud.config.project.as_ref().unwrap());
     let result = ud.load_repeater_state(&load_path);
 
     if let Err(err) = result {
@@ -421,29 +421,6 @@ fn load_cruster_state(siv: &mut Cursive) {
 
     fill_table_using_scope(siv);
 }
-
-// fn load_data_if_need(siv: &mut Cursive) {
-//     let ud: &mut SivUserData = siv.user_data().unwrap();
-//     debug!("{:?}", &ud.config.load);
-//     if let None = &ud.config.load {
-//         return;
-//     }
-
-//     let load_path = ud.config.load.as_ref().unwrap();
-
-//     let result = if ud.is_scope_strict() {
-//         ud.http_storage.load_with_strict_scope(load_path, ud.include.as_ref(), ud.exclude.as_ref())
-//     }
-//     else {
-//         ud.http_storage.load(load_path)
-//     };
-
-//     if let Err(e) = result {
-//         ud.push_error(e);
-//     }
-
-//     fill_table_using_scope(siv);
-// }
 
 fn fill_table_using_scope(siv: &mut Cursive) {
     let a = Instant::now();

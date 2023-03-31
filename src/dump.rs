@@ -55,7 +55,7 @@ fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::conf
     let prefix = if config.with_color() {
         let hash_str = format!("{:x}", hash);
         let hash = &hash_str[.. 6].bright_black();
-        let direction = format!("{}{}", "==".green(), ">".bright_green());
+        let direction = format!("{}{}", "--".green(), ">".bright_green());
         
         format!("{} {} {}", "http".yellow(), hash, direction)
     }
@@ -63,7 +63,7 @@ fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::conf
         let hash_str = format!("{:x}", hash);
         let hash = &hash_str[.. 6];
 
-        format!("http {} ==>", hash)
+        format!("http {} -->", hash)
     };
 
     println!("{} {}", &prefix, first_line);
@@ -185,12 +185,12 @@ fn print_ws_message(msg: &[u8], ctx: &WebSocketContext, config: &super::config::
             let prefix = if config.with_color() {
                 let src = src.to_string().bright_black();
                 let dst = dst.to_string().bright_black();
-                let direction = format!("{}{}", "==".green(), ">".bright_green());
+                let direction = format!("{}{}", "--".green(), ">".bright_green());
 
                 format!("{} {} {} {}", "wskt".purple(), src, direction, dst)
             }
             else {
-                format!("wskt {} ==> {}", src, dst)
+                format!("wskt {} --> {}", src, dst)
             };
 
             if verbosity >= 3 {

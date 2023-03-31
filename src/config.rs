@@ -31,9 +31,8 @@ pub(crate) struct Config {
     pub(crate) tls_cer_name: String,
     pub(crate) address: String,
     pub(crate) port: u16,
-    pub(crate) store: Option<String>,
     pub(crate) debug_file: Option<String>,
-    pub(crate) load: Option<String>,
+    pub(crate) project: Option<String>,
     pub(crate) scope: Option<Scope>,
     pub(crate) dump_mode: Option<Dump>
 }
@@ -56,8 +55,7 @@ impl Default for Config {
             address: "127.0.0.1".to_string(),
             port: 8080_u16,
             debug_file: None,
-            store: None,
-            load: None,
+            project: None,
             scope: None,
             dump_mode: None,
         }
@@ -73,8 +71,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let port_help = "Port for proxy to listen to, default: 8080";
     let debug_file_help = "A file to write debug messages, mostly needed for development";
     let dump_help = "Enable non-interactive dumping mode: all communications will be shown in terminal output";
-    let save_help = "Path to directory to store Cruster state. All files within will be rewritten!";
-    let load_help = "Path to directory to load previously stored Cruster state";
+    let project_help = "Path to directory to store/load Cruster state. All files could be rewritten!";
     let strict_help = "If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from ui";
     let include_help = "Regex for URI to include in scope, i.e. ^https?://www\\.google\\.com/.*$. Option can repeat.";
     let exclude_help = "Regex for URI to exclude from scope, i.e. ^https?://www\\.google\\.com/.*$. Processed after include regex if any. Option can repeat.";
@@ -91,7 +88,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         .bin_name("cruster")
         .arg(
             Arg::with_name("workplace")
-                .short("P")
+                .short("W")
                 .long("workplace")
                 .takes_value(true)
                 // .default_value(default_workplace)
@@ -138,20 +135,12 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .help(dump_help)
         )
         .arg(
-            Arg::with_name("store")
-                .long("store")
-                .short("-s")
+            Arg::with_name("project")
+                .long("project")
+                .short("P")
                 .takes_value(true)
                 .value_name("PATH-TO-DIR")
-                .help(save_help)
-        )
-        .arg(
-            Arg::with_name("load")
-                .long("load")
-                .short("-l")
-                .takes_value(true)
-                .value_name("PATH-TO-DIR")
-                .help(load_help)
+                .help(project_help)
         )
         .arg(
             Arg::with_name("strict-scope")
@@ -302,40 +291,17 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         config.debug_file = Some(debug_file);
     }
 
-    if let Some(store_path) = matches.value_of("store") {
-        config.store = Some(resolve_path(&workplace, store_path)?);
-        if ! path::Path::new(config.store.as_ref().unwrap()).is_dir() {
-            fs::create_dir(config.store.as_ref().unwrap())?;
+    if let Some(store_path) = matches.value_of("project") {
+        config.project = Some(resolve_path(&workplace, store_path)?);
+        if ! path::Path::new(config.project.as_ref().unwrap()).is_dir() {
+            fs::create_dir(config.project.as_ref().unwrap())?;
         }
     }
-    else if let Some(store_path) = &config.store {
-        config.store = Some(resolve_path(&workplace, store_path)?);
-        if ! path::Path::new(config.store.as_ref().unwrap()).is_dir() {
-            fs::create_dir(config.store.as_ref().unwrap())?;
+    else if let Some(store_path) = &config.project {
+        config.project = Some(resolve_path(&workplace, store_path)?);
+        if ! path::Path::new(config.project.as_ref().unwrap()).is_dir() {
+            fs::create_dir(config.project.as_ref().unwrap())?;
         }
-    }
-
-    if let Some(load_path) = matches.value_of("load") {
-        let lpath = find_file_or_dir(&workplace, load_path)?;
-        if ! path::Path::new(&lpath).is_dir() {
-            return Err(
-                CrusterError::UndefinedError(
-                    "Path to load data must be a dir, but it is not".to_string()
-                )
-            );
-        }
-        config.load = Some(lpath);
-    }
-    else if let Some(load_path) = &config.load {
-        let lpath = find_file_or_dir(&workplace, load_path)?;
-        if ! path::Path::new(&lpath).is_dir() {
-            return Err(
-                CrusterError::UndefinedError(
-                    "Path to load data must be a dir, but it is not".to_string()
-                )
-            );
-        }
-        config.load = Some(lpath);
     }
 
     config.tls_cer_name = resolve_path(&workplace, &config.tls_cer_name)?;
@@ -457,44 +423,44 @@ fn enable_debug(debug_file_path: &str) {
 }
 
 /// For existing files and dirs
-fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
-    let fpath = path::Path::new(path);
-    if fpath.is_absolute() {
-        if fpath.exists() {
-            return Ok(path.to_string());
-        }
-        else {
-            return Err(
-                CrusterError::ConfigError(
-                    format!("Could not find file or dir at absolute path '{}'", path)
-                )
-            );
-        }
-    }
-    else {
-        if fpath.starts_with("./") && fpath.exists() {
-            return Ok(path.to_string());
-        }
+// fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
+//     let fpath = path::Path::new(path);
+//     if fpath.is_absolute() {
+//         if fpath.exists() {
+//             return Ok(path.to_string());
+//         }
+//         else {
+//             return Err(
+//                 CrusterError::ConfigError(
+//                     format!("Could not find file or dir at absolute path '{}'", path)
+//                 )
+//             );
+//         }
+//     }
+//     else {
+//         if fpath.starts_with("./") && fpath.exists() {
+//             return Ok(path.to_string());
+//         }
 
-        let workspace_path = format!("{}/{}", base_path, path);
-        let wpath = path::Path::new(&workspace_path);
-        if wpath.exists() {
-            return Ok(workspace_path);
-        }
-        else {
-            if fpath.exists() {
-                return Ok(path.to_string());
-            }
-            else {
-                return Err(
-                    CrusterError::ConfigError(
-                        format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
-                    )
-                );
-            }
-        }
-    }
-}
+//         let workspace_path = format!("{}/{}", base_path, path);
+//         let wpath = path::Path::new(&workspace_path);
+//         if wpath.exists() {
+//             return Ok(workspace_path);
+//         }
+//         else {
+//             if fpath.exists() {
+//                 return Ok(path.to_string());
+//             }
+//             else {
+//                 return Err(
+//                     CrusterError::ConfigError(
+//                         format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
+//                     )
+//                 );
+//             }
+//         }
+//     }
+// }
 
 /// Return such path state, which is accessbile with cruster
 fn resolve_path(base_path: &str, path: &str) -> Result<String, CrusterError> {
