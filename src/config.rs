@@ -80,6 +80,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let exclude_help = "Regex for URI to exclude from scope, i.e. ^https?://www\\.google\\.com/.*$. Processed after include regex if any. Option can repeat.";
     let verbosity_help = "Verbosity in dump mode, ignored in intercative mode. 0: request/response first line, 
 1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body";
+    let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
     
     let default_workplace = tilde("~/.cruster");
     let default_config = tilde("~/.cruster/config.yaml");
@@ -182,6 +183,12 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 .short("v")
                 .multiple(true)
                 .help(verbosity_help)
+        )
+        .arg(
+            Arg::with_name("no-color")
+                .long("nc")
+                .takes_value(false)
+                .help(nc_help)
         )
         .get_matches();
 
@@ -421,6 +428,12 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             }
 
             dm.verbosity = count as u8;
+        }
+    }
+
+    if matches.is_present("no-color") {
+        if let Some(dm) = config.dump_mode.as_mut() {
+            dm.color = false;
         }
     }
 
