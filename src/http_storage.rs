@@ -59,7 +59,7 @@ impl<'a> IntoIterator for &'a HTTPStorage {
 
 impl HTTPStorage {
     pub(crate) fn put_request(&mut self, request: HyperRequestWrapper, addr: usize) -> ProxyDataForTable {
-        let index = self.storage.len();
+        let index = self.next_id.clone();
 
         let table_record = ProxyDataForTable {
             id: self.next_id.clone(),
@@ -83,19 +83,20 @@ impl HTTPStorage {
 
     pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &usize) -> Option<usize> {
         let id = if let Some(index) = self.context_reference.get(addr) {
-            self.storage[index.to_owned()].response = Some(response);
-            let id = self.storage[index.to_owned()].index;
-            Some(id)
+            index.to_owned()
         }
         else {
-            None
+            return None;
         };
 
-        if id.is_some() {
-            let _result = self.context_reference.remove(addr);
-        }
-        
-        return id;
+        let possible_pair = self.get_mut_by_id(id);
+        return match possible_pair {
+            Some(pair) => {
+                pair.response = Some(response);
+                Some(id)
+            },
+            None => None
+        };
     }
 
     // pub(crate) fn get(&self, idx: usize) -> &RequestResponsePair {
@@ -109,6 +110,19 @@ impl HTTPStorage {
 
         if let Some(index) = self.seq_reference[id] {
             return Some(&self.storage[index]);
+        }
+        else {
+            return None;
+        }
+    }
+
+    pub(crate) fn get_mut_by_id(&mut self, id: usize) -> Option<&mut RequestResponsePair> {
+        if id >= self.seq_reference.len() {
+            return None;
+        }
+
+        if let Some(index) = self.seq_reference[id] {
+            return Some(&mut self.storage[index]);
         }
         else {
             return None;
