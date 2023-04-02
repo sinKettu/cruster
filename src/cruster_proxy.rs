@@ -23,8 +23,8 @@ use std::{
     collections::hash_map::DefaultHasher
 };
 
+use std::time::SystemTime;
 use cursive::{Cursive, CbSink};
-
 use crossbeam_channel::Sender as CrossbeamSender;
 
 use crate::CrusterError;
@@ -38,6 +38,8 @@ fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> u
     client_addr.hash(&mut hasher);
     uri.hash(&mut hasher);
     method.hash(&mut hasher);
+    SystemTime::now().hash(&mut hasher);
+    
     let result = hasher.finish() as usize;
 
     return result
