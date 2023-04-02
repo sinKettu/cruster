@@ -12,7 +12,7 @@ use crate::{
             HyperResponseWrapper
         }
     },
-    config::Config
+    config::Config, http_storage::HTTPStorage
 };
 
 pub(crate) trait DumpMode {
@@ -48,16 +48,15 @@ impl DumpMode for Config {
     }   
 }
 
-fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::config::Config) {
+fn print_request(wrapper: &HyperRequestWrapper, hash: usize, config: &super::config::Config) {
     let verbosity = config.get_verbosity();
     let first_line = format!("{} {} {}", &wrapper.method, &wrapper.uri, &wrapper.version);
 
     let prefix = if config.with_color() {
-        let hash_str = format!("{:x}", hash);
-        let hash = &hash_str[.. 6].bright_black();
+        let hash = hash.to_string().bright_black();
         let direction = format!("{}{}", "--".green(), ">".bright_green());
         
-        format!("{} {} {}", "http".yellow(), hash, direction)
+        format!("{} {:>6} {}", "http".yellow(), hash, direction)
     }
     else {
         let hash_str = format!("{:x}", hash);
@@ -112,16 +111,15 @@ fn print_request(wrapper: HyperRequestWrapper, hash: usize, config: &super::conf
     }
 }
 
-fn print_response(wrapper: HyperResponseWrapper, hash: usize, config: &super::config::Config) {
+fn print_response(wrapper: &HyperResponseWrapper, hash: usize, config: &super::config::Config) {
     let verbosity = config.get_verbosity();
     let first_line = format!("{} {}", &wrapper.version, &wrapper.status);
 
     let prefix = if config.with_color() {
-        let hash_str = format!("{:x}", hash);
-        let hash = &hash_str[.. 6].bright_black();
+        let hash = hash.to_string().bright_black();
         let direction = format!("{}{}", "<".bright_green(), "==".green());
 
-        format!("{} {} {}", "http".yellow(), hash, direction)
+        format!("{} {:>6} {}", "http".yellow(), hash, direction)
     }
     else {
         let hash_str = format!("{:x}", hash);
@@ -228,6 +226,8 @@ fn print_ws_message(msg: &[u8], ctx: &WebSocketContext, config: &super::config::
 }
 
 pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config::Config) {
+    let mut http_storage = HTTPStorage::default();
+
     loop {
         let event = rx.try_recv();
         if let Err(_) = event {
@@ -236,10 +236,16 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
 
         match event.unwrap() {
             ProxyEvents::RequestSent((wrapper, hash)) => {
-                print_request(wrapper, hash, &config);
+                let _ = http_storage.put_request(wrapper, hash);
             },
             ProxyEvents::ResponseSent((wrapper, hash)) => {
-                print_response(wrapper, hash, &config);
+                let id = http_storage.put_response(wrapper, &hash);
+                if let Some(id) = id {
+                    let pair = http_storage.get_by_id(id).unwrap();
+                    print_request(pair.request.as_ref().unwrap(), id, &config);
+                    print_response(pair.response.as_ref().unwrap(), id, &config);
+                }
+
             },
             ProxyEvents::WebSocketMessageSent((_ctx, _msg)) => {
                 let m = _msg.into_data();
