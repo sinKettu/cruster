@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use crossbeam_channel::Receiver;
 use std::io::{Write, BufReader, BufRead};
 use cursive::{views::TextContent, Cursive};
-use tokio::sync::mpsc::Receiver as TokioReceiver;
 
 use super::repeater;
 use super::status_bar;
@@ -22,7 +21,6 @@ use crate::cruster_proxy::events::ProxyEvents;
 pub(super) struct SivUserData {
     pub(super) config: Config,
     pub(super) proxy_receiver: Receiver<ProxyEvents>,
-    pub(super) proxy_err_receiver: TokioReceiver<CrusterError>,
     pub(super) http_storage: HTTPStorage,
     pub(super) request_view_content: TextContent,
     pub(super) response_view_content: TextContent,
