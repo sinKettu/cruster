@@ -245,11 +245,13 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
                     print_request(pair.request.as_ref().unwrap(), id, &config);
                     print_response(pair.response.as_ref().unwrap(), id, &config);
                 }
-
             },
             ProxyEvents::WebSocketMessageSent((_ctx, _msg)) => {
                 let m = _msg.into_data();
                 print_ws_message(m.as_slice(), &_ctx, &config);
+            },
+            ProxyEvents::Error((err, hash)) => {
+                todo!()
             }
         }
     }

@@ -81,6 +81,7 @@ pub(crate) enum CrusterError {
     InvalidHTTPMethod(String),
     CrossbeamSendError(String),
     CrossbeamTryRecvError(String),
+    HTTPStorageAlreadyInUse(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -301,6 +302,9 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::CrossbeamTryRecvError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::HTTPStorageAlreadyInUse(s) => {
                 write!(f, "{}", s)
             },
             _ => { write!(f, "{:?}", self) }
