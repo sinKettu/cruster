@@ -31,7 +31,6 @@ use std::rc::Rc;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use crossbeam_channel::Receiver as CBReceiver;
-use tokio::sync::mpsc::Receiver;
 // use std::thread::{self, JoinHandle, sleep};
 
 use std::time::Instant;
@@ -101,7 +100,7 @@ impl TableViewItem<BasicColumn> for ProxyDataForTable {
     }
 }
 
-pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: CBReceiver<ProxyEvents>, err_rx: Receiver<CrusterError>) {
+pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: CBReceiver<ProxyEvents>) {
     let help_message = Rc::new(help_view::make_help_message());
 
     siv.add_global_callback('q', |s| quit_popup::draw_popup(s));
@@ -146,7 +145,6 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: CBReceiver<Prox
         SivUserData {
             config,
             proxy_receiver: rx,
-            proxy_err_receiver: err_rx,
             http_storage: HTTPStorage::default(),
             request_view_content: request_view_content.clone(),
             response_view_content: response_view_content.clone(),
@@ -242,47 +240,65 @@ pub(super) fn bootstrap_ui(mut siv: Cursive, config: Config, rx: CBReceiver<Prox
     siv.run();
 }
 
+// TODO: Total refactoring is needed here
 pub(super) fn put_proxy_data_to_storage(siv: &mut Cursive) {
+    let ud = siv.get_cruster_userdata();
+    let result = ud.receive_data_from_proxy();
+
+    if result.is_none() {
+        return;
+    }
+
+    if let ProxyEvents::Error((err, hash)) = result.as_ref().unwrap() {
+        ud.errors.push(err.to_owned());
+        ud.status.set_stats(ud.errors.len(), ud.http_storage.len());
+        if let Some(hash) = hash {
+            let result = ud.http_storage.remove_uncompleted(hash.to_owned());
+            if let Err(err) = result {
+                ud.errors.push(err.to_owned());
+                ud.status.set_stats(ud.errors.len(), ud.http_storage.len());
+            }
+        }
+    }
+
     let mut rx: SivUserData = siv.take_user_data().unwrap();
+
     siv.screen_mut().call_on_name(rx.active_http_table_name, |table: &mut HTTPTable| {
-        let result = rx.receive_data_from_proxy();
-        if let Some(event) = result {
         // if let Some((request_or_response, hash)) = result {
-            match event {
-                ProxyEvents::RequestSent((req, hash)) => {
-                    let fit_scope = rx.is_uri_in_socpe(&req.uri);
-                    if !rx.is_scope_strict() || fit_scope {
-                        let table_record = rx.http_storage.put_request(req, hash);
+        match result.unwrap() {
+            ProxyEvents::RequestSent((req, hash)) => {
+                let fit_scope = rx.is_uri_in_socpe(&req.uri);
+                if !rx.is_scope_strict() || fit_scope {
+                    let table_record = rx.http_storage.put_request(req, hash);
 
-                        if fit_scope && rx.is_http_pair_match_filter(table_record.id) {
-                            let id = table_record.id;
-                            table.insert_item(table_record);
-                            let last_index = table.borrow_items().len() - 1;
-                            rx.table_id_ref.insert(id, last_index);
-                        }
+                    if fit_scope && rx.is_http_pair_match_filter(table_record.id) {
+                        let id = table_record.id;
+                        table.insert_item(table_record);
+                        let last_index = table.borrow_items().len() - 1;
+                        rx.table_id_ref.insert(id, last_index);
                     }
-                },
-                ProxyEvents::ResponseSent((res, hash)) => {
-                    let table_id = rx.http_storage.put_response(res, &hash);
-                    if let Some(id) = table_id {
-                        if let Some(pair) = rx.http_storage.get_by_id(id) {
-                            let response = pair.response.as_ref().unwrap();
-                            let table_index = rx.table_id_ref.get(&id);
+                }
+            },
+            ProxyEvents::ResponseSent((res, hash)) => {
+                let table_id = rx.http_storage.put_response(res, &hash);
+                if let Some(id) = table_id {
+                    if let Some(pair) = rx.http_storage.get_by_id(id) {
+                        let response = pair.response.as_ref().unwrap();
+                        let table_index = rx.table_id_ref.get(&id);
 
-                            if table_index.is_none() {
-                                return;
-                            }
+                        if table_index.is_none() {
+                            return;
+                        }
 
-                            let possible_table_record = table.borrow_item_mut(table_index.unwrap().to_owned());
-                            if let Some(table_record) = possible_table_record {
-                                table_record.status_code = response.status.clone();
-                                table_record.response_length = response.get_length();
-                            }
+                        let possible_table_record = table.borrow_item_mut(table_index.unwrap().to_owned());
+                        if let Some(table_record) = possible_table_record {
+                            table_record.status_code = response.status.clone();
+                            table_record.response_length = response.get_length();
                         }
                     }
                 }
-                _ => {}
-            }
+            },
+            _ => {}
         }
         rx.status.set_stats(rx.errors.len(), rx.http_storage.len());
     });

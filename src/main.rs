@@ -13,11 +13,7 @@ use hudsucker::{ProxyBuilder, certificate_authority::{RcgenAuthority as HudSucke
 #[cfg(feature = "openssl-ca")]
 use hudsucker::{ProxyBuilder, certificate_authority::{OpensslAuthority as HudSuckerCA}};
 
-use tokio::{
-    self,
-    sync::mpsc::{channel, Sender},
-};
-
+use tokio;
 use utils::CrusterError;
 use cursive::{Cursive, CbSink};
 use std::{net::{IpAddr, SocketAddr}, process::exit};
@@ -38,8 +34,8 @@ async fn start_proxy(
         socket_addr: SocketAddr,
         ca: HudSuckerCA,
         tx: CrusterSender<ProxyEvents>,
-        err_tx: Sender<CrusterError>,
-        cursive_sink: CbSink
+        cursive_sink: CbSink,
+        dump: bool
     ) {
 
     let proxy = ProxyBuilder::new()
@@ -49,7 +45,7 @@ async fn start_proxy(
         .with_http_handler(
             CrusterHandler {
                 proxy_tx: tx.clone(),
-                err_tx: err_tx.clone(),
+                dump,
                 cursive_sink,
                 request_hash: 0
             }
@@ -61,15 +57,8 @@ async fn start_proxy(
         )
         .build();
 
-    let result = proxy.start(shutdown_signal()).await;
-    if let Err(e) = result {
-        err_tx
-            .send(e.into())
-            .await
-            .unwrap_or_else(|send_error| {
-                panic!("Could not communicate with UI thread: {}", send_error.to_string())
-            });
-    }
+    // TODO: something better than unwrap()
+    proxy.start(shutdown_signal()).await.unwrap();
 }
 
 #[tokio::main]
@@ -86,10 +75,9 @@ async fn main() -> Result<(), utils::CrusterError> {
     ));
 
     let (tx, rx): (CrusterSender<ProxyEvents>, CrusterReceiver<ProxyEvents>) = unbounded();
-    let (err_tx, err_rx) = channel(10);
-
     let siv = Cursive::default();
     let cb_sink: CB_Sender<Box<dyn FnOnce(&mut Cursive)+Send>> = siv.cb_sink().clone();
+    let dump_mode = config.dump_mode_enabled();
 
     tokio::task::spawn(
         async move {
@@ -97,8 +85,8 @@ async fn main() -> Result<(), utils::CrusterError> {
                 socket_addr,
                 ca,
                 tx,
-                err_tx,
                 cb_sink,
+                dump_mode
             ).await
         }
     );
@@ -118,7 +106,7 @@ async fn main() -> Result<(), utils::CrusterError> {
         }
     }
     else {
-        siv_ui::bootstrap_ui(siv, config, rx, err_rx);
+        siv_ui::bootstrap_ui(siv, config, rx);
         Ok(())
     }
 }

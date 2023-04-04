@@ -5,7 +5,6 @@ use request_response::{
     HyperRequestWrapper,
     HyperResponseWrapper
 };
-use tokio::sync::mpsc::Sender;
 use log::debug;
 use hudsucker::{
     async_trait::async_trait,
@@ -28,7 +27,6 @@ use cursive::{Cursive, CbSink};
 use crossbeam_channel::Sender as CrossbeamSender;
 
 use crate::CrusterError;
-use crate::siv_ui::error_view;
 use super::siv_ui::put_proxy_data_to_storage;
 use http::Method;
 use events::ProxyEvents;
@@ -39,7 +37,7 @@ fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> u
     uri.hash(&mut hasher);
     method.hash(&mut hasher);
     SystemTime::now().hash(&mut hasher);
-    
+
     let result = hasher.finish() as usize;
 
     return result
@@ -48,7 +46,7 @@ fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> u
 #[derive(Clone)]
 pub(crate) struct CrusterHandler {
     pub(crate) proxy_tx: CrossbeamSender<ProxyEvents>,
-    pub(crate) err_tx: Sender<CrusterError>,
+    pub(crate) dump: bool,
     pub(crate) request_hash: usize,
     pub(crate) cursive_sink: CbSink,
 }
@@ -64,7 +62,7 @@ impl HttpHandler for CrusterHandler {
         if req.method() == Method::CONNECT {
             return RequestOrResponse::Request(req);
         }
-        
+
         return match HyperRequestWrapper::from_hyper(req).await {
             Ok((wrapper, new_req)) => {
                 self.request_hash = get_http_request_hash(&_ctx.client_addr, &wrapper.uri, &wrapper.method);
@@ -75,6 +73,7 @@ impl HttpHandler for CrusterHandler {
                 }
             },
             Err(err) => {
+                // TODO: do not process id
                 self.send_error_message_from_request(err).await
             }
         }
@@ -90,7 +89,8 @@ impl HttpHandler for CrusterHandler {
                 }
             },
             Err(err) => {
-                self.send_error_message_from_response(err).await
+                // TODO: remove stored data by hash in dump mode
+                self.send_error_message_from_response(err, self.request_hash).await
             }
         };
     }
@@ -106,18 +106,20 @@ impl CrusterHandler {
         let send_response_result = self.proxy_tx
             .send(ProxyEvents::ResponseSent((wrapper, self.request_hash)));
 
-        self.cursive_sink.send(
-            Box::new(
-                |siv: &mut Cursive| {
-                    put_proxy_data_to_storage(siv);
-                }
-            )
-        ).expect("FATAL: proxy could not sync with ui, while sending response!");
+        if !self.dump {
+            self.cursive_sink.send(
+                Box::new(
+                    |siv: &mut Cursive| {
+                        put_proxy_data_to_storage(siv);
+                    }
+                )
+            ).expect("FATAL: proxy could not sync with ui, while sending response!");
+        }
 
         return match send_response_result {
             Ok(_) => { None },
             Err(e) => Some(
-                self.send_error_message_from_response(e.into()).await
+                self.send_error_message_from_response(e.into(), self.request_hash).await
             )
         };
     }
@@ -126,13 +128,15 @@ impl CrusterHandler {
         let request_send_result = self.proxy_tx
             .send(ProxyEvents::RequestSent((wrapper, self.request_hash)));
 
-        self.cursive_sink.send(
-            Box::new(
-                |siv: &mut Cursive| {
-                    put_proxy_data_to_storage(siv);
-                }
-            )
-        ).expect("FATAL: proxy could not sync with ui, while sending request!");
+        if !self.dump {
+            self.cursive_sink.send(
+                Box::new(
+                    |siv: &mut Cursive| {
+                        put_proxy_data_to_storage(siv);
+                    }
+                )
+            ).expect("FATAL: proxy could not sync with ui, while sending request!");
+        }
 
         match request_send_result {
             Ok(_) => { None },
@@ -144,37 +148,15 @@ impl CrusterHandler {
     }
 
     async fn send_error_message_from_request(&self, err: CrusterError) -> RequestOrResponse {
-        let err_send_result = self.err_tx
-            .send(err)
-            .await;
-        
-        self.cursive_sink.send(
-            Box::new(
-                |siv: &mut Cursive| {
-                    error_view::put_error(siv);
-                }
-            )
-        ).expect("FATAL: proxy could not sync with ui, while sending request!");
-
+        let err_send_result = self.proxy_tx.send(ProxyEvents::Error((err, None)));
         match err_send_result {
             Ok(_) => return RequestOrResponse::Request(self.make_blank_request()),
-            Err(send_err) => panic!("FATAL: cannot communicate with UI thread: {}", send_err)
+            Err(send_err) => panic!("FATAL: cannot communicate between threads: {}", send_err)
         }
     }
 
-    async fn send_error_message_from_response(&self, err: CrusterError) -> hyper::Response<Body> {
-        let err_send_result = self.err_tx
-            .send(err)
-            .await;
-        
-        self.cursive_sink.send(
-            Box::new(
-                |siv: &mut Cursive| {
-                    error_view::put_error(siv);
-                }
-            )
-        ).expect("FATAL: proxy could not sync with ui, while sending request!");
-
+    async fn send_error_message_from_response(&self, err: CrusterError, hash: usize) -> hyper::Response<Body> {
+        let err_send_result = self.proxy_tx.send(ProxyEvents::Error((err, Some(hash))));
         match err_send_result {
             Ok(_) => return hyper::Response::new(hyper::Body::empty()),
             Err(send_err) => panic!("FATAL: cannot communicate with UI thread: {}", send_err)
