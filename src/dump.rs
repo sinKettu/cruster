@@ -232,6 +232,10 @@ fn print_error(err: CrusterError, need_color: bool) {
 
 pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config::Config) {
     let mut http_storage = HTTPStorage::default();
+    if let Some(proj_path) = config.project.as_ref() {
+        let path = format!("{}/http.jsonl", proj_path);
+        http_storage.keep_open(&path).unwrap();
+    }
 
     loop {
         let event = rx.try_recv();
@@ -249,6 +253,15 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
                     let pair = http_storage.get_by_id(id).unwrap();
                     print_request(pair.request.as_ref().unwrap(), id, &config);
                     print_response(pair.response.as_ref().unwrap(), id, &config);
+
+                    if let Err(err) = http_storage.flush_by_id(id) {
+                        print_error(err, config.with_color());
+                    }
+                    else {
+                        if let Err(err) = http_storage.remove_by_id(id) {
+                            print_error(err, config.with_color());
+                        }
+                    }
                 }
             },
             ProxyEvents::WebSocketMessageSent((_ctx, _msg)) => {

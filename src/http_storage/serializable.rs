@@ -435,9 +435,9 @@ impl HTTPStorage {
         Ok(())
     }
 
-    pub(crate) fn close(&mut self) {
-        self.file = None;
-    }
+    // pub(crate) fn close(&mut self) {
+    //     self.file = None;
+    // }
 
     fn dump_record(&mut self, id: usize) -> Result<(), CrusterError> {
         let possible_pair = self.get_by_id(id);
@@ -460,35 +460,58 @@ impl HTTPStorage {
         Ok(())
     }
 
-    pub(crate) fn flush(&mut self) -> Result<(), CrusterError> {
-        for id in 0..self.seq_reference.len() {
-            let possible_pair = self.get_by_id(id);
-            if let Some(pair) = possible_pair {
-                if pair.request.is_none() || pair.response.is_none() {
-                    continue;
-                }
+    // pub(crate) fn flush(&mut self) -> Result<(), CrusterError> {
+    //     for id in 0..self.seq_reference.len() {
+    //         let possible_pair = self.get_by_id(id);
+    //         if let Some(pair) = possible_pair {
+    //             if pair.request.is_none() || pair.response.is_none() {
+    //                 continue;
+    //             }
 
-                // May be replace with log message
-                self.dump_record(id)?;
-            }
-            else {
-                continue;
-            }
+    //             // May be replace with log message
+    //             self.dump_record(id)?;
+    //         }
+    //         else {
+    //             continue;
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
+
+    pub(crate) fn flush_by_id(&mut self, id: usize) -> Result<(), CrusterError> {
+        let index = self.seq_reference[id];
+        if let None = index {
+            return Err(
+                CrusterError::UndefinedError(
+                    format!("Cannot find record with id {} to flush", id)
+                )
+            );
         }
 
+        let pair = &self.storage[index.unwrap()];
+        if pair.request.is_none() || pair.response.is_none() {
+            return Err(
+                CrusterError::UndefinedError(
+                    format!("Cannot flush record with id {}, because it is uncompleted", id)
+                )
+            );
+        }
+
+        self.dump_record(pair.index)?;
         Ok(())
     }
 
-    pub(crate) fn smooth_clear(&mut self) {
-        self.restructure_storage();
-        for index in (0..self.len()).rev() {
-            let pair = &self.storage[index];
-            if pair.request.is_none() || pair.response.is_none() {
-                break;
-            }
+    // pub(crate) fn smooth_clear(&mut self) {
+    //     self.restructure_storage();
+    //     for index in (0..self.len()).rev() {
+    //         let pair = &self.storage[index];
+    //         if pair.request.is_none() || pair.response.is_none() {
+    //             break;
+    //         }
 
-            let pair = self.storage.pop().unwrap();
-            self.seq_reference[pair.index] = None;
-        }
-    }
+    //         let pair = self.storage.pop().unwrap();
+    //         self.seq_reference[pair.index] = None;
+    //     }
+    // }
 }

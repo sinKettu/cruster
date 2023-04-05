@@ -5,7 +5,6 @@ use std::collections::HashMap;
 
 use crate::{siv_ui::ProxyDataForTable, utils::CrusterError};
 use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
-use std::mem::swap;
 
 #[derive(Clone, Debug)]
 pub(super) struct RequestResponsePair {
@@ -263,5 +262,43 @@ impl HTTPStorage {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn remove_by_id(&mut self, id: usize) -> Result<(), CrusterError> {
+        if self.len() > 0 {
+            let index = self.seq_reference[id];
+            if let None = index {
+                return Err(
+                    CrusterError::UndefinedError(
+                        format!("Cannot find record with id {} to remove", id)
+                    )
+                );
+            }
+
+            let pair = &self.storage[index.unwrap()];
+            if pair.request.is_none() || pair.response.is_none() {
+                return Err(
+                    CrusterError::UndefinedError(
+                        format!("Cannot remove record with id {}, because it is uncompleted", id)
+                    )
+                );
+            }
+
+            if index.unwrap() < self.len() - 1 {
+                self.swap_pairs(index.unwrap(), self.len() - 1);
+            }
+
+            let _ = self.storage.pop();
+            self.seq_reference[id] = None;
+
+            return Ok(());
+        }
+        else {
+            return Err(
+                CrusterError::UndefinedError(
+                    format!("Cannot pop record from HTTP storage, it is empty")
+                )
+            );
+        }
     }
 }
