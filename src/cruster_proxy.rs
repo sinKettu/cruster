@@ -28,7 +28,7 @@ use crossbeam_channel::Sender as CrossbeamSender;
 
 use crate::CrusterError;
 use super::siv_ui::put_proxy_data_to_storage;
-use http::Method;
+use http::{Method, HeaderValue};
 use events::ProxyEvents;
 
 fn get_http_request_hash(client_addr: &SocketAddr, uri: &str, method: &str) -> usize {
@@ -64,7 +64,21 @@ impl HttpHandler for CrusterHandler {
         }
 
         return match HyperRequestWrapper::from_hyper(req).await {
-            Ok((wrapper, new_req)) => {
+            Ok((mut wrapper, new_req)) => {
+                if ! wrapper.headers.contains_key("host") {
+                    let host = wrapper.get_host();
+                    let hv = HeaderValue::from_str(&host);
+                    match hv {
+                        Ok(hv) => {
+                            wrapper.headers.insert("host", hv);
+                        },
+                        Err(err) => {
+                            return self.send_error_message_from_request(err.into()).await;
+                        }
+                    }
+                    
+                }
+
                 self.request_hash = get_http_request_hash(&_ctx.client_addr, &wrapper.uri, &wrapper.method);
                 debug!("HTTP Request with id {}", &self.request_hash);
                 match self.send_request_to_storage(wrapper).await {
