@@ -12,7 +12,7 @@ use crate::{
             HyperResponseWrapper
         }
     },
-    config::Config, http_storage::HTTPStorage
+    config::Config, http_storage::HTTPStorage, utils::CrusterError
 };
 
 pub(crate) trait DumpMode {
@@ -59,9 +59,7 @@ fn print_request(wrapper: &HyperRequestWrapper, hash: usize, config: &super::con
         format!("{} {:>6} {}", "http".yellow(), hash, direction)
     }
     else {
-        let hash_str = format!("{:x}", hash);
-        let hash = &hash_str[.. 6];
-
+        let hash = hash.to_string();
         format!("http {} -->", hash)
     };
 
@@ -122,9 +120,7 @@ fn print_response(wrapper: &HyperResponseWrapper, hash: usize, config: &super::c
         format!("{} {:>6} {}", "http".yellow(), hash, direction)
     }
     else {
-        let hash_str = format!("{:x}", hash);
-        let hash = &hash_str[.. 6];
-
+        let hash = hash.to_string();
         format!("{} {} {}", "http", hash, "<==")
     };
 
@@ -225,6 +221,15 @@ fn print_ws_message(msg: &[u8], ctx: &WebSocketContext, config: &super::config::
     }
 }
 
+fn print_error(err: CrusterError, need_color: bool) {
+    if need_color {
+        eprintln!("{} {}", "errr".red(), err);
+    }
+    else {
+        eprintln!("{} {}", "errr", err);
+    }
+}
+
 pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config::Config) {
     let mut http_storage = HTTPStorage::default();
 
@@ -251,7 +256,13 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
                 print_ws_message(m.as_slice(), &_ctx, &config);
             },
             ProxyEvents::Error((err, hash)) => {
-                todo!()
+                print_error(err, config.with_color());
+                
+                if let Some(hash) = hash {
+                    if let Err(err) = http_storage.remove_uncompleted(hash) {
+                        print_error(err, config.with_color());
+                    }
+                }
             }
         }
     }

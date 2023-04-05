@@ -87,7 +87,6 @@ impl HttpHandler for CrusterHandler {
                 }
             },
             Err(err) => {
-                // TODO: do not process id
                 self.send_error_message_from_request(err).await
             }
         }
@@ -103,7 +102,6 @@ impl HttpHandler for CrusterHandler {
                 }
             },
             Err(err) => {
-                // TODO: remove stored data by hash in dump mode
                 self.send_error_message_from_response(err, self.request_hash).await
             }
         };
