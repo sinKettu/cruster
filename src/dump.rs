@@ -236,6 +236,12 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
         let path = format!("{}/http.jsonl", proj_path);
         http_storage.keep_open(&path).unwrap();
     }
+    else {
+        print_error(
+            CrusterError::UndefinedError("No storage defined, traffic will not be saved!".to_string()),
+            config.with_color()
+        )
+    }
 
     loop {
         let event = rx.try_recv();

@@ -444,7 +444,17 @@ impl HTTPStorage {
         if let Some(pair) = possible_pair {
             let serializable_record = SerializableProxyData::try_from(pair)?;
             let jsn = json::to_string(&serializable_record)?;
-            let fout = self.file.as_mut().unwrap();
+
+            let fout = if let Some(file) = self.file.as_mut() {
+                file
+            }
+            else {
+                return Err(
+                    CrusterError::UndefinedError(
+                        "No storage is open, Cruster cannot dump record".to_string()
+                    )
+                );
+            };
 
             let _bytes_written = fout.write(jsn.as_bytes())?;
             let _one_byte_written = fout.write("\n".as_bytes())?;
@@ -480,6 +490,10 @@ impl HTTPStorage {
     // }
 
     pub(crate) fn flush_by_id(&mut self, id: usize) -> Result<(), CrusterError> {
+        if let None = self.file {
+            return Ok(());
+        }
+
         let index = self.seq_reference[id];
         if let None = index {
             return Err(
