@@ -16,8 +16,9 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
   - Requests/Responses highlighted visualization;
   - Filtering content;
   - Manual requests repeater;
-- Dump mode (`-d`);
+- Dump mode (`-d`) with controlable verbosity;
 - Process requests/responses basing on scope (`-I`, `-E`);
+- Storing/Loading proxy data on/from drive;
 - ... *Coming soon*...
 
 You can find more detailed description in [Usage.md](https://github.com/sinKettu/cruster/blob/master/docs/Usage.md)
@@ -41,9 +42,12 @@ USAGE:
 FLAGS:
     -d, --dump       Enable non-interactive dumping mode: all communications will be shown in terminal output
     -h, --help       Prints help information
+        --nc         Disable colorizing in dump mode, ignored in interactive mode
         --strict     If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from
                      ui
     -V, --version    Prints version information
+    -v               Verbosity in dump mode, ignored in intercative mode. 0: request/response first line,
+                     1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body
 
 OPTIONS:
     -a, --address <ADDR>                Address for proxy to bind, default: 127.0.0.1
@@ -53,10 +57,9 @@ OPTIONS:
                                         Processed after include regex if any. Option can repeat.
     -I, --include-scope <REGEX>...      Regex for URI to include in scope, i.e. ^https?://www\.google\.com/.*$. Option
                                         can repeat.
-    -l, --load <PATH-TO-FILE>           Path to file to load previously stored data from
     -p, --port <PORT>                   Port for proxy to listen to, default: 8080
-    -s, --store <PATH-TO-FILE>          Path to file to store proxy data. File will be rewritten!
-    -P, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored.
+    -P, --project <PATH-TO-DIR>         Path to directory to store/load Cruster state. All files could be rewritten!
+    -W, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored.
                                         Cannot be set by config file.
 ```
 
@@ -95,29 +98,41 @@ By default, `Cruster` will run in interactive mode, drawing interface in you ter
 using option `--dump`/`-d` and it will be just logging traffic:
 
 ``` shell
-$ cruster --dump
-http ==> GET http://www.google.com/
-http ==> host: www.google.com
-http ==> user-agent: curl/7.83.1
-http ==> accept: */*
-http ==> proxy-connection: Keep-Alive
-http ==>
-http ==>
-http <== 200
-http <== date: Sun, 03 Jul 2022 12:17:36 GMT
-http <== expires: -1
-http <== cache-control: private, max-age=0
-http <== content-type: text/html; charset=ISO-8859-1
-http <== p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
-http <== server: gws
-http <== x-xss-protection: 0
-http <== x-frame-options: SAMEORIGIN
-http <== accept-ranges: none
-http <== vary: Accept-Encoding
-http <== transfer-encoding: chunked
-http <==
-http <== <!doctype html><html i
-http <==
+$ ./cruster -p 8082 -d -v
+errr No storage defined, traffic will not be saved!
+http      0 --> GET http://google.com/ HTTP/1.1
+
+http      0 <== HTTP/1.1 301 Moved Permanently
+http      0 <== cache-control: public, max-age=2592000
+http      0 <== content-length: 219
+http      0 <== content-security-policy-report-only: object-src 'none';base-uri 'self';script-src 'nonce-9zrh7P5SjSprYVnylsm-xg' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other-hp
+http      0 <== content-type: text/html; charset=UTF-8
+http      0 <== date: Sat, 27 May 2023 13:05:45 GMT
+http      0 <== expires: Mon, 26 Jun 2023 13:05:45 GMT
+http      0 <== location: http://www.google.com/
+http      0 <== server: gws
+http      0 <== x-frame-options: SAMEORIGIN
+http      0 <== x-xss-protection: 0
+http      0 <==
+
+http      1 --> GET http://www.google.com/ HTTP/1.1
+
+http      1 <== HTTP/1.1 200 OK
+http      1 <== accept-ranges: none
+http      1 <== cache-control: private, max-age=0
+http      1 <== content-security-policy-report-only: object-src 'none';base-uri 'self';script-src 'nonce-pikCUd1GEkT5BQk0K5Ru2g' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other-hp
+http      1 <== content-type: text/html; charset=ISO-8859-1
+http      1 <== date: Sat, 27 May 2023 13:05:45 GMT
+http      1 <== expires: -1
+http      1 <== p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
+http      1 <== server: gws
+http      1 <== set-cookie: NID=511=Vl-ShZeMOBsqbJzLjL_cM81bgPNYfAWQZSERvIFbYs6X70yGsDJ4e9Kuh_AM_y3mb6Ya0N34mCj18z-2qhBQnVrrviSMrMsEKChv3SAqIf6vwYE20PlherbpuU2ZGp2x8edD4WxWJQ0GoqlRS8K45aRtD6Ri9EZSwSTEUqTsRR4; expires=Sun, 26-Nov-2023 13:05:45 GMT; path=/; domain=.google.com; HttpOnly
+http      1 <== transfer-encoding: chunked
+http      1 <== vary: Accept-Encoding
+http      1 <== x-frame-options: SAMEORIGIN
+http      1 <== x-xss-protection: 0
+http      1 <==
+
 ```
 
 ## Features and Compilation
