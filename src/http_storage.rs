@@ -2,6 +2,7 @@ mod serializable;
 
 use std::{fs::File, cmp::max};
 use std::collections::HashMap;
+use std::time;
 
 use crate::{siv_ui::ProxyDataForTable, utils::CrusterError};
 use super::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
@@ -12,6 +13,7 @@ pub(super) struct RequestResponsePair {
     pub(super) response: Option<HyperResponseWrapper>,
     // must be named 'id' actually
     pub(super) index: usize,
+    pub(super) timestamp: Option<time::SystemTime>,
 }
 
 pub(super) struct HTTPStorageIterator<'a> {
@@ -87,6 +89,7 @@ impl HTTPStorage {
             request: Some(request),
             response: None,
             index,
+            timestamp: Some(time::SystemTime::now())
         };
 
         self.insert_with_id(pair);
@@ -95,8 +98,8 @@ impl HTTPStorage {
     }
 
     pub(crate) fn put_response(&mut self, response: HyperResponseWrapper, addr: &usize) -> Option<usize> {
-        let id = if let Some(index) = self.context_reference.get(addr) {
-            index.to_owned()
+        let id = if let Some(index) = self.context_reference.remove(addr) {
+            index
         }
         else {
             return None;
@@ -188,52 +191,52 @@ impl HTTPStorage {
         self.seq_reference.swap(lid,rid);
     }
 
-    fn find_next_completed(&self, idx: usize) -> Option<usize> {
-        for (i, pair) in self.storage.iter().skip(idx).enumerate() {
-            if pair.request.is_some() && pair.response.is_some() {
-                return Some(i);
-            }
-        }
+    // fn find_next_completed(&self, idx: usize) -> Option<usize> {
+    //     for (i, pair) in self.storage.iter().skip(idx).enumerate() {
+    //         if pair.request.is_some() && pair.response.is_some() {
+    //             return Some(i);
+    //         }
+    //     }
 
-        return None;
-    }
+    //     return None;
+    // }
 
-    // Place all unclompleted requests to the start of storage
-    fn restructure_storage(&mut self) {
-        let mut uncompleted_index = self.len() - 1;
+    // // Place all unclompleted requests to the start of storage
+    // fn restructure_storage(&mut self) {
+    //     let mut uncompleted_index = self.len() - 1;
 
-        let mut completed_index = if let Some(index) = self.find_next_completed(0) {
-            index
-        }
-        else {
-            return;
-        };
+    //     let mut completed_index = if let Some(index) = self.find_next_completed(0) {
+    //         index
+    //     }
+    //     else {
+    //         return;
+    //     };
 
-        while completed_index > uncompleted_index {
-            let pair = &self.storage[uncompleted_index];
+    //     while completed_index > uncompleted_index {
+    //         let pair = &self.storage[uncompleted_index];
 
-            if pair.request.is_some() && pair.response.is_some() {
-                uncompleted_index -= 1;
-                continue;
-            }
+    //         if pair.request.is_some() && pair.response.is_some() {
+    //             uncompleted_index -= 1;
+    //             continue;
+    //         }
 
-            self.swap_pairs(completed_index, uncompleted_index);
+    //         self.swap_pairs(completed_index, uncompleted_index);
             
-            uncompleted_index -= 1;
-            completed_index = if let Some(index) = self.find_next_completed(0) {
-                index
-            }
-            else {
-                return;
-            };
-        }
-    }
+    //         uncompleted_index -= 1;
+    //         completed_index = if let Some(index) = self.find_next_completed(0) {
+    //             index
+    //         }
+    //         else {
+    //             return;
+    //         };
+    //     }
+    // }
 
     pub(crate) fn remove_uncompleted(&mut self, hash: usize) -> Result<(), CrusterError> {
-        let id = self.context_reference.get(&hash);
+        let id = self.context_reference.remove(&hash);
 
         let id = if let Some(id) = id {
-            id.to_owned()
+            id
         }
         else {
             return Err(CrusterError::UndefinedError("Cannot remove uncompleted, hash not found".to_string()));
@@ -249,16 +252,41 @@ impl HTTPStorage {
         };
 
         if self.len() == 1 || index == self.len() - 1 {
-            let _ = self.context_reference.remove(&hash);
             let _ = self.storage.pop();
             self.seq_reference[id] = None;
         }
         else if id != self.len() - 1 {
             // swap with removing element with last one and do pop
             self.swap_pairs(index, self.len() - 1);
-            let _ = self.context_reference.remove(&hash);
             let _ = self.storage.pop();
             self.seq_reference[id] = None;
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn remove_uncompleted_older_than(&mut self, max_ttl: time::Duration) -> Result<(), CrusterError> {
+        let mut to_remove: Vec<usize> = Vec::with_capacity(self.context_reference.len());
+        for (hash, id) in self.context_reference.iter() {
+            let pair = self.get_by_id(id.to_owned());
+            if pair.is_none() {
+                to_remove.push(hash.to_owned());
+                continue;
+            }
+
+            let timestamp = pair.unwrap().timestamp.clone();
+            if let Some(ts) = timestamp {
+                let ttl = time::SystemTime::now().duration_since(ts)?;
+                if ttl < max_ttl {
+                    continue;
+                }
+            }
+
+            to_remove.push(hash.to_owned());
+        }
+
+        for hash in to_remove {
+            self.remove_uncompleted(hash)?;
         }
 
         Ok(())

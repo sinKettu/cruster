@@ -363,7 +363,9 @@ impl HTTPStorage {
         let pair = RequestResponsePair {
             index: record.index,
             request: Some(request),
-            response
+            response,
+            // TODO: need to dump timestamps too
+            timestamp: None
         };
 
         self.insert_with_explicit_id(id, pair);

@@ -1,5 +1,6 @@
 use bstr::ByteSlice;
 use std::borrow::Cow;
+use std::time;
 use colored::Colorize;
 use crossbeam_channel::Receiver;
 use hudsucker::WebSocketContext;
@@ -243,6 +244,10 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
         )
     }
 
+    // Remove uncompleted requests older than 5 minutes everu 10 minutes
+    let mut time_mark = time::SystemTime::now();
+    let cycle_duration = time::Duration::new(600, 0);
+
     loop {
         let event = rx.try_recv();
         if let Err(_) = event {
@@ -282,6 +287,14 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
                         print_error(err, config.with_color());
                     }
                 }
+            }
+        }
+
+        let now = time::SystemTime::now();
+        if now.duration_since(time_mark).unwrap() > cycle_duration {
+            time_mark = now;
+            if let Err(err) = http_storage.remove_uncompleted_older_than(time::Duration::new(300, 0)) {
+                print_error(err, config.with_color());
             }
         }
     }

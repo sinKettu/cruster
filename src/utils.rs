@@ -23,6 +23,7 @@ use std::{
     fmt::{self, Debug},
     num::ParseIntError,
     net::AddrParseError,
+    time::SystemTimeError,
     fs
 };
 
@@ -82,6 +83,7 @@ pub(crate) enum CrusterError {
     CrossbeamSendError(String),
     CrossbeamTryRecvError(String),
     HTTPStorageAlreadyInUse(String),
+    SystemTimeError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -232,6 +234,14 @@ impl From<CBTryRecvError> for CrusterError {
     }
 }
 
+impl From<SystemTimeError> for CrusterError {
+    fn from(value: SystemTimeError) -> Self {
+        Self::SystemTimeError(
+            value.to_string()
+        )
+    }
+}
+
 impl fmt::Display for CrusterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -305,6 +315,9 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::HTTPStorageAlreadyInUse(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::SystemTimeError(s) => {
                 write!(f, "{}", s)
             },
             _ => { write!(f, "{:?}", self) }
