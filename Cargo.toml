@@ -52,3 +52,13 @@ default = ["crossterm", "rcgen-ca"]
 ncurses = ["cursive/ncurses-backend"]
 openssl-ca = ["hudsucker/openssl-ca"]
 termion = ["cursive/termion-backend"]
+
+
+[[bin]]
+name = "cruster"
+path = "src/main.rs"
+
+[[bin]]
+name = "cruster-cmd"
+path = "src/cruster_cmd.rs"
+
