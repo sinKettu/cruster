@@ -426,11 +426,3 @@ impl HyperResponseWrapper {
         return re.find(&body).is_some();
     }
 }
-
-// ---------------------------------------------------------------------------------------------- //
-
-// #[derive(Clone, Debug)]
-pub(crate) enum CrusterWrapper {
-    Request(HyperRequestWrapper),
-    Response(HyperResponseWrapper)
-}

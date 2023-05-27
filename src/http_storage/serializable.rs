@@ -322,6 +322,12 @@ impl HTTPStorage {
     // It's needed to interrupt thread after some time expired, because rust threads cannot interrupt themselves 
     // https://internals.rust-lang.org/t/thread-cancel-support/3056
     pub(crate) fn store(&self, path: &str, sentinel: Option<Receiver<usize>>) -> Result<(), CrusterError> {
+        if self.file.is_some() {
+            return Err(
+                CrusterError::HTTPStorageAlreadyInUse("Could not call 'store' method because file for HTTP Storage was opened in append mode already".to_string())
+            )
+        }
+
         let mut fout = fs::OpenOptions::new().write(true).create(true).open(path)?;
         for pair in &self.storage {
             let serializable_record = SerializableProxyData::try_from(pair)?;
@@ -357,7 +363,9 @@ impl HTTPStorage {
         let pair = RequestResponsePair {
             index: record.index,
             request: Some(request),
-            response
+            response,
+            // TODO: need to dump timestamps too
+            timestamp: None
         };
 
         self.insert_with_explicit_id(id, pair);
@@ -422,4 +430,104 @@ impl HTTPStorage {
 
         Ok(())
     }
+
+    pub(crate) fn keep_open(&mut self, path: &str) -> Result<(), CrusterError> {
+        let new_file = fs::OpenOptions::new().create(true).append(true).open(path)?;
+        self.file = Some(new_file);
+        Ok(())
+    }
+
+    // pub(crate) fn close(&mut self) {
+    //     self.file = None;
+    // }
+
+    fn dump_record(&mut self, id: usize) -> Result<(), CrusterError> {
+        let possible_pair = self.get_by_id(id);
+        if let Some(pair) = possible_pair {
+            let serializable_record = SerializableProxyData::try_from(pair)?;
+            let jsn = json::to_string(&serializable_record)?;
+
+            let fout = if let Some(file) = self.file.as_mut() {
+                file
+            }
+            else {
+                return Err(
+                    CrusterError::UndefinedError(
+                        "No storage is open, Cruster cannot dump record".to_string()
+                    )
+                );
+            };
+
+            let _bytes_written = fout.write(jsn.as_bytes())?;
+            let _one_byte_written = fout.write("\n".as_bytes())?;
+        }
+        else {
+            return Err(
+                CrusterError::UndefinedError(
+                    format!("While attempting to store record `{}`, Cruster could not find it", id)
+                )
+            )
+        }
+
+        Ok(())
+    }
+
+    // pub(crate) fn flush(&mut self) -> Result<(), CrusterError> {
+    //     for id in 0..self.seq_reference.len() {
+    //         let possible_pair = self.get_by_id(id);
+    //         if let Some(pair) = possible_pair {
+    //             if pair.request.is_none() || pair.response.is_none() {
+    //                 continue;
+    //             }
+
+    //             // May be replace with log message
+    //             self.dump_record(id)?;
+    //         }
+    //         else {
+    //             continue;
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
+
+    pub(crate) fn flush_by_id(&mut self, id: usize) -> Result<(), CrusterError> {
+        if let None = self.file {
+            return Ok(());
+        }
+
+        let index = self.seq_reference[id];
+        if let None = index {
+            return Err(
+                CrusterError::UndefinedError(
+                    format!("Cannot find record with id {} to flush", id)
+                )
+            );
+        }
+
+        let pair = &self.storage[index.unwrap()];
+        if pair.request.is_none() || pair.response.is_none() {
+            return Err(
+                CrusterError::UndefinedError(
+                    format!("Cannot flush record with id {}, because it is uncompleted", id)
+                )
+            );
+        }
+
+        self.dump_record(pair.index)?;
+        Ok(())
+    }
+
+    // pub(crate) fn smooth_clear(&mut self) {
+    //     self.restructure_storage();
+    //     for index in (0..self.len()).rev() {
+    //         let pair = &self.storage[index];
+    //         if pair.request.is_none() || pair.response.is_none() {
+    //             break;
+    //         }
+
+    //         let pair = self.storage.pop().unwrap();
+    //         self.seq_reference[pair.index] = None;
+    //     }
+    // }
 }

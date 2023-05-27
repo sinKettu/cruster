@@ -53,7 +53,7 @@ fn popup_quit(siv: &mut Cursive) {
 
 pub(super) fn draw_popup(siv: &mut Cursive) {
     let ud: &mut SivUserData = siv.user_data().unwrap();
-    if ud.config.store.is_some() {
+    if ud.config.project.is_some() {
         popup_quit_and_save(siv);
     }
     else {

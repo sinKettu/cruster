@@ -13,10 +13,18 @@ You cannot configure path to config (`-c`) and path to workplace (`-w`) with con
 | address | *String* | `127.0.0.1` | Address for proxy to bind |
 | port | *Integer* | `8080` | Port for proxy to listen to |
 | debug_file | *String* or `null` | `null` | Path to file to write debug logs. Mostly used for development, for now you will not find there anything useful |
-| dump_mode | *Boolean* | `false` | Run `Cruster` in dump mode |
+| dump_mode | *JSON* or `null` | `null` | Subconfig to maintain dump mode. See `Dump` section for details. |
 | store | *String* or `null` | `null` | Path to store data collected by proxy (requests and responses) in JSONLines format (see `Stored HTTP Data Format.md` for details) |
 | load | *String* or `null` | `null` | Path to file with previously stored data by `store` option to load on start |
 | scope | *JSON* or `null` | `null` | Subconfig to maintain scope. It allows to include/exclude requests by regexes for URIs. See `Scope` section for details. |
+
+## Dump
+
+| Key | Value Type | Default | Comment |
+| --- | --- | --- | --- |
+| enabled | *Boolean* | `false` | Toggle dump mode. |
+| verbosity | *Integer* | `0` | Verbosity in dump mode, ignored in intercative mode. 0: request/response first line, 1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body |
+| color | *Boolean* | `true` | If `true` Cruster will print colorized lines and black-white otherwise |
 
 ## Scope
 

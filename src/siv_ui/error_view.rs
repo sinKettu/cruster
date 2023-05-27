@@ -14,17 +14,6 @@ use cursive::{
 };
 use super::SivUserData;
 
-pub(crate) fn put_error(siv: &mut Cursive) {
-    siv.with_user_data(|ud: &mut SivUserData| {
-        let error_message = ud.proxy_err_receiver.try_recv();
-        if let Ok(err) = error_message {
-            ud.errors.push(err);
-        }
-
-        ud.status.set_stats(ud.errors.len(), ud.http_storage.len())
-    });
-}
-
 pub(super) fn draw_error_view(siv: &mut Cursive) {
     if siv.find_name::<TextView>("errors-popup").is_some() { return; }
 

@@ -23,6 +23,7 @@ use std::{
     fmt::{self, Debug},
     num::ParseIntError,
     net::AddrParseError,
+    time::SystemTimeError,
     fs
 };
 
@@ -30,7 +31,7 @@ use serde_yaml;
 // use std::time::macros::datetime;
 use time::OffsetDateTime;
 use time::macros::datetime;
-use tokio::sync::mpsc::error::{SendError as tokio_SendError, TryRecvError};
+use tokio::sync::mpsc::error::{TryRecvError};
 use regex::Error as regex_error;
 use reqwest::Error as ReqwestErr;
 
@@ -42,7 +43,9 @@ use http::{
     method::InvalidMethod
 };
 
-use crate::CrusterWrapper;
+use crossbeam_channel::{SendError, TryRecvError as CBTryRecvError};
+
+use crate::{cruster_proxy::events::ProxyEvents};
 
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
@@ -55,7 +58,7 @@ pub(crate) enum CrusterError {
     // RenderUnitCastError(String),
     UndefinedError(String),
     // NotParagraphRenderUnit(String),
-    SendError(String),
+    // SendError(String),
     HyperBodyParseError(String),
     HeaderToStringError(String),
     TryRecvError(String),
@@ -77,6 +80,10 @@ pub(crate) enum CrusterError {
     HTTPBuildingError(String),
     ReqwestError(String),
     InvalidHTTPMethod(String),
+    CrossbeamSendError(String),
+    CrossbeamTryRecvError(String),
+    HTTPStorageAlreadyInUse(String),
+    SystemTimeError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -135,14 +142,6 @@ impl From<serde_json::Error> for CrusterError {
     fn from(e: serde_json::Error) -> Self {
         Self::JSONError(
             format!("Unable to serialize/deserialize JSON data: {}", e.to_string())
-        )
-    }
-}
-
-impl From<tokio_SendError<(CrusterWrapper, usize)>> for CrusterError {
-    fn from(e: tokio_SendError<(CrusterWrapper, usize)>) -> Self {
-        Self::SendError(
-            format!("Unable communicate with other thread: {}", e.to_string())
         )
     }
 }
@@ -219,6 +218,30 @@ impl From<InvalidMethod> for CrusterError {
     }
 }
 
+impl From<SendError<ProxyEvents>> for CrusterError {
+    fn from(value: SendError<ProxyEvents>) -> Self {
+        Self::CrossbeamSendError(
+            format!("Cannot send event over crossbeam channel: {}", value.to_string())
+        )
+    }
+}
+
+impl From<CBTryRecvError> for CrusterError {
+    fn from(value: CBTryRecvError) -> Self {
+        Self::CrossbeamTryRecvError(
+            format!("Cannot send event over crossbeam channel: {}", value.to_string())
+        )
+    }
+}
+
+impl From<SystemTimeError> for CrusterError {
+    fn from(value: SystemTimeError) -> Self {
+        Self::SystemTimeError(
+            value.to_string()
+        )
+    }
+}
+
 impl fmt::Display for CrusterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -283,6 +306,18 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::InvalidHTTPMethod(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::CrossbeamSendError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::CrossbeamTryRecvError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::HTTPStorageAlreadyInUse(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::SystemTimeError(s) => {
                 write!(f, "{}", s)
             },
             _ => { write!(f, "{:?}", self) }
