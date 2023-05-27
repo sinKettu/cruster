@@ -16,7 +16,7 @@ use hudsucker::{ProxyBuilder, certificate_authority::{OpensslAuthority as HudSuc
 use tokio;
 use utils::CrusterError;
 use cursive::{Cursive, CbSink};
-use std::{net::{IpAddr, SocketAddr}, process::exit};
+use std::{net::{IpAddr, SocketAddr}, process::{exit, self}};
 use crossbeam_channel::Sender as CB_Sender;
 use crossbeam_channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
 use cruster_proxy::{CrusterHandler, CrusterWSHandler, events::ProxyEvents};
@@ -92,9 +92,18 @@ async fn main() -> Result<(), utils::CrusterError> {
     );
 
     if config.dump_mode_enabled() {
-        tokio::task::spawn(
+        let dump_thread = tokio::task::spawn(
             async move {
                 dump::launch_dump(rx, config).await;
+            }
+        );
+
+        tokio::task::spawn(
+            async move {
+                if let Err(err) = dump_thread.await {
+                    eprintln!("{}", err);
+                    exit(1);
+                }
             }
         );
 
