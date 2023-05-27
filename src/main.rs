@@ -16,7 +16,7 @@ use hudsucker::{ProxyBuilder, certificate_authority::{OpensslAuthority as HudSuc
 use tokio;
 use utils::CrusterError;
 use cursive::{Cursive, CbSink};
-use std::{net::{IpAddr, SocketAddr}, process::{exit, self}};
+use std::{net::{IpAddr, SocketAddr}, process::exit};
 use crossbeam_channel::Sender as CB_Sender;
 use crossbeam_channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
 use cruster_proxy::{CrusterHandler, CrusterWSHandler, events::ProxyEvents};
