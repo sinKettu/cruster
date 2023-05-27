@@ -36,6 +36,7 @@ cli-clipboard = "0.4.0"
 # Configuration
 shellexpand = "2.1.0"
 clap = "2.34.0"
+newer_clap = { package = "clap", version = "4.3.0" }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_yaml = "0.8.24"
 serde_json = "1.0.89"
@@ -60,5 +61,5 @@ path = "src/main.rs"
 
 [[bin]]
 name = "cruster-cmd"
-path = "src/cruster_cmd.rs"
+path = "src/cruster_cli.rs"
 
