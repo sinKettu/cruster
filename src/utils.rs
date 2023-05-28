@@ -46,6 +46,7 @@ use http::{
 use crossbeam_channel::{SendError, TryRecvError as CBTryRecvError};
 
 use crate::{cruster_proxy::events::ProxyEvents};
+use crate::config::CrusterConfigError;
 
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
@@ -84,10 +85,17 @@ pub(crate) enum CrusterError {
     CrossbeamTryRecvError(String),
     HTTPStorageAlreadyInUse(String),
     SystemTimeError(String),
+    CrusterConfigErrror(String),
 }
 
 impl From<io::Error> for CrusterError {
     fn from(e: io::Error) -> Self { Self::IOError(e.to_string()) }
+}
+
+impl From<CrusterConfigError> for CrusterError {
+    fn from(value: CrusterConfigError) -> Self {
+        Self::CrusterConfigErrror(value.into())
+    }
 }
 
 // impl From<openssl::error::Error> for CrusterError {

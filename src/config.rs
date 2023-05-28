@@ -9,7 +9,24 @@ use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config as L4R_Config, Root};
 
-use crate::utils::CrusterError;
+pub(crate) struct CrusterConfigError {
+    error: String
+}
+
+impl Into<String> for CrusterConfigError {
+    fn into(self) -> String {
+        self.error
+    }
+}
+
+impl<T> From<T> for CrusterConfigError
+where  
+    T: ToString 
+{
+    fn from(value: T) -> Self {
+        Self { error: value.to_string() }
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct Scope {
@@ -63,8 +80,8 @@ impl Default for Config {
 }
 
 // -----------------------------------------------------------------------------------------------//
-
-pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
+#[allow(dead_code)]
+pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
     let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.";
     let config_help = "Path to config with YAML format. Cannot be set by config file.";
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
@@ -197,9 +214,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let workplace_path = path::Path::new(workplace);
             if !workplace_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find workplace dir at '{}'", workplace)
-                    )
+                    CrusterConfigError::from(format!("Could not find workplace dir at '{}'", workplace))
                 );
             }
 
@@ -207,9 +222,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let config_path = path::Path::new(&config_name);
             if !config_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find config file at unusual path '{}'", config_name)
-                    )
+                    CrusterConfigError::from(format!("Could not find config file at unusual path '{}'", config_name))
                 );
             }
 
@@ -219,9 +232,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let config_path = path::Path::new(config_name);
             if !config_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find config file at unusual path '{}'", config_name)
-                    )
+                    CrusterConfigError::from(format!("Could not find config file at unusual path '{}'", config_name))
                 );
             }
 
@@ -236,18 +247,14 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let workplace_path = path::Path::new(workplace);
             if !workplace_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find workplace dir at '{}'", workplace)
-                    )
+                    CrusterConfigError::from(format!("Could not find workplace dir at '{}'", workplace))
                 );
             }
 
             let config_path = path::Path::new(config_name);
             if !config_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find config file at unusual path '{}'", config_name)
-                    )
+                    CrusterConfigError::from(format!("Could not find config file at unusual path '{}'", config_name))
                 );
             }
 
@@ -463,7 +470,7 @@ fn enable_debug(debug_file_path: &str) {
 // }
 
 /// Return such path state, which is accessbile with cruster
-fn resolve_path(base_path: &str, path: &str) -> Result<String, CrusterError> {
+fn resolve_path(base_path: &str, path: &str) -> Result<String, CrusterConfigError> {
     let fpath = path::Path::new(path);
     if fpath.is_absolute() {
         return Ok(path.to_string());
