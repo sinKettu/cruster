@@ -1,5 +1,5 @@
 use std::{fs, path};
-use clap::{App, Arg};
+use clap;
 use serde_yaml as yml;
 use shellexpand::tilde;
 use serde::{Serialize, Deserialize};
@@ -99,107 +99,98 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
     let default_workplace = tilde("~/.cruster");
     let default_config = tilde("~/.cruster/config.yaml");
 
-    let matches = App::new("Cruster")
+    let matches = clap::Command::new("Cruster")
         .version("0.6.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .arg(
-            Arg::with_name("workplace")
-                .short("W")
+            clap::Arg::new("workplace")
+                .short('W')
                 .long("workplace")
-                .takes_value(true)
                 // .default_value(default_workplace)
                 .value_name("WORKPLACE_DIR")
                 .help(workplace_help)
         )
         .arg(
-            Arg::with_name("config")
-                .short("c")
+            clap::Arg::new("config")
+                .short('c')
                 .long("config")
-                .takes_value(true)
                 // .default_value(default_config)
                 .value_name("YAML_CONFIG")
                 .help(config_help)
         )
         .arg(
-            Arg::with_name("address")
-                .short("a")
+            clap::Arg::new("address")
+                .short('a')
                 .long("address")
-                .takes_value(true)
                 .value_name("ADDR")
                 .help(address_help)
         )
         .arg(
-            Arg::with_name("port")
-                .short("p")
+            clap::Arg::new("port")
+                .short('p')
                 .long("port")
-                .takes_value(true)
                 .value_name("PORT")
                 .help(port_help)
         )
         .arg(
-            Arg::with_name("debug-file")
+            clap::Arg::new("debug-file")
                 .long("debug-file")
-                .takes_value(true)
                 .value_name("FILE-TO-WRITE")
                 .help(debug_file_help)
         )
         .arg(
-            Arg::with_name("dump-mode")
+            clap::Arg::new("dump-mode")
                 .long("dump")
-                .short("-d")
-                .takes_value(false)
+                .short('d')
+                .action(clap::ArgAction::SetTrue)
                 .help(dump_help)
         )
         .arg(
-            Arg::with_name("project")
+            clap::Arg::new("project")
                 .long("project")
-                .short("P")
-                .takes_value(true)
+                .short('P')
                 .value_name("PATH-TO-DIR")
                 .help(project_help)
         )
         .arg(
-            Arg::with_name("strict-scope")
+            clap::Arg::new("strict-scope")
                 .long("strict")
+                .action(clap::ArgAction::SetTrue)
                 .help(strict_help)
         )
         .arg(
-            Arg::with_name("include")
+            clap::Arg::new("include")
                 .long("include-scope")
-                .short("-I")
-                .takes_value(true)
+                .short('I')
                 .value_name("REGEX")
-                .multiple(true)
-                .number_of_values(1)
+                .action(clap::ArgAction::Append)
                 .help(include_help)
         )
         .arg(
-            Arg::with_name("exclude")
+            clap::Arg::new("exclude")
                 .long("exclude-scope")
-                .short("-E")
-                .takes_value(true)
+                .short('E')
                 .value_name("REGEX")
-                .multiple(true)
-                .number_of_values(1)
+                .action(clap::ArgAction::Append)
                 .help(exclude_help)
         )
         .arg(
-            Arg::with_name("verbosity")
-                .short("v")
-                .multiple(true)
+            clap::Arg::new("verbosity")
+                .short('v')
+                .action(clap::ArgAction::Count)
                 .help(verbosity_help)
         )
         .arg(
-            Arg::with_name("no-color")
+            clap::Arg::new("no-color")
                 .long("nc")
-                .takes_value(false)
+                .action(clap::ArgAction::SetTrue)
                 .help(nc_help)
         )
         .get_matches();
 
-    let workplace_possible = matches.value_of("workplace");
-    let config_possible = matches.value_of("config");
+    let workplace_possible = matches.get_one::<String>("workplace");
+    let config_possible = matches.get_one::<String>("config");
 
     let (workplace, config_name) = match (workplace_possible, config_possible) {
         (None, None) => {
@@ -279,15 +270,15 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
         unreachable!("You should not reach this place. If you somehow did it, write me to 'avangard.jazz@gmail.com'.");
     };
 
-    if let Some(addr) = matches.value_of("address") {
+    if let Some(addr) = matches.get_one::<String>("address") {
         config.address = addr.to_string();
     }
 
-    if let Some(port) = matches.value_of("port") {
+    if let Some(port) = matches.get_one::<String>("port") {
         config.port = port.parse()?;
     }
 
-    if let Some(dfile) = matches.value_of("debug-file") {
+    if let Some(dfile) = matches.get_one::<String>("debug-file") {
         let debug_file = resolve_path(&workplace, dfile)?;
         enable_debug(&debug_file);
         config.debug_file = Some(debug_file);
@@ -298,7 +289,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
         config.debug_file = Some(debug_file);
     }
 
-    if let Some(store_path) = matches.value_of("project") {
+    if let Some(store_path) = matches.get_one::<String>("project") {
         config.project = Some(resolve_path(&workplace, store_path)?);
         if ! path::Path::new(config.project.as_ref().unwrap()).is_dir() {
             fs::create_dir(config.project.as_ref().unwrap())?;
@@ -314,7 +305,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
     config.tls_cer_name = resolve_path(&workplace, &config.tls_cer_name)?;
     config.tls_key_name = resolve_path(&workplace, &config.tls_key_name)?;
 
-    if matches.is_present("strict-scope") {
+    if matches.get_flag("strict-scope") {
         if let Some(scope) = config.scope.as_mut() {
             scope.strict = true;
         }
@@ -327,7 +318,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
         }
     }
 
-    let include_scope = if let Some(include_re) = matches.values_of("include") {
+    let include_scope = if let Some(include_re) = matches.get_many::<String>("include") {
         let res: Vec<String> = include_re
             .into_iter()
             .map(|v| {
@@ -341,7 +332,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
         None
     };
 
-    let exclude_scope = if let Some(exclude_re) = matches.values_of("exclude") {
+    let exclude_scope = if let Some(exclude_re) = matches.get_many::<String>("exclude") {
         let res: Vec<String> = exclude_re
             .into_iter()
             .map(|v| {
@@ -379,7 +370,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
         }
     }
 
-    if matches.is_present("dump-mode") {
+    if matches.get_flag("dump-mode") {
         if let Some(dm) = config.dump_mode.as_mut() {
             dm.enabled = true;
         }
@@ -393,18 +384,18 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
         }
     }
 
-    if matches.is_present("verbosity") {
+    let mut verbosity = matches.get_count("verbosity");
+    if verbosity > 0 {
         if let Some(dm) = config.dump_mode.as_mut() {
-            let mut count = matches.occurrences_of("verbosity");
-            if count > 4 {
-                count = 4;
+            if verbosity > 4 {
+                verbosity = 4;
             }
 
-            dm.verbosity = count as u8;
+            dm.verbosity = verbosity;
         }
     }
 
-    if matches.is_present("no-color") {
+    if matches.get_flag("no-color") {
         if let Some(dm) = config.dump_mode.as_mut() {
             dm.color = false;
         }
