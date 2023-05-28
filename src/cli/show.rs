@@ -4,12 +4,33 @@ use super::CrusterCLIError;
 use std::cmp::min;
 
 use regex;
+use clap::ArgMatches;
 
 #[derive(Debug)]
 pub(super) struct HTTPTableRange {
     from: usize,
     to: usize,
     only_one: bool
+}
+
+pub(super) struct ShowSettings {
+    pub(super) print_urls: bool,
+}
+
+impl Default for ShowSettings {
+    fn default() -> Self {
+        ShowSettings {
+            print_urls: false
+        }
+    }
+}
+
+pub(super) fn parse_settings(args: &ArgMatches) -> ShowSettings {
+    let mut settings = ShowSettings::default();
+
+    settings.print_urls = args.get_flag("urls");
+
+    return settings;
 }
 
 pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIError> {
@@ -98,7 +119,24 @@ fn print_briefly(pair: &http_storage::RequestResponsePair, with_header: bool) {
     );
 }
 
-pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPStorage) -> Result<(), CrusterCLIError> {
+fn print_urls(pair: &http_storage::RequestResponsePair) {
+    if let Some(request) = pair.request.as_ref() {
+        println!(
+            "{:>6} {}",
+            pair.index,
+            request.uri
+        )
+    }
+    else {
+        println!(
+            "{:>6} {}",
+            pair.index,
+            "<NONE>"
+        )
+    }
+}
+
+pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPStorage, settings: ShowSettings) -> Result<(), CrusterCLIError> {
     let (min_idx, max_idx) = http_storage.get_bounds();
     if range.only_one {
         let idx = range.from;
@@ -136,7 +174,13 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPSt
     let mut first: bool = true;
     for idx in left_idx..=right_idx {
         if let Some(pair) = http_storage.get_by_id(idx) {
-            print_briefly(pair, first);
+            if settings.print_urls {
+                print_urls(pair)
+            }
+            else {
+                print_briefly(pair, first);
+            }
+            
             if first {
                 first = false;
             }
