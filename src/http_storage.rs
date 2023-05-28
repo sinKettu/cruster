@@ -329,4 +329,23 @@ impl HTTPStorage {
             );
         }
     }
+
+    pub(crate) fn get_bounds(&self) -> (usize, usize) {
+        let mut min = usize::MAX;
+        let mut max = 0_usize;
+
+        for pair in self {
+            if pair.index < min {
+                min = pair.index;
+                continue;
+            }
+
+            if pair.index > max {
+                max = pair.index;
+                continue;
+            }
+        }
+
+        return (min, max);
+    }
 }
