@@ -1,5 +1,5 @@
 use std::{fs, path};
-use clap;
+use clap::{self, ArgMatches};
 use serde_yaml as yml;
 use shellexpand::tilde;
 use serde::{Serialize, Deserialize};
@@ -26,6 +26,12 @@ where
     fn from(value: T) -> Self {
         Self { error: value.to_string() }
     }
+}
+
+pub(crate) enum CrusterMode {
+    INTERACTIVE,
+    DUMP(ArgMatches),
+    CLI(ArgMatches)
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -79,9 +85,7 @@ impl Default for Config {
     }
 }
 
-// -----------------------------------------------------------------------------------------------//
-#[allow(dead_code)]
-pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
+fn parse_cmd() -> clap::ArgMatches {
     let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.";
     let config_help = "Path to config with YAML format. Cannot be set by config file.";
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
@@ -95,14 +99,63 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
     let verbosity_help = "Verbosity in dump mode, ignored in intercative mode. 0: request/response first line, 
 1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body";
     let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
-    
-    let default_workplace = tilde("~/.cruster");
-    let default_config = tilde("~/.cruster/config.yaml");
 
-    let matches = clap::Command::new("Cruster")
+    let matches = clap::Command::new("cruster")
         .version("0.6.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
+        .subcommand(
+            clap::Command::new("interactive")
+                .alias("i")
+                .about("Default interactive Cruster mode. This mode will be used if none is specified")
+        )
+        .subcommand(
+            clap::Command::new("dump")
+                .alias("d")
+                .about(dump_help)
+                .arg(
+                    clap::Arg::new("verbosity")
+                        .short('v')
+                        .action(clap::ArgAction::Count)
+                        .help(verbosity_help)
+                )
+                .arg(
+                    clap::Arg::new("no-color")
+                        .long("nc")
+                        .action(clap::ArgAction::SetTrue)
+                        .help(nc_help)
+                )
+        )
+        .subcommand(
+            clap::Command::new("cli")
+                .alias("c")
+                .about("Cruster Command Line Interface")
+                .subcommand_required(true)
+                .arg_required_else_help(true)
+                .subcommand(
+                    clap::Command::new("http")
+                        .about("Work with dumped HTTP data")
+                        .alias("h")
+                        .subcommand_required(true)
+                        .subcommand(
+                            clap::Command::new("show")
+                                .about("Filter/Sort/Find HTTP data and print it")
+                                .alias("s")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::arg!(<INDEX> "range or index in storage to print HTTP data: n -- first n pairs, n-m -- pairs from n to m, -m -- last m pairs, n! -- only Nth pair")
+                                        .required(true)
+                                )
+                                .arg(
+                                    clap::Arg::new("urls")
+                                        .short('u')
+                                        .long("urls")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print only indexes and full URLs")
+                                )
+                        )
+                )
+        )
         .arg(
             clap::Arg::new("workplace")
                 .short('W')
@@ -140,13 +193,6 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
                 .help(debug_file_help)
         )
         .arg(
-            clap::Arg::new("dump-mode")
-                .long("dump")
-                .short('d')
-                .action(clap::ArgAction::SetTrue)
-                .help(dump_help)
-        )
-        .arg(
             clap::Arg::new("project")
                 .long("project")
                 .short('P')
@@ -175,19 +221,29 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
                 .action(clap::ArgAction::Append)
                 .help(exclude_help)
         )
-        .arg(
-            clap::Arg::new("verbosity")
-                .short('v')
-                .action(clap::ArgAction::Count)
-                .help(verbosity_help)
-        )
-        .arg(
-            clap::Arg::new("no-color")
-                .long("nc")
-                .action(clap::ArgAction::SetTrue)
-                .help(nc_help)
-        )
         .get_matches();
+
+    return matches;
+}
+
+// -----------------------------------------------------------------------------------------------//
+#[allow(dead_code)]
+pub(crate) fn handle_user_input() -> Result<(Config, CrusterMode), CrusterConfigError> {
+    let matches = parse_cmd();
+    let default_workplace = tilde("~/.cruster");
+    let default_config = tilde("~/.cruster/config.yaml");
+
+    let cmd = if let Some((subcmd, args)) = matches.subcommand() {
+        match subcmd {
+            "interactive" => CrusterMode::INTERACTIVE,
+            "dump" => CrusterMode::DUMP(args.clone()),
+            "cli" => CrusterMode::CLI(args.clone()),
+            _ => unreachable!()
+        }
+    }
+    else {
+        CrusterMode::INTERACTIVE
+    };
 
     let workplace_possible = matches.get_one::<String>("workplace");
     let config_possible = matches.get_one::<String>("config");
@@ -370,7 +426,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
         }
     }
 
-    if matches.get_flag("dump-mode") {
+    if let CrusterMode::DUMP(subcmd_args) = &cmd {
         if let Some(dm) = config.dump_mode.as_mut() {
             dm.enabled = true;
         }
@@ -382,26 +438,26 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterConfigError> {
                 }
             );
         }
-    }
 
-    let mut verbosity = matches.get_count("verbosity");
-    if verbosity > 0 {
-        if let Some(dm) = config.dump_mode.as_mut() {
-            if verbosity > 4 {
-                verbosity = 4;
+        let mut verbosity = subcmd_args.get_count("verbosity");
+        if verbosity > 0 {
+            if let Some(dm) = config.dump_mode.as_mut() {
+                if verbosity > 4 {
+                    verbosity = 4;
+                }
+
+                dm.verbosity = verbosity;
             }
+        }
 
-            dm.verbosity = verbosity;
+        if subcmd_args.get_flag("no-color") {
+            if let Some(dm) = config.dump_mode.as_mut() {
+                dm.color = false;
+            }
         }
     }
 
-    if matches.get_flag("no-color") {
-        if let Some(dm) = config.dump_mode.as_mut() {
-            dm.color = false;
-        }
-    }
-
-    Ok(config)
+    Ok((config, cmd))
 }
 
 fn enable_debug(debug_file_path: &str) {

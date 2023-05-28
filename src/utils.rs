@@ -47,6 +47,7 @@ use crossbeam_channel::{SendError, TryRecvError as CBTryRecvError};
 
 use crate::{cruster_proxy::events::ProxyEvents};
 use crate::config::CrusterConfigError;
+use crate::cli::CrusterCLIError;
 
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
@@ -86,6 +87,7 @@ pub(crate) enum CrusterError {
     HTTPStorageAlreadyInUse(String),
     SystemTimeError(String),
     CrusterConfigErrror(String),
+    CrusterCLIError(String),
 }
 
 impl From<io::Error> for CrusterError {
@@ -95,6 +97,12 @@ impl From<io::Error> for CrusterError {
 impl From<CrusterConfigError> for CrusterError {
     fn from(value: CrusterConfigError) -> Self {
         Self::CrusterConfigErrror(value.into())
+    }
+}
+
+impl From<CrusterCLIError> for CrusterError {
+    fn from(d: CrusterCLIError) -> Self {
+        Self::CrusterCLIError(d.into())
     }
 }
 
@@ -326,6 +334,9 @@ impl fmt::Display for CrusterError {
                 write!(f, "{}", s)
             },
             CrusterError::SystemTimeError(s) => {
+                write!(f, "{}", s)
+            },
+            CrusterError::CrusterCLIError(s) => {
                 write!(f, "{}", s)
             },
             _ => { write!(f, "{:?}", self) }

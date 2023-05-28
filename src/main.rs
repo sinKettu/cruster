@@ -5,6 +5,7 @@ mod http_storage;
 mod siv_ui;
 mod scope;
 mod dump;
+mod cli;
 
 
 #[cfg(feature = "rcgen-ca")]
@@ -63,7 +64,12 @@ async fn start_proxy(
 
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
-    let config = config::handle_user_input()?;
+    let (config, mode) = config::handle_user_input()?;
+
+    if let config::CrusterMode::CLI(subcmd_args) = mode {
+        return Ok(cli::launch(subcmd_args)?);
+    }
+
     utils::generate_key_and_cer(&config.tls_key_name, &config.tls_cer_name);
     let ca: HudSuckerCA = utils::get_ca(&config.tls_key_name, &config.tls_cer_name)?;
 
