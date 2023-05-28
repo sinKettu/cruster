@@ -153,6 +153,13 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Print only indexes and full URLs")
                                 )
+                                .arg(
+                                    clap::Arg::new("pretty")
+                                        .short('p')
+                                        .long("pretty")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print full formated requests and responses (if any)")
+                                )
                         )
                 )
         )

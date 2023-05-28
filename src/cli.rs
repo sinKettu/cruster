@@ -43,7 +43,7 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
                     let str_range = args.get_one::<String>("INDEX").unwrap();
                     // let urls = args.get_flag("urls");
                     let range = show::parse_range(str_range)?;
-                    let settings = show::parse_settings(args);
+                    let settings = show::parse_settings(args)?;
 
                     let mut http_storage = http_storage::HTTPStorage::default();
                     http_storage.load(&http_data_path)?;

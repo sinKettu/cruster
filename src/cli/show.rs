@@ -1,6 +1,7 @@
 use crate::http_storage;
 use super::CrusterCLIError;
 
+
 use std::cmp::min;
 
 use regex;
@@ -15,22 +16,31 @@ pub(super) struct HTTPTableRange {
 
 pub(super) struct ShowSettings {
     pub(super) print_urls: bool,
+    pub(super) pretty: bool,
 }
 
 impl Default for ShowSettings {
     fn default() -> Self {
         ShowSettings {
-            print_urls: false
+            print_urls: false,
+            pretty: false
         }
     }
 }
 
-pub(super) fn parse_settings(args: &ArgMatches) -> ShowSettings {
+pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::CrusterCLIError> {
     let mut settings = ShowSettings::default();
 
     settings.print_urls = args.get_flag("urls");
+    settings.pretty = args.get_flag("pretty");
 
-    return settings;
+    if settings.print_urls && settings.pretty {
+        return Err(
+            super::CrusterCLIError::from("Parameters '-u' and '-p' cannot be used at the same time")
+        )
+    }
+
+    return Ok(settings);
 }
 
 pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIError> {
@@ -136,6 +146,44 @@ fn print_urls(pair: &http_storage::RequestResponsePair) {
     }
 }
 
+fn print_pretty(pair: &http_storage::RequestResponsePair) {
+    println!("----------------------");
+    println!("   {}", pair.index);
+    println!("----------------------\n");
+
+    match (pair.request.as_ref(), pair.response.as_ref()) {
+        (Some(request), Some(response)) => {
+            println!("{}", request.to_string());
+            println!();
+            println!("{}", response.to_string());
+            println!();
+        },
+        (Some(request), None) => {
+            println!("{}", request.to_string());
+            println!();
+            println!("\n<EMPTY RESPONSE>\n");
+        },
+        (None, Some(response)) => {
+            println!("<EMPTY REQUEST>\n");
+            println!("{}", response.to_string());
+            println!();
+        }
+        _ => unreachable!()
+    }
+}
+
+fn print_pair(pair: &http_storage::RequestResponsePair, settings: &ShowSettings, header_if_any: bool) {
+    if settings.print_urls {
+        print_urls(pair);
+    }
+    else if settings.pretty {
+        print_pretty(pair);
+    }
+    else {
+        print_briefly(pair, header_if_any);
+    }
+}
+
 pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPStorage, settings: ShowSettings) -> Result<(), CrusterCLIError> {
     let (min_idx, max_idx) = http_storage.get_bounds();
     if range.only_one {
@@ -148,7 +196,7 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPSt
         else {
             let pair = http_storage.get_by_id(idx);
             if let Some(pair) = pair {
-                print_briefly(pair, true);
+                print_pair(pair, &settings, true);
             }
             else {
                 eprintln!("Pair with id {} does not exist", idx);
@@ -174,13 +222,7 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPSt
     let mut first: bool = true;
     for idx in left_idx..=right_idx {
         if let Some(pair) = http_storage.get_by_id(idx) {
-            if settings.print_urls {
-                print_urls(pair)
-            }
-            else {
-                print_briefly(pair, first);
-            }
-            
+            print_pair(pair, &settings, first);
             if first {
                 first = false;
             }
