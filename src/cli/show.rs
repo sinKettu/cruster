@@ -65,7 +65,7 @@ pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIE
     );
 }
 
-fn print_briefly(pair: &http_storage::RequestResponsePair) {
+fn print_briefly(pair: &http_storage::RequestResponsePair, with_header: bool) {
     let idx = pair.index;
     
     let (hostname, path) = if let Some(request) = pair.request.as_ref() {
@@ -84,11 +84,12 @@ fn print_briefly(pair: &http_storage::RequestResponsePair) {
         ("<UNKNOWN>".to_string(), "<UNKNOWN>".to_string())
     };
 
+    if with_header {
+        println!("{:>6} {:>32} {:>70} {:>11} {:>15}\n", "ID", "HOSTNAME", "PATH", "STATUS", "LENGTH");
+    }
 
-    //format!("{} {:>6} {}", "http".yellow(), hash, direction)
-    println!("{:>6} {:>32} {:>70} {:>11} {:>15}", "ID", "HOSTNAME", "PATH", "STATUS", "LENGTH");
     println!(
-        "{:>6} {:>32} {:>70} {:>11} {:>15}",
+        "{:>6} {:>32} {:<70} {:>11} {:>15}",
         idx,
         &hostname[..min(32, hostname.len())],
         &path[..min(70, path.len())],
@@ -109,12 +110,45 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPSt
         else {
             let pair = http_storage.get_by_id(idx);
             if let Some(pair) = pair {
-                print_briefly(pair);
+                print_briefly(pair, true);
             }
             else {
                 eprintln!("Pair with id {} does not exist", idx);
             }
         }
+
+        return Ok(());
+    }
+
+    let (left_idx, right_idx) = if range.to == usize::MAX && range.from > 0 {
+        let right = max_idx;
+        let left = max_idx.saturating_sub(range.from);
+        (left, right)
+    }
+    else {
+        (
+            std::cmp::max(min_idx, range.from),
+            std::cmp::min(max_idx, range.to)
+        )
+    };
+
+    let mut bad_pairs: Vec<usize> = Vec::with_capacity(http_storage.len());
+    let mut first: bool = true;
+    for idx in left_idx..=right_idx {
+        if let Some(pair) = http_storage.get_by_id(idx) {
+            print_briefly(pair, first);
+            if first {
+                first = false;
+            }
+        }
+        else {
+            bad_pairs.push(idx);
+        }
+    }
+
+    eprintln!();
+    for idx in bad_pairs {
+        eprintln!("Could not find pair with ID {}", idx);
     }
 
     Ok(())
