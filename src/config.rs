@@ -143,7 +143,7 @@ fn parse_cmd() -> clap::ArgMatches {
                                 .alias("s")
                                 .arg_required_else_help(true)
                                 .arg(
-                                    clap::arg!(<INDEX> "range or index in storage to print HTTP data: n -- first n pairs, n-m -- pairs from n to m, -m -- last m pairs, n! -- only Nth pair")
+                                    clap::arg!(<INDEX> "range or index in storage to print HTTP data: n -- first n pairs, n-m -- pairs from n to m, -m -- last m pairs, n$ -- only Nth pair")
                                         .required(true)
                                 )
                                 .arg(
