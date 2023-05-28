@@ -101,7 +101,7 @@ fn parse_cmd() -> clap::ArgMatches {
     let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
 
     let matches = clap::Command::new("cruster")
-        .version("0.6.0")
+        .version("0.7.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .subcommand(
