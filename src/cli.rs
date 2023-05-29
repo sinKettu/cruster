@@ -53,10 +53,12 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
             }
         },
         Some(("repeater", subcommands)) => {
+            let repeater_state_path = format!("{}/repeater.jsonl", &project);
+
             match subcommands.subcommand() {
                 Some(("list", args)) => {
                     let settings = repeater::list::RepeaterListSettings::try_from(args)?;
-                    repeater::list::execute(args)?;
+                    repeater::list::execute(&settings, &repeater_state_path)?;
                 },
                 _ => unreachable!()
             }

@@ -32,25 +32,25 @@ use super::{sivuserdata::SivUserData, http_table};
 use super::{views_stack, req_res_spanned::response_wrapper_to_spanned, sivuserdata::GetCrusterUserData};
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(super) struct RepeaterParameters {
-    redirects: bool,
-    https: bool,
-    address: String,
-    max_redirects: usize,
+pub(crate) struct RepeaterParameters {
+    pub(crate) redirects: bool,
+    pub(crate) https: bool,
+    pub(crate) address: String,
+    pub(crate) max_redirects: usize,
 }
 
 #[derive(Clone)]
-pub(super) struct RepeaterState {
-    pub(super) name: String,
-    pub(super) request: String,
-    pub(super) response: TextContent,
-    pub(super) saved_headers: HeaderMap,
-    pub(super) redirects_reached: usize,
-    pub(super) parameters: RepeaterParameters,
+pub(crate) struct RepeaterState {
+    pub(crate) name: String,
+    pub(crate) request: String,
+    pub(crate) response: TextContent,
+    pub(crate) saved_headers: HeaderMap,
+    pub(crate) redirects_reached: usize,
+    pub(crate) parameters: RepeaterParameters,
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct RepeaterStateSerializable {
+pub(crate) struct RepeaterStateSerializable {
     name: String,
     request: String,
     response: Option<String>,

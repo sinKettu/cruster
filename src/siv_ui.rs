@@ -1,4 +1,4 @@
-mod repeater;
+pub(crate) mod repeater;
 mod help_view;
 mod quit_popup;
 mod http_table;
