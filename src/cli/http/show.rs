@@ -409,8 +409,11 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
         }
     }
 
-    if count < right_idx && !range.all {
-        eprintln!("\nCould print only {} records from {}", count - left_idx, right_idx - left_idx);
+    if count == left_idx.saturating_sub(1) {
+        eprintln!("\nLeft bound is out of range!");
+    }
+    else if count < right_idx && !range.all {
+        eprintln!("\nCould print only records from {} to {}", left_idx.saturating_sub(1), count);
     }
 
     Ok(())
