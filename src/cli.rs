@@ -1,4 +1,5 @@
 mod show;
+mod repeater;
 
 use clap::{self, ArgMatches};
 
@@ -51,6 +52,15 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
                 _ => {}
             }
         },
+        Some(("repeater", subcommands)) => {
+            match subcommands.subcommand() {
+                Some(("list", args)) => {
+                    let settings = repeater::list::RepeaterListSettings::try_from(args)?;
+                    repeater::list::execute(args)?;
+                },
+                _ => unreachable!()
+            }
+        }
         _ => {
             unreachable!()
         }

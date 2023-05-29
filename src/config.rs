@@ -185,6 +185,24 @@ fn parse_cmd() -> clap::ArgMatches {
                         )
                 )
         )
+        .subcommand(
+            clap::Command::new("repeater")
+                .alias("r")
+                .about("Launch repeater in CLI mode")
+                .subcommand_required(true)
+                .subcommand(
+                    clap::Command::new("list")
+                        .alias("l")
+                        .about("List existing repeaters in current project")
+                        .arg(
+                            clap::Arg::new("verbose")
+                                .short('v')
+                                .long("--verbose")
+                                .action(clap::ArgAction::SetTrue)
+                                .help("List repeaters verbously (with request/response)")
+                        )
+                )
+        )
         .arg(
             clap::Arg::new("workplace")
                 .short('W')
