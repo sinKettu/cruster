@@ -1,4 +1,4 @@
-mod serializable;
+pub(crate) mod serializable;
 
 use std::{fs::File, cmp::max};
 use std::collections::HashMap;
@@ -330,22 +330,22 @@ impl HTTPStorage {
         }
     }
 
-    pub(crate) fn get_bounds(&self) -> (usize, usize) {
-        let mut min = usize::MAX;
-        let mut max = 0_usize;
+    // pub(crate) fn get_bounds(&self) -> (usize, usize) {
+    //     let mut min = usize::MAX;
+    //     let mut max = 0_usize;
 
-        for pair in self {
-            if pair.index < min {
-                min = pair.index;
-                continue;
-            }
+    //     for pair in self {
+    //         if pair.index < min {
+    //             min = pair.index;
+    //             continue;
+    //         }
 
-            if pair.index > max {
-                max = pair.index;
-                continue;
-            }
-        }
+    //         if pair.index > max {
+    //             max = pair.index;
+    //             continue;
+    //         }
+    //     }
 
-        return (min, max);
-    }
+    //     return (min, max);
+    // }
 }

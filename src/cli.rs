@@ -3,7 +3,6 @@ mod show;
 use clap::{self, ArgMatches};
 
 use crate::config;
-use crate::http_storage;
 
 #[derive(Debug)]
 pub struct CrusterCLIError {
@@ -41,14 +40,10 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
             match subcommands.subcommand() {
                 Some(("show", args)) => {
                     let str_range = args.get_one::<String>("INDEX").unwrap();
-                    // let urls = args.get_flag("urls");
                     let range = show::parse_range(str_range)?;
                     let settings = show::parse_settings(args)?;
 
-                    let mut http_storage = http_storage::HTTPStorage::default();
-                    http_storage.load(&http_data_path)?;
-
-                    if let Err(err) = show::execute(range, &http_storage, settings) {
+                    if let Err(err) = show::execute(range, &http_data_path, settings) {
                         let err_msg: String = err.into();
                         eprintln!("ERROR: {}", err_msg);
                     }

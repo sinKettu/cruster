@@ -1,8 +1,8 @@
 use crate::http_storage;
 use super::CrusterCLIError;
 
-
-use std::cmp::min;
+use serde_json as json;
+use std::{cmp::min, io::BufRead};
 
 use regex;
 use clap::ArgMatches;
@@ -11,7 +11,7 @@ use clap::ArgMatches;
 pub(super) struct HTTPTableRange {
     from: usize,
     to: usize,
-    only_one: bool
+    all: bool,
 }
 
 pub(super) struct ShowSettings {
@@ -46,7 +46,6 @@ pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::C
 pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIError> {
     let right_bound_re = regex::Regex::new(r"^\d+$")?;
     let strict_index_re = regex::Regex::new(r"^\d+\$$")?;
-    let left_bound_re = regex::Regex::new(r"^-\d+$")?;
     let range_re = regex::Regex::new(r"^\d+-\d+$")?;
 
     if right_bound_re.is_match(str_range) {
@@ -54,7 +53,7 @@ pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIE
             HTTPTableRange {
                 from: 0,
                 to: str_range.parse()?,
-                only_one: false
+                all: false
             }
         );
     }
@@ -63,19 +62,8 @@ pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIE
         return Ok(
             HTTPTableRange {
                 from: (&str_range[..(str_range.len() - 1)]).parse()?,
-                to: 0,
-                only_one: true
-            }
-        )
-    }
-
-    if left_bound_re.is_match(str_range) {
-        let num = &str_range[1..];
-        return Ok(
-            HTTPTableRange {
-                from: num.parse()?,
-                to: usize::MAX,
-                only_one: false
+                to: (&str_range[..(str_range.len() - 1)]).parse()?,
+                all: false
             }
         )
     }
@@ -86,9 +74,19 @@ pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIE
             HTTPTableRange {
                 from: parts[0].parse()?,
                 to: parts[1].parse()?,
-                only_one: false
+                all: false
             }
         );
+    }
+
+    if str_range == "a" {
+        return Ok(
+            HTTPTableRange {
+                from: 0,
+                to: 0,
+                all: true
+            }
+        )
     }
 
     return Err(
@@ -184,57 +182,43 @@ fn print_pair(pair: &http_storage::RequestResponsePair, settings: &ShowSettings,
     }
 }
 
-pub(super) fn execute(range: HTTPTableRange, http_storage: &http_storage::HTTPStorage, settings: ShowSettings) -> Result<(), CrusterCLIError> {
-    let (min_idx, max_idx) = http_storage.get_bounds();
-    if range.only_one {
-        let idx = range.from;
-        if idx < min_idx || idx > max_idx {
-            return Err(
-                CrusterCLIError::from("Cannot show data: index is out of bounds")
-            );
-        }
-        else {
-            let pair = http_storage.get_by_id(idx);
-            if let Some(pair) = pair {
-                print_pair(pair, &settings, true);
-            }
-            else {
-                eprintln!("Pair with id {} does not exist", idx);
-            }
-        }
-
-        return Ok(());
+pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowSettings) -> Result<(), CrusterCLIError> {
+    if range.to < range.from {
+        return Err(
+            CrusterCLIError::from("Right bound of range cannot be lower than left one")
+        );
     }
 
-    let (left_idx, right_idx) = if range.to == usize::MAX && range.from > 0 {
-        let right = max_idx;
-        let left = max_idx.saturating_sub(range.from);
-        (left, right)
+    let (left_idx, right_idx) = if range.all {
+        (0_usize, usize::MAX)
     }
     else {
-        (
-            std::cmp::max(min_idx, range.from),
-            std::cmp::min(max_idx, range.to)
-        )
+        (range.from, range.to)
     };
 
-    let mut bad_pairs: Vec<usize> = Vec::with_capacity(http_storage.len());
     let mut first: bool = true;
-    for idx in left_idx..=right_idx {
-        if let Some(pair) = http_storage.get_by_id(idx) {
-            print_pair(pair, &settings, first);
-            if first {
-                first = false;
-            }
+    let fin = std::fs::File::open(http_storage)?;
+    let fin_reader = std::io::BufReader::new(fin);
+
+    let mut count = left_idx.saturating_sub(1);
+    for line in fin_reader.lines().skip(count) {
+        let line_ptr = &line?;
+        let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
+        let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
+
+        print_pair(&pair, &settings, first);
+        if first {
+            first = false;
         }
-        else {
-            bad_pairs.push(idx);
+
+        count += 1;
+        if count == right_idx {
+            break;
         }
     }
 
-    eprintln!();
-    for idx in bad_pairs {
-        eprintln!("Could not find pair with ID {}", idx);
+    if count < right_idx && !range.all {
+        eprintln!("\nCould print only {} records from {}", count - left_idx, right_idx - left_idx);
     }
 
     Ok(())
