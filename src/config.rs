@@ -160,6 +160,13 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Print full formated requests and responses (if any)")
                                 )
+                                .arg(
+                                    clap::Arg::new("raw")
+                                        .short('r')
+                                        .long("raw")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print raw data as it was dumped in project")
+                                )
                         )
                 )
         )

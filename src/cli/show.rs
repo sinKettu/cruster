@@ -17,13 +17,15 @@ pub(super) struct HTTPTableRange {
 pub(super) struct ShowSettings {
     pub(super) print_urls: bool,
     pub(super) pretty: bool,
+    pub(super) raw: bool,
 }
 
 impl Default for ShowSettings {
     fn default() -> Self {
         ShowSettings {
             print_urls: false,
-            pretty: false
+            pretty: false,
+            raw: false,
         }
     }
 }
@@ -33,10 +35,23 @@ pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::C
 
     settings.print_urls = args.get_flag("urls");
     settings.pretty = args.get_flag("pretty");
+    settings.raw = args.get_flag("raw");
 
     if settings.print_urls && settings.pretty {
         return Err(
             super::CrusterCLIError::from("Parameters '-u' and '-p' cannot be used at the same time")
+        )
+    }
+
+    if settings.print_urls && settings.raw {
+        return Err(
+            super::CrusterCLIError::from("Parameters '-u' and '-r' cannot be used at the same time")
+        )
+    }
+
+    if settings.raw && settings.pretty {
+        return Err(
+            super::CrusterCLIError::from("Parameters '-r' and '-p' cannot be used at the same time")
         )
     }
 
@@ -203,14 +218,19 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
     let mut count = left_idx.saturating_sub(1);
     for line in fin_reader.lines().skip(count) {
         let line_ptr = &line?;
-        let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
-        let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
-
-        print_pair(&pair, &settings, first);
-        if first {
-            first = false;
+        if settings.raw {
+            println!("{}", line_ptr);
         }
+        else {
+            let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
+            let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
 
+            print_pair(&pair, &settings, first);
+            if first {
+                first = false;
+            }
+        }
+        
         count += 1;
         if count == right_idx {
             break;
