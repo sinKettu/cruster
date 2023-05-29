@@ -186,8 +186,8 @@ impl HTTPStorage {
     }
 
     pub(crate) fn clear(&mut self) -> Result<(), CrusterError> {
-        for i in 0..self.len() {
-            let idx = self.storage[i].index;
+        while self.len() > 0 {
+            let idx = self.storage[self.len() - 1].index;
             self.remove_by_id(idx)?;
         }
 

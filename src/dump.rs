@@ -237,7 +237,15 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
         let path = format!("{}/http.jsonl", proj_path);
 
         // Do it to set apropriate next_id in HTTPStorage state
-        http_storage.load(&path).unwrap();
+        if let Err(err) = http_storage.load(&path) {
+            print_error(
+                CrusterError::UndefinedError(
+                    "Could not read stored HTTP data, will start with empty storage".to_string()
+                ),
+                config.with_color()
+            );
+            print_error(err, config.with_color());
+        };
         http_storage.clear().unwrap();
 
         http_storage.keep_open(&path).unwrap();

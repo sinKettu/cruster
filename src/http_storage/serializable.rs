@@ -355,7 +355,7 @@ impl HTTPStorage {
             )
         }
 
-        let mut fout = fs::OpenOptions::new().write(true).create(true).open(path)?;
+        let mut fout = fs::OpenOptions::new().create(true).write(true).open(path)?;
         for pair in &self.storage {
             let serializable_record = SerializableProxyData::try_from(pair)?;
             let jsn = json::to_string(&serializable_record)?;

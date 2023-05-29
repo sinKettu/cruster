@@ -100,7 +100,7 @@ fn parse_cmd() -> clap::ArgMatches {
 1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body";
     let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
     let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
-    let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|length=<response_body_length_value>|host=<prefix>|path=<prefix>";
+    let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>";
 
     let matches = clap::Command::new("cruster")
         .version("0.7.0")
