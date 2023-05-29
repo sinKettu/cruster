@@ -8,6 +8,60 @@ use regex::Regex;
 use regex;
 use clap::ArgMatches;
 
+pub(super) enum ExtractionKey {
+    METHOD,
+    HOST,
+    PATH,
+    STATUS,
+}
+
+pub(super) struct ExtractionAttribute {
+    key: ExtractionKey,
+    value: String,
+}
+
+impl TryFrom<&str> for ExtractionAttribute {
+    type Error = super::CrusterCLIError;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let splitted: Vec<&str> = value.split("=").collect();
+        if splitted.len() != 2 {
+            return Err(
+                CrusterCLIError::from("Extraction attribute has unapropriate format. It must fit 'key=value'")
+            )
+        }
+
+        let key = splitted[0].to_lowercase();
+        let val = splitted[1];
+
+        let extraction_key = match key.as_str() {
+            "method" => {
+                ExtractionKey::METHOD
+            },
+            "host" => {
+                ExtractionKey::HOST
+            },
+            "path" => {
+                ExtractionKey::PATH
+            },
+            "status" => {
+                ExtractionKey::STATUS
+            },
+            _ => {
+                return Err(
+                    CrusterCLIError::from("Unexpected key in extraction attribute, key must be one of [method,host,path,status]")
+                )
+            }
+        };
+
+        return Ok(
+            ExtractionAttribute {
+                key: extraction_key,
+                value: val.to_string()
+            }
+        );
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct HTTPTableRange {
     from: usize,
@@ -20,6 +74,7 @@ pub(super) struct ShowSettings {
     pub(super) pretty: bool,
     pub(super) raw: bool,
     pub(super) filter: Option<String>,
+    pub(super) attribute: Option<ExtractionAttribute>
 }
 
 impl Default for ShowSettings {
@@ -28,7 +83,8 @@ impl Default for ShowSettings {
             print_urls: false,
             pretty: false,
             raw: false,
-            filter: None
+            filter: None,
+            attribute: None,
         }
     }
 }
@@ -41,6 +97,10 @@ pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::C
     settings.raw = args.get_flag("raw");
     settings.filter = match args.get_one::<String>("filter") {
         Some(filter) => Some(filter.clone()),
+        None => None
+    };
+    settings.attribute = match args.get_one::<String>("extract") {
+        Some(attribute) => Some(ExtractionAttribute::try_from(attribute.as_str())?),
         None => None
     };
 
@@ -59,6 +119,12 @@ pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::C
     if settings.raw && settings.pretty {
         return Err(
             super::CrusterCLIError::from("Parameters '-r' and '-p' cannot be used at the same time")
+        )
+    }
+
+    if settings.attribute.is_some() && settings.raw {
+        return Err(
+            super::CrusterCLIError::from("Extraction by attribute ('-e') cannot be used with raw printing ('-r')")
         )
     }
 
@@ -119,11 +185,11 @@ pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIE
 fn print_briefly(pair: &http_storage::RequestResponsePair, with_header: bool) {
     let idx = pair.index;
     
-    let (hostname, path) = if let Some(request) = pair.request.as_ref() {
-        (request.get_hostname(), request.get_request_path())
+    let (hostname, path, method) = if let Some(request) = pair.request.as_ref() {
+        (request.get_hostname(), request.get_request_path(), request.method.clone())
     }
     else {
-        ("<UNKNOWN>".to_string(), "<UNKNOWN>".to_string())
+        ("<UNKNOWN>".to_string(), "<UNKNOWN>".to_string(), "<UNKNOWN>".to_string())
     };
 
     let (status, length) = if let Some(response) = pair.response.as_ref() {
@@ -136,12 +202,13 @@ fn print_briefly(pair: &http_storage::RequestResponsePair, with_header: bool) {
     };
 
     if with_header {
-        println!("{:>6} {:>32} {:>70} {:>11} {:>15}\n", "ID", "HOSTNAME", "PATH", "STATUS", "LENGTH");
+        println!("{:>6} {:>8} {:>32} {:>70} {:>11} {:>15}\n", "ID", "METHOD", "HOSTNAME", "PATH", "STATUS", "LENGTH");
     }
 
     println!(
-        "{:>6} {:>32} {:<70} {:>11} {:>15}",
+        "{:>6} {:>8} {:>32} {:<70} {:>11} {:>15}",
         idx,
+        &method[..min(8, method.len())],
         &hostname[..min(32, hostname.len())],
         &path[..min(70, path.len())],
         status,
@@ -226,6 +293,49 @@ fn matches_the_filter(pair: &http_storage::RequestResponsePair, re: &Regex) -> b
     return response_matched;
 }
 
+fn has_appropriate_attribute(pair: &http_storage::RequestResponsePair, attribute: &ExtractionAttribute) -> bool {
+    match attribute.key {
+        ExtractionKey::HOST => {
+            if let Some(request) = pair.request.as_ref() {
+                return request
+                    .get_host()
+                    .starts_with(&attribute.value);
+            }
+            else {
+                return false;
+            }
+        },
+        ExtractionKey::METHOD => {
+            if let Some(request) = pair.request.as_ref() {
+                return request.method
+                    .to_lowercase()
+                    .starts_with(&attribute.value.to_lowercase());
+            }
+            else {
+                return false;
+            }
+        },
+        ExtractionKey::PATH => {
+            if let Some(request) = pair.request.as_ref() {
+                return request
+                    .get_request_path()
+                    .starts_with(&attribute.value);
+            }
+            else {
+                return false;
+            }
+        },
+        ExtractionKey::STATUS => {
+            if let Some(response) = pair.response.as_ref() {
+                return response.status.starts_with(&attribute.value);
+            }
+            else {
+                return false;
+            }
+        }
+    }
+}
+
 pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowSettings) -> Result<(), CrusterCLIError> {
     if range.to < range.from {
         return Err(
@@ -265,6 +375,17 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
         else {
             let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
             let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
+
+            if let Some(attr) = settings.attribute.as_ref() {
+                if ! has_appropriate_attribute(&pair, attr) {
+                    count += 1;
+                    if count == right_idx {
+                        break;
+                    }
+
+                    continue;
+                }
+            }
 
             if let Some(re) = filter_re.as_ref() {
                 if matches_the_filter(&pair, re) {

@@ -100,6 +100,7 @@ fn parse_cmd() -> clap::ArgMatches {
 1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body";
     let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
     let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
+    let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|length=<response_body_length_value>|host=<prefix>|path=<prefix>";
 
     let matches = clap::Command::new("cruster")
         .version("0.7.0")
@@ -144,7 +145,7 @@ fn parse_cmd() -> clap::ArgMatches {
                                 .alias("s")
                                 .arg_required_else_help(true)
                                 .arg(
-                                    clap::arg!(<INDEX> "range or index in storage to print HTTP data: n -- first n pairs, n-m -- pairs from n to m, a -- all stored pairs, n$ -- only Nth pair")
+                                    clap::arg!(<INDEX> "range of line numbers or exact line number in file with stored HTTP data to print: n -- first n pairs, n-m -- pairs from n to m, a -- all stored pairs, n$ -- only Nth pair")
                                         .required(true)
                                 )
                                 .arg(
@@ -173,6 +174,13 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .short('f')
                                         .long("filter")
                                         .help(filter_help)
+                                )
+                                .arg(
+                                    clap::Arg::new("extract")
+                                        .short('e')
+                                        .long("extract")
+                                        .value_name("ATTRIBUTE")
+                                        .help(extract_help)
                                 )
                         )
                 )
