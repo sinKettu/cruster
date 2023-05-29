@@ -1,5 +1,5 @@
 use crate::http_storage;
-use super::CrusterCLIError;
+use crate::cli::CrusterCLIError;
 
 use serde_json as json;
 use std::{cmp::min, io::BufRead};
@@ -21,7 +21,7 @@ pub(super) struct ExtractionAttribute {
 }
 
 impl TryFrom<&str> for ExtractionAttribute {
-    type Error = super::CrusterCLIError;
+    type Error = CrusterCLIError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let splitted: Vec<&str> = value.split("=").collect();
         if splitted.len() != 2 {
@@ -63,13 +63,13 @@ impl TryFrom<&str> for ExtractionAttribute {
 }
 
 #[derive(Debug)]
-pub(super) struct HTTPTableRange {
+pub(crate) struct HTTPTableRange {
     from: usize,
     to: usize,
     all: bool,
 }
 
-pub(super) struct ShowSettings {
+pub(crate) struct ShowSettings {
     pub(super) print_urls: bool,
     pub(super) pretty: bool,
     pub(super) raw: bool,
@@ -89,7 +89,7 @@ impl Default for ShowSettings {
     }
 }
 
-pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::CrusterCLIError> {
+pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterCLIError> {
     let mut settings = ShowSettings::default();
 
     settings.print_urls = args.get_flag("urls");
@@ -106,32 +106,32 @@ pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::C
 
     if settings.print_urls && settings.pretty {
         return Err(
-            super::CrusterCLIError::from("Parameters '-u' and '-p' cannot be used at the same time")
+            CrusterCLIError::from("Parameters '-u' and '-p' cannot be used at the same time")
         )
     }
 
     if settings.print_urls && settings.raw {
         return Err(
-            super::CrusterCLIError::from("Parameters '-u' and '-r' cannot be used at the same time")
+            CrusterCLIError::from("Parameters '-u' and '-r' cannot be used at the same time")
         )
     }
 
     if settings.raw && settings.pretty {
         return Err(
-            super::CrusterCLIError::from("Parameters '-r' and '-p' cannot be used at the same time")
+            CrusterCLIError::from("Parameters '-r' and '-p' cannot be used at the same time")
         )
     }
 
     if settings.attribute.is_some() && settings.raw {
         return Err(
-            super::CrusterCLIError::from("Extraction by attribute ('-e') cannot be used with raw printing ('-r')")
+            CrusterCLIError::from("Extraction by attribute ('-e') cannot be used with raw printing ('-r')")
         )
     }
 
     return Ok(settings);
 }
 
-pub(super) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIError> {
+pub(crate) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIError> {
     let right_bound_re = regex::Regex::new(r"^\d+$")?;
     let strict_index_re = regex::Regex::new(r"^\d+\$$")?;
     let range_re = regex::Regex::new(r"^\d+-\d+$")?;
@@ -336,7 +336,7 @@ fn has_appropriate_attribute(pair: &http_storage::RequestResponsePair, attribute
     }
 }
 
-pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowSettings) -> Result<(), CrusterCLIError> {
+pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowSettings) -> Result<(), CrusterCLIError> {
     if range.to < range.from {
         return Err(
             CrusterCLIError::from("Right bound of range cannot be lower than left one")

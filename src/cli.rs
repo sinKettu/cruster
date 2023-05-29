@@ -1,9 +1,10 @@
-mod show;
+mod http;
 mod repeater;
 
 use clap::{self, ArgMatches};
 
 use crate::config;
+use std::process::exit;
 
 #[derive(Debug)]
 pub struct CrusterCLIError {
@@ -41,12 +42,13 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
             match subcommands.subcommand() {
                 Some(("show", args)) => {
                     let str_range = args.get_one::<String>("INDEX").unwrap();
-                    let range = show::parse_range(str_range)?;
-                    let settings = show::parse_settings(args)?;
+                    let range = http::show::parse_range(str_range)?;
+                    let settings = http::show::parse_settings(args)?;
 
-                    if let Err(err) = show::execute(range, &http_data_path, settings) {
+                    if let Err(err) = http::show::execute(range, &http_data_path, settings) {
                         let err_msg: String = err.into();
-                        eprintln!("ERROR: {}", err_msg);
+                        eprintln!("Error occured while http::show executed: {}", err_msg);
+                        exit(1);
                     }
                 },
                 _ => {}
@@ -56,9 +58,20 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
             let repeater_state_path = format!("{}/repeater.jsonl", &project);
 
             match subcommands.subcommand() {
-                Some(("list", args)) => {
-                    let settings = repeater::list::RepeaterListSettings::try_from(args)?;
-                    repeater::list::execute(&settings, &repeater_state_path)?;
+                Some(("list", _)) => {
+                    if let Err(err) = repeater::list::execute(&repeater_state_path) {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while repeater::list executed: {}", err_str);
+                        exit(2);
+                    }
+                },
+                Some(("show", args)) => {
+                    let settings = repeater::show::RepeaterShowSettings::try_from(args)?;
+                    if let Err(err) = repeater::show::execute(&settings, &repeater_state_path) {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while repeater::show executed: {}", err_str);
+                        exit(3);
+                    }
                 },
                 _ => unreachable!()
             }
