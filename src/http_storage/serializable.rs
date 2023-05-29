@@ -49,7 +49,7 @@ struct SerializableHTTPResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(super) struct SerializableProxyData {
+pub(crate) struct SerializableProxyData {
     index: usize,
     request: SerializableHTTPRequest,
     response: Option<SerializableHTTPResponse>
@@ -317,6 +317,33 @@ impl TryFrom<&RequestResponsePair> for SerializableProxyData {
     }
 }
 
+impl TryInto<RequestResponsePair> for SerializableProxyData {
+    type Error = CrusterError;
+    fn try_into(self) -> Result<RequestResponsePair, Self::Error> {
+        let id = self.index;
+        let request: HyperRequestWrapper = self.request.try_into()?;
+        let response: Option<HyperResponseWrapper> = match self.response {
+            Some(ser_respone) => {
+                let response: HyperResponseWrapper = ser_respone.try_into()?;
+                Some(response)
+            },
+            None => {
+                None
+            }
+        };
+        
+        let pair = RequestResponsePair {
+            index: id,
+            request: Some(request),
+            response,
+            // TODO: need to dump timestamps too
+            timestamp: None
+        };
+
+        return Ok(pair);
+    }
+}
+
 impl HTTPStorage {
     // 'Sentinel' used in a case when this method called in separate thread, in one-threaded case it can be None
     // It's needed to interrupt thread after some time expired, because rust threads cannot interrupt themselves 
@@ -328,7 +355,7 @@ impl HTTPStorage {
             )
         }
 
-        let mut fout = fs::OpenOptions::new().write(true).create(true).open(path)?;
+        let mut fout = fs::OpenOptions::new().create(true).write(true).open(path)?;
         for pair in &self.storage {
             let serializable_record = SerializableProxyData::try_from(pair)?;
             let jsn = json::to_string(&serializable_record)?;
@@ -348,27 +375,8 @@ impl HTTPStorage {
     }
 
     fn insert_serializable_into_storage(&mut self, record: SerializableProxyData) -> Result<(), CrusterError> {
-        let id = record.index;
-        let request: HyperRequestWrapper = record.request.try_into()?;
-        let response: Option<HyperResponseWrapper> = match record.response {
-            Some(ser_respone) => {
-                let response: HyperResponseWrapper = ser_respone.try_into()?;
-                Some(response)
-            },
-            None => {
-                None
-            }
-        };
-        
-        let pair = RequestResponsePair {
-            index: record.index,
-            request: Some(request),
-            response,
-            // TODO: need to dump timestamps too
-            timestamp: None
-        };
-
-        self.insert_with_explicit_id(id, pair);
+        let pair: RequestResponsePair = record.try_into()?;
+        self.insert_with_explicit_id(pair.index, pair);
 
         Ok(())
     }

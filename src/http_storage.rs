@@ -1,4 +1,4 @@
-mod serializable;
+pub(crate) mod serializable;
 
 use std::{fs::File, cmp::max};
 use std::collections::HashMap;
@@ -185,6 +185,15 @@ impl HTTPStorage {
         return self.storage.len().clone();
     }
 
+    pub(crate) fn clear(&mut self) -> Result<(), CrusterError> {
+        while self.len() > 0 {
+            let idx = self.storage[self.len() - 1].index;
+            self.remove_by_id(idx)?;
+        }
+
+        Ok(())
+    }
+
     fn swap_pairs(&mut self, left: usize, right: usize) {
         self.storage.swap(left, right);
         let (lid, rid) = (self.storage[left].index, self.storage[right].index);
@@ -329,4 +338,23 @@ impl HTTPStorage {
             );
         }
     }
+
+    // pub(crate) fn get_bounds(&self) -> (usize, usize) {
+    //     let mut min = usize::MAX;
+    //     let mut max = 0_usize;
+
+    //     for pair in self {
+    //         if pair.index < min {
+    //             min = pair.index;
+    //             continue;
+    //         }
+
+    //         if pair.index > max {
+    //             max = pair.index;
+    //             continue;
+    //         }
+    //     }
+
+    //     return (min, max);
+    // }
 }

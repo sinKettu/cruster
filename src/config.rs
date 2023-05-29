@@ -281,31 +281,31 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     }
 
     if let Some(dfile) = matches.value_of("debug-file") {
-        let debug_file = resolve_path(&workplace, dfile)?;
+        let debug_file = resolve_path(&workplace, dfile, false)?;
         enable_debug(&debug_file);
         config.debug_file = Some(debug_file);
     }
     else if let Some(dfile) = &config.debug_file {
-        let debug_file = resolve_path(&workplace, dfile)?;
+        let debug_file = resolve_path(&workplace, dfile, false)?;
         enable_debug(dfile);
         config.debug_file = Some(debug_file);
     }
 
     if let Some(store_path) = matches.value_of("project") {
-        config.project = Some(resolve_path(&workplace, store_path)?);
+        config.project = Some(resolve_path(&workplace, store_path, true)?);
         if ! path::Path::new(config.project.as_ref().unwrap()).is_dir() {
             fs::create_dir(config.project.as_ref().unwrap())?;
         }
     }
     else if let Some(store_path) = &config.project {
-        config.project = Some(resolve_path(&workplace, store_path)?);
+        config.project = Some(resolve_path(&workplace, store_path, true)?);
         if ! path::Path::new(config.project.as_ref().unwrap()).is_dir() {
             fs::create_dir(config.project.as_ref().unwrap())?;
         }
     }
 
-    config.tls_cer_name = resolve_path(&workplace, &config.tls_cer_name)?;
-    config.tls_key_name = resolve_path(&workplace, &config.tls_key_name)?;
+    config.tls_cer_name = resolve_path(&workplace, &config.tls_cer_name, false)?;
+    config.tls_key_name = resolve_path(&workplace, &config.tls_key_name, false)?;
 
     if matches.is_present("strict-scope") {
         if let Some(scope) = config.scope.as_mut() {
@@ -463,12 +463,19 @@ fn enable_debug(debug_file_path: &str) {
 // }
 
 /// Return such path state, which is accessbile with cruster
-fn resolve_path(base_path: &str, path: &str) -> Result<String, CrusterError> {
+fn resolve_path(base_path: &str, path: &str, dir: bool) -> Result<String, CrusterError> {
     let fpath = path::Path::new(path);
     if fpath.is_absolute() {
         return Ok(path.to_string());
     }
     else if fpath.starts_with("./") {
+        if dir && ! std::path::Path::new(path).is_dir(){
+            std::fs::create_dir(path)?;
+        }
+        else if !dir && ! std::path::Path::new(path).is_file() {
+            std::fs::File::create(path)?;
+        }
+        
         let canonicalized = fs::canonicalize(fpath)?;
         let pth = canonicalized.to_str().unwrap().to_string();
         return Ok(pth);
