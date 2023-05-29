@@ -185,6 +185,15 @@ impl HTTPStorage {
         return self.storage.len().clone();
     }
 
+    pub(crate) fn clear(&mut self) -> Result<(), CrusterError> {
+        for i in 0..self.len() {
+            let idx = self.storage[i].index;
+            self.remove_by_id(idx)?;
+        }
+
+        Ok(())
+    }
+
     fn swap_pairs(&mut self, left: usize, right: usize) {
         self.storage.swap(left, right);
         let (lid, rid) = (self.storage[left].index, self.storage[right].index);

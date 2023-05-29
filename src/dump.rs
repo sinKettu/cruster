@@ -235,6 +235,11 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
     let mut http_storage = HTTPStorage::default();
     if let Some(proj_path) = config.project.as_ref() {
         let path = format!("{}/http.jsonl", proj_path);
+
+        // Do it to set apropriate next_id in HTTPStorage state
+        http_storage.load(&path).unwrap();
+        http_storage.clear().unwrap();
+
         http_storage.keep_open(&path).unwrap();
     }
     else {
