@@ -3,6 +3,7 @@ use super::CrusterCLIError;
 
 use serde_json as json;
 use std::{cmp::min, io::BufRead};
+use regex::Regex;
 
 use regex;
 use clap::ArgMatches;
@@ -18,6 +19,7 @@ pub(super) struct ShowSettings {
     pub(super) print_urls: bool,
     pub(super) pretty: bool,
     pub(super) raw: bool,
+    pub(super) filter: Option<String>,
 }
 
 impl Default for ShowSettings {
@@ -26,6 +28,7 @@ impl Default for ShowSettings {
             print_urls: false,
             pretty: false,
             raw: false,
+            filter: None
         }
     }
 }
@@ -36,6 +39,10 @@ pub(super) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, super::C
     settings.print_urls = args.get_flag("urls");
     settings.pretty = args.get_flag("pretty");
     settings.raw = args.get_flag("raw");
+    settings.filter = match args.get_one::<String>("filter") {
+        Some(filter) => Some(filter.clone()),
+        None => None
+    };
 
     if settings.print_urls && settings.pretty {
         return Err(
@@ -197,6 +204,28 @@ fn print_pair(pair: &http_storage::RequestResponsePair, settings: &ShowSettings,
     }
 }
 
+fn matches_the_filter(pair: &http_storage::RequestResponsePair, re: &Regex) -> bool {
+    let request_matched = if let Some(request) = pair.request.as_ref() {
+        request.serach_with_re(re)
+    }
+    else {
+        false
+    };
+
+    if request_matched {
+        return true;
+    }
+
+    let response_matched = if let Some(response) = pair.response.as_ref() {
+        response.serach_with_re(re)
+    }
+    else {
+        false
+    };
+
+    return response_matched;
+}
+
 pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowSettings) -> Result<(), CrusterCLIError> {
     if range.to < range.from {
         return Err(
@@ -211,6 +240,11 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
         (range.from, range.to)
     };
 
+    let filter_re = match settings.filter.as_ref() {
+        Some(filter_str) => Some(Regex::new(filter_str)?),
+        None => None
+    };
+
     let mut first: bool = true;
     let fin = std::fs::File::open(http_storage)?;
     let fin_reader = std::io::BufReader::new(fin);
@@ -219,15 +253,32 @@ pub(super) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
     for line in fin_reader.lines().skip(count) {
         let line_ptr = &line?;
         if settings.raw {
-            println!("{}", line_ptr);
+            if let Some(re) = filter_re.as_ref() {
+                if re.find(line_ptr).is_some() {
+                    println!("{}", line_ptr);
+                }
+            }
+            else {
+                println!("{}", line_ptr);
+            }
         }
         else {
             let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
             let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
 
-            print_pair(&pair, &settings, first);
-            if first {
-                first = false;
+            if let Some(re) = filter_re.as_ref() {
+                if matches_the_filter(&pair, re) {
+                    print_pair(&pair, &settings, first);
+                    if first {
+                        first = false;
+                    }        
+                }
+            }
+            else {
+                print_pair(&pair, &settings, first);
+                if first {
+                    first = false;
+                }
             }
         }
         

@@ -99,6 +99,7 @@ fn parse_cmd() -> clap::ArgMatches {
     let verbosity_help = "Verbosity in dump mode, ignored in intercative mode. 0: request/response first line, 
 1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body";
     let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
+    let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
 
     let matches = clap::Command::new("cruster")
         .version("0.7.0")
@@ -166,6 +167,12 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .long("raw")
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Print raw data as it was dumped in project")
+                                )
+                                .arg(
+                                    clap::Arg::new("filter")
+                                        .short('f')
+                                        .long("filter")
+                                        .help(filter_help)
                                 )
                         )
                 )
