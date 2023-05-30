@@ -7,7 +7,8 @@ use reqwest::{self, Request, Response};
 
 use super::RepeaterIterator;
 use crate::cli::CrusterCLIError;
-use crate::siv_ui::repeater::RepeaterState;
+use crate::siv_ui::repeater::{RepeaterState, RepeaterParameters};
+use cursive::views::TextContent;
 
 
 pub(crate) struct RepeaterExecSettings {
@@ -45,7 +46,7 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
     }
 }
 
-fn send_request(request: Request, tls: bool, max_redirects: usize) -> Result<Response, CrusterCLIError> {
+fn send_request(request: Request, params: &RepeaterParameters) -> Result<Response, CrusterCLIError> {
     
 
     todo!()
@@ -90,13 +91,28 @@ fn get_ready_request(repeater: &mut RepeaterState, editor: &str, force: bool) ->
     };
 }
 
+fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: &str, editor: &str, settings: &RepeaterExecSettings) -> Result<(), CrusterCLIError> {
+    let request = get_ready_request(&mut repeater, editor, settings.force)?;
+    super::update_repeaters(path, &repeater, number.to_owned())?;
+
+    let response = send_request(request, &repeater.parameters)?;
+    let wrapper = tokio::runtime::Runtime::new()?.block_on(
+        crate::cruster_proxy::request_response::HyperResponseWrapper::from_reqwest(response)
+    )?;
+
+    let response_str = wrapper.to_string();
+    repeater.response = TextContent::new(response_str.clone());
+    super::update_repeaters(path, &repeater, number.to_owned())?;
+
+    return Ok(())
+}
+
 pub(crate) fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str) -> Result<(), CrusterCLIError> {
     let repeater_iter = RepeaterIterator::new(path);
     for (i, mut repeater) in repeater_iter.enumerate() {
         if let Some(number) = settings.number.as_ref() {
             if &(i + 1) == number {
-                let request = get_ready_request(&mut repeater, editor, settings.force)?;
-                let response = send_request(request, repeater.parameters.https, repeater.parameters.max_redirects)?;
+                return handle_repeater(&mut repeater, i, path, editor, settings);
             }
 
             continue;
@@ -104,11 +120,14 @@ pub(crate) fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str)
 
         if let Some(name) = settings.name.as_ref() {
             if &repeater.name == name {
+                return handle_repeater(&mut repeater, i, path, editor, settings);
             }
 
             continue;
         }
     }
 
-    todo!()
+    Err(
+        CrusterCLIError::from("Cannot find repeater by specified mark (number/name)")
+    )
 }

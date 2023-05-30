@@ -1,6 +1,7 @@
 use std::fs::File;
 use serde_json as json;
-use std::io::{BufReader, BufRead};
+use super::CrusterCLIError;
+use std::io::{BufReader, BufRead, Write};
 use crate::siv_ui::repeater::{RepeaterState, RepeaterStateSerializable};
 
 pub(crate) mod list;
@@ -37,4 +38,46 @@ impl Iterator for RepeaterIterator {
 
         return Some(repeater);
     }
+}
+
+pub(crate) fn update_repeaters(path: &str, repeater: &RepeaterState, number: usize) -> Result<(), CrusterCLIError> {
+    let file = File::open(path)?;
+    let fin = BufReader::new(file);
+    let mut buf: Vec<Option<String>> = Vec::with_capacity(20);
+
+    for (i, line) in fin.lines().enumerate() {
+        if let Ok(repeater_str) = line {
+            if i != number {
+                buf.push(Some(repeater_str));
+            }
+            else {
+                buf.push(None);
+            }
+        }
+    }
+
+    let mut found_flag: bool = false;
+    let mut fout = std::fs::OpenOptions::new().write(true).open(path)?;
+    for possible_repeater_str in buf {
+        if let Some(repeater_str) = possible_repeater_str {
+            let line = format!("{}\n", repeater_str);
+            let _ = fout.write(line.as_bytes())?;
+        }
+        else {
+            let repeater_ser = RepeaterStateSerializable::from(repeater);
+            let repeater_str = json::to_string(&repeater_ser)?;
+            let line = format!("{}\n", repeater_str);
+            let _ = fout.write(line.as_bytes())?;
+            found_flag = true;
+        }
+    }
+
+    if !found_flag {
+        let repeater_ser = RepeaterStateSerializable::from(repeater);
+        let repeater_str = json::to_string(&repeater_ser)?;
+        let line = format!("{}\n", repeater_str);
+        let _ = fout.write(line.as_bytes())?;
+    }
+
+    Ok(())
 }
