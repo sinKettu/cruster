@@ -1,5 +1,13 @@
+use std::{process, io::Read};
+use std::io::Write;
+use rand::{distributions::Alphanumeric, Rng};
+
 use clap::ArgMatches;
+use reqwest::{self, Request, Response};
+
+use super::RepeaterIterator;
 use crate::cli::CrusterCLIError;
+use crate::siv_ui::repeater::RepeaterState;
 
 
 pub(crate) struct RepeaterExecSettings {
@@ -37,8 +45,70 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
     }
 }
 
-pub(crate) fn execute(settings: &RepeaterExecSettings, path: &str) -> Result<(), CrusterCLIError> {
+fn send_request(request: Request, tls: bool, max_redirects: usize) -> Result<Response, CrusterCLIError> {
+    
 
+    todo!()
+}
+
+fn open_editor(editor: &str, request: String) -> Result<String, CrusterCLIError> {
+    let tmp_path = format!(
+        "/tmp/cruster-repeater-{}.txt",
+        rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect::<String>()
+    );
+
+    let mut fout = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&tmp_path)?;
+
+    let _ = fout.write(request.as_bytes())?;
+    drop(fout);
+
+    let _status = process::Command::new(editor).arg(&tmp_path).status()?;
+
+    let mut fin = std::fs::File::open(&tmp_path)?;
+    let mut edited_request = String::with_capacity(request.len() + 100);
+    fin.read_to_string(&mut edited_request)?;
+
+    std::fs::remove_file(tmp_path)?;
+
+    return  Ok(edited_request);
+}
+
+fn get_ready_request(repeater: &mut RepeaterState, editor: &str, force: bool) -> Result<Request, CrusterCLIError> {
+    if force {
+        return Ok(repeater.make_reqwest()?);
+    }
+    else {
+        repeater.request = open_editor(editor, repeater.request.clone())?;
+        return Ok(repeater.make_reqwest()?);
+    };
+}
+
+pub(crate) fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str) -> Result<(), CrusterCLIError> {
+    let repeater_iter = RepeaterIterator::new(path);
+    for (i, mut repeater) in repeater_iter.enumerate() {
+        if let Some(number) = settings.number.as_ref() {
+            if &(i + 1) == number {
+                let request = get_ready_request(&mut repeater, editor, settings.force)?;
+                let response = send_request(request, repeater.parameters.https, repeater.parameters.max_redirects)?;
+            }
+
+            continue;
+        }
+
+        if let Some(name) = settings.name.as_ref() {
+            if &repeater.name == name {
+            }
+
+            continue;
+        }
+    }
 
     todo!()
 }

@@ -77,7 +77,7 @@ impl TryFrom<RepeaterStateSerializable> for RepeaterState {
 }
 
 impl RepeaterState {
-    pub(super) fn make_reqwest(&self) -> Result<reqwest::Request, CrusterError> {
+    pub(crate) fn make_reqwest(&self) -> Result<reqwest::Request, CrusterError> {
         let req_fl = self.request.splitn(2, "\r\n").collect::<Vec<&str>>()[0];
         let fl_regex = Regex::new(r"^(?P<method>[\w]+) (?P<path>\S+) (?P<version>HTTP/(\d+\.)?\d+)$").unwrap();
 

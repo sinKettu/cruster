@@ -1,5 +1,5 @@
 mod request_executor;
-mod repeater_state_implementation;
+pub(crate) mod repeater_state_implementation;
 
 use cursive::{
     Cursive,

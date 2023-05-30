@@ -57,7 +57,8 @@ pub(crate) struct Config {
     pub(crate) debug_file: Option<String>,
     pub(crate) project: Option<String>,
     pub(crate) scope: Option<Scope>,
-    pub(crate) dump_mode: Option<Dump>
+    pub(crate) dump_mode: Option<Dump>,
+    pub(crate) editor: Option<String>
 }
 
 impl Default for Dump {
@@ -81,6 +82,7 @@ impl Default for Config {
             project: None,
             scope: None,
             dump_mode: None,
+            editor: None
         }
     }
 }
@@ -101,6 +103,7 @@ fn parse_cmd() -> clap::ArgMatches {
     let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
     let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
     let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>";
+    let editor_help = "Path to editor executable to use in CLI mode";
 
     let matches = clap::Command::new("cruster")
         .version("0.7.0")
@@ -219,6 +222,7 @@ fn parse_cmd() -> clap::ArgMatches {
                                     clap::Arg::new("force")
                                         .short('f')
                                         .long("force")
+                                        .action(clap::ArgAction::SetTrue)
                                         .help("Execute repeater without editing")
                                 )
                         )
@@ -288,6 +292,12 @@ fn parse_cmd() -> clap::ArgMatches {
                 .value_name("REGEX")
                 .action(clap::ArgAction::Append)
                 .help(exclude_help)
+        )
+        .arg(
+            clap::Arg::new("editor")
+                .long("editor")
+                .value_name("PATH_TO_EXECUTABLE")
+                .help(editor_help)
         )
         .get_matches();
 
@@ -523,6 +533,10 @@ pub(crate) fn handle_user_input() -> Result<(Config, CrusterMode), CrusterConfig
                 dm.color = false;
             }
         }
+    }
+
+    if let Some(editor) = matches.get_one::<String>("editor") {
+        config.editor = Some(editor.to_string());
     }
 
     Ok((config, cmd))

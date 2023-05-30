@@ -74,8 +74,18 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
                     }
                 },
                 Some(("exec", args)) => {
-                    let settings = repeater::exec::RepeaterExecSettings::try_from(args);
-                    
+                    if config.editor.is_none() {
+                        eprintln!("Error: to use CLI repeater use must specify external text editor with 'cruster -e' option or in config");
+                        exit(4);
+                    }
+
+                    let settings = repeater::exec::RepeaterExecSettings::try_from(args)?;
+                    let editor = config.editor.as_ref().unwrap();
+                    if let Err(err) = repeater::exec::execute(&settings, &repeater_state_path, editor) {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while repeater::exec executed: {}", err_str);
+                        exit(5);
+                    }
                 }
                 _ => unreachable!()
             }
