@@ -207,6 +207,13 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .required(true)
                                         .help("Number or name of repeater to print")
                                 )
+                                .arg(
+                                    clap::Arg::new("no-body")
+                                        .short('b')
+                                        .long("no-body")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print request/response without body")
+                                )
                         )
                         .subcommand(
                             clap::Command::new("exec")
