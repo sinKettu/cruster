@@ -73,6 +73,10 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
                         exit(3);
                     }
                 },
+                Some(("exec", args)) => {
+                    let settings = repeater::exec::RepeaterExecSettings::try_from(args);
+                    
+                }
                 _ => unreachable!()
             }
         }

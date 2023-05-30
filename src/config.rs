@@ -205,6 +205,23 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .help("Number or name of repeater to print")
                                 )
                         )
+                        .subcommand(
+                            clap::Command::new("exec")
+                                .alias("e")
+                                .about("Execute choosed repeater")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::Arg::new("mark")
+                                        .required(true)
+                                        .help("Number or name of repeater to print")
+                                )
+                                .arg(
+                                    clap::Arg::new("force")
+                                        .short('f')
+                                        .long("force")
+                                        .help("Execute repeater without editing")
+                                )
+                        )
                 )
         )
         .arg(
