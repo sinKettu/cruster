@@ -185,6 +185,13 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .value_name("ATTRIBUTE")
                                         .help(extract_help)
                                 )
+                                .arg(
+                                    clap::Arg::new("index")
+                                        .short('i')
+                                        .long("index")
+                                        .value_name("NUMBER")
+                                        .help("Get pair with specific ID")
+                                )
                         )
                 )
                 .subcommand(

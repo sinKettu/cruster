@@ -74,7 +74,8 @@ pub(crate) struct ShowSettings {
     pub(super) pretty: bool,
     pub(super) raw: bool,
     pub(super) filter: Option<String>,
-    pub(super) attribute: Option<ExtractionAttribute>
+    pub(super) attribute: Option<ExtractionAttribute>,
+    pub(super) index: Option<usize>
 }
 
 impl Default for ShowSettings {
@@ -85,6 +86,7 @@ impl Default for ShowSettings {
             raw: false,
             filter: None,
             attribute: None,
+            index: None
         }
     }
 }
@@ -101,6 +103,10 @@ pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterC
     };
     settings.attribute = match args.get_one::<String>("extract") {
         Some(attribute) => Some(ExtractionAttribute::try_from(attribute.as_str())?),
+        None => None
+    };
+    settings.index = match args.get_one::<String>("index") {
+        Some(index) => Some(index.to_string().parse()?),
         None => None
     };
 
@@ -360,15 +366,29 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
     let fin_reader = std::io::BufReader::new(fin);
 
     let mut count = left_idx.saturating_sub(1);
+    let mut found = false;
     for line in fin_reader.lines().skip(count) {
         let line_ptr = &line?;
+
         if settings.raw {
+            if let Some(index) = settings.index {
+                let re_str = format!(r#"^."index":{},"#, index);
+                let re = Regex::new(&re_str)?;
+
+                if let None = re.find(line_ptr) {
+                    count += 1;
+                    continue;
+                }
+            }
+
             if let Some(re) = filter_re.as_ref() {
                 if re.find(line_ptr).is_some() {
+                    found = true;
                     println!("{}", line_ptr);
                 }
             }
             else {
+                found = true;
                 println!("{}", line_ptr);
             }
         }
@@ -387,8 +407,16 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
                 }
             }
 
+            if let Some(index) = settings.index {
+                if pair.index != index {
+                    count += 1;
+                    continue;
+                }
+            }
+
             if let Some(re) = filter_re.as_ref() {
                 if matches_the_filter(&pair, re) {
+                    found = true;
                     print_pair(&pair, &settings, first);
                     if first {
                         first = false;
@@ -396,6 +424,7 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
                 }
             }
             else {
+                found = true;
                 print_pair(&pair, &settings, first);
                 if first {
                     first = false;
@@ -410,10 +439,14 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
     }
 
     if count == left_idx.saturating_sub(1) {
-        eprintln!("\nLeft bound is out of range!");
+        return Err(CrusterCLIError::from("Left bound is out of range!"));
     }
     else if count < right_idx && !range.all {
-        eprintln!("\nCould print only records from {} to {}", left_idx.saturating_sub(1), count);
+        return Err(CrusterCLIError::from(format!("Could print only records from {} to {}", left_idx.saturating_sub(1), count)));
+    }
+
+    if !found {
+        return Err(CrusterCLIError::from("Nothing is found"));
     }
 
     Ok(())
