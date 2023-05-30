@@ -84,3 +84,19 @@ pub(crate) fn update_repeaters(path: &str, repeater: &RepeaterState, number: usi
 
     Ok(())
 }
+
+pub(crate) fn trim_body(req_or_res: &str) -> String {
+    let mut result_wout_body = String::with_capacity(req_or_res.len());
+    for line in req_or_res.split("\n") {
+        if line.trim().is_empty() {
+            result_wout_body.push_str(line);
+            result_wout_body.push_str("\n");
+            break
+        }
+
+        result_wout_body.push_str(line);
+        result_wout_body.push_str("\n");
+    }
+
+    return result_wout_body;
+}

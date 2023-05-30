@@ -44,31 +44,7 @@ pub(super) fn print_repeater_request_and_response(repeater: &RepeaterState, no_b
     let response = raw_rsp.source();
 
     if no_body {
-        let mut request_without_body = String::with_capacity(request.len());
-        for line in request.split("\n") {
-            if line.trim().is_empty() {
-                request_without_body.push_str(line);
-                request_without_body.push_str("\n");
-                break
-            }
-
-            request_without_body.push_str(line);
-            request_without_body.push_str("\n");
-        }
-
-        let mut response_without_body = String::with_capacity(response.len());
-        for line in response.split("\n") {
-            if line.trim().is_empty() {
-                response_without_body.push_str(line);
-                response_without_body.push_str("\n");
-                break
-            }
-
-            response_without_body.push_str(line);
-            response_without_body.push_str("\n");
-        }
-
-        println!("{}\n{}\n", request_without_body, response_without_body);
+        println!("{}\n{}\n", super::trim_body(request), super::trim_body(response));
     } else {
         println!("{}\n{}\n", request, response);
     }

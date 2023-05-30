@@ -232,6 +232,13 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Execute repeater without editing")
                                 )
+                                .arg(
+                                    clap::Arg::new("no-body")
+                                        .short('b')
+                                        .long("no-body")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print request/response without body")
+                                )
                         )
                         .subcommand(
                             clap::Command::new("edit")

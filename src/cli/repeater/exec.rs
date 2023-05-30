@@ -15,7 +15,8 @@ use http::{HeaderMap, HeaderValue};
 pub(crate) struct RepeaterExecSettings {
     pub(crate) name: Option<String>,
     pub(crate) number: Option<usize>,
-    pub(crate) force: bool
+    pub(crate) force: bool,
+    pub(crate) no_body: bool,
 }
 
 impl TryFrom<&ArgMatches> for RepeaterExecSettings {
@@ -24,7 +25,8 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
         let mut settings = RepeaterExecSettings {
             name: None,
             number: None,
-            force: false
+            force: false,
+            no_body: false
         };
 
         let mark = args.get_one::<String>("mark").unwrap().to_string();
@@ -42,6 +44,8 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
                 CrusterCLIError::from("Use must specify number or name of repeater to work with")
             )
         }
+
+        settings.no_body = args.get_flag("no-body");
 
         return Ok(settings);
     }
@@ -151,7 +155,12 @@ fn get_ready_request(repeater: &mut RepeaterState, editor: &str, force: bool) ->
 async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: &str, editor: &str, settings: &RepeaterExecSettings) -> Result<(), CrusterCLIError> {
     let request = get_ready_request(&mut repeater, editor, settings.force)?;
 
-    println!("{}\n", repeater.request.as_str());
+    if settings.no_body {
+        println!("\n{}\n", super::trim_body(repeater.request.as_str()));
+    } else {
+        println!("\n{}\n", repeater.request.as_str());
+    }
+    
     print!("{}\r", "Sending...");
     std::io::stdout().flush()?;
     
@@ -168,7 +177,11 @@ async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: 
         eprintln!("REDIRECTS COUNT EXCEEDED\n");
     }
 
-    println!("{}\n", response_str);
+    if settings.no_body {
+        println!("{}\n", super::trim_body(&response_str));
+    } else {
+        println!("{}\n", response_str);
+    }
 
     return Ok(())
 }
