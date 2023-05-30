@@ -78,8 +78,8 @@ impl TryFrom<RepeaterStateSerializable> for RepeaterState {
 
 impl RepeaterState {
     pub(crate) fn make_reqwest(&self) -> Result<reqwest::Request, CrusterError> {
-        let req_fl = self.request.splitn(2, "\r\n").collect::<Vec<&str>>()[0];
-        let fl_regex = Regex::new(r"^(?P<method>[\w]+) (?P<path>\S+) (?P<version>HTTP/(\d+\.)?\d+)$").unwrap();
+        let req_fl = self.request.splitn(2, "\n").collect::<Vec<&str>>()[0];
+        let fl_regex = Regex::new(r"^(?P<method>[\w]+) (?P<path>\S+) (?P<version>HTTP/(\d+\.)?\d+)\s?$").unwrap();
 
         let (method, uri, version) =  match fl_regex.captures(req_fl) {
             Some(captures) => {
@@ -94,7 +94,7 @@ impl RepeaterState {
                 (method.to_string(), uri, version.to_string())
             },
             None => {
-                let err_str = format!("Could parse first line of request in repeater: {}", req_fl.clone());
+                let err_str = format!("Could not parse first line of request in repeater: {}", req_fl.clone());
                 return Err(CrusterError::RegexError(err_str));
             }
         };

@@ -9,6 +9,7 @@ use super::RepeaterIterator;
 use crate::cli::CrusterCLIError;
 use crate::siv_ui::repeater::{RepeaterState, RepeaterParameters};
 use cursive::views::TextContent;
+use http::{HeaderMap, HeaderValue};
 
 
 pub(crate) struct RepeaterExecSettings {
@@ -46,10 +47,66 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
     }
 }
 
-fn send_request(request: Request, params: &RepeaterParameters) -> Result<Response, CrusterCLIError> {
-    
+async fn follow_redirect(response: Response, redirects: &mut usize, cookie: Option<&HeaderValue>) -> Result<Response, CrusterCLIError> {
+    let client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .redirect(reqwest::redirect::Policy::none())
+        .http1_only()
+        .build()?;
 
-    todo!()
+    let mut current_response = response;
+
+    while redirects > &mut 0 && current_response.status().is_redirection() {
+        let location_str = current_response.headers().get("location");
+        if let None = location_str {
+            return Err(
+                CrusterCLIError::from("Found redirection, but could not find 'Location' header in response")
+            );
+        }
+
+        let location_str = location_str.unwrap().to_str()?;
+        let location_url = reqwest::Url::parse(location_str)?;
+
+        let mut headers = HeaderMap::new();
+        headers.insert("referer", HeaderValue::from_str(current_response.url().as_str())?);
+        if let Some(cookie) = cookie {
+            headers.insert("cookie", cookie.clone());
+        }
+
+        current_response = client.request(reqwest::Method::GET, location_url)
+            .headers(headers)
+            .send()
+            .await?;
+
+        *redirects = *redirects - 1;
+    }
+
+    Ok(current_response)
+}
+
+async fn send_request(request: Request, params: &RepeaterParameters) -> Result<(Response, usize), CrusterCLIError> {
+    let cookie = if let Some(cookie) = request.headers().get("cookie") {
+        Some(cookie.to_owned())
+    }
+    else {
+        None
+    };
+
+    let client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .redirect(reqwest::redirect::Policy::none())
+        .http1_only()
+        .build()?;
+
+    let response = client.execute(request).await?;
+
+    if response.status().is_redirection() && params.redirects {
+        let mut counter = params.max_redirects.saturating_sub(1);
+        let response = follow_redirect(response, &mut counter, cookie.as_ref()).await?;
+        return Ok((response, counter));
+    }
+
+    return Ok((response, params.max_redirects));
 }
 
 fn open_editor(editor: &str, request: String) -> Result<String, CrusterCLIError> {
@@ -91,28 +148,37 @@ fn get_ready_request(repeater: &mut RepeaterState, editor: &str, force: bool) ->
     };
 }
 
-fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: &str, editor: &str, settings: &RepeaterExecSettings) -> Result<(), CrusterCLIError> {
+async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: &str, editor: &str, settings: &RepeaterExecSettings) -> Result<(), CrusterCLIError> {
     let request = get_ready_request(&mut repeater, editor, settings.force)?;
+
+    println!("{}\n", repeater.request.as_str());
+    print!("{}\r", "Sending...");
+    std::io::stdout().flush()?;
+    
     super::update_repeaters(path, &repeater, number.to_owned())?;
 
-    let response = send_request(request, &repeater.parameters)?;
-    let wrapper = tokio::runtime::Runtime::new()?.block_on(
-        crate::cruster_proxy::request_response::HyperResponseWrapper::from_reqwest(response)
-    )?;
-
+    let (response, redirects) = send_request(request, &repeater.parameters).await?;
+    let wrapper = crate::cruster_proxy::request_response::HyperResponseWrapper::from_reqwest(response).await?;
     let response_str = wrapper.to_string();
     repeater.response = TextContent::new(response_str.clone());
+
     super::update_repeaters(path, &repeater, number.to_owned())?;
+
+    if redirects == 0 {
+        eprintln!("REDIRECTS COUNT EXCEEDED\n");
+    }
+
+    println!("{}\n", response_str);
 
     return Ok(())
 }
 
-pub(crate) fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str) -> Result<(), CrusterCLIError> {
+pub(crate) async fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str) -> Result<(), CrusterCLIError> {
     let repeater_iter = RepeaterIterator::new(path);
     for (i, mut repeater) in repeater_iter.enumerate() {
         if let Some(number) = settings.number.as_ref() {
             if &(i + 1) == number {
-                return handle_repeater(&mut repeater, i, path, editor, settings);
+                return handle_repeater(&mut repeater, i, path, editor, settings).await;
             }
 
             continue;
@@ -120,7 +186,7 @@ pub(crate) fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str)
 
         if let Some(name) = settings.name.as_ref() {
             if &repeater.name == name {
-                return handle_repeater(&mut repeater, i, path, editor, settings);
+                return handle_repeater(&mut repeater, i, path, editor, settings).await;
             }
 
             continue;

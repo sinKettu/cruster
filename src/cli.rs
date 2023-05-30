@@ -23,7 +23,7 @@ impl Into<String> for CrusterCLIError {
     }
 }
 
-pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), CrusterCLIError> {
+pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Result<(), CrusterCLIError> {
     let project = match config.project.as_ref() {
         Some(path) => {
             path.to_string()
@@ -81,7 +81,7 @@ pub(crate) fn launch(command: ArgMatches, config: config::Config) -> Result<(), 
 
                     let settings = repeater::exec::RepeaterExecSettings::try_from(args)?;
                     let editor = config.editor.as_ref().unwrap();
-                    if let Err(err) = repeater::exec::execute(&settings, &repeater_state_path, editor) {
+                    if let Err(err) = repeater::exec::execute(&settings, &repeater_state_path, editor).await {
                         let err_str: String = err.into();
                         eprintln!("Error occured while repeater::exec executed: {}", err_str);
                         exit(5);
