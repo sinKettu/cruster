@@ -86,6 +86,14 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Resul
                         eprintln!("Error occured while repeater::exec executed: {}", err_str);
                         exit(5);
                     }
+                },
+                Some(("edit", args)) => {
+                    let settings = repeater::edit::RepeaterEditSettings::try_from(args)?;
+                    if let Err(err) = repeater::edit::execute(&settings, &repeater_state_path) {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while repeater::edit executed: {}", err_str);
+                        exit(6);
+                    }
                 }
                 _ => unreachable!()
             }

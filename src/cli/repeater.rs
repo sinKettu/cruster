@@ -7,6 +7,7 @@ use crate::siv_ui::repeater::{RepeaterState, RepeaterStateSerializable};
 pub(crate) mod list;
 pub(crate) mod show;
 pub(crate) mod exec;
+pub(crate) mod edit;
 
 
 pub(crate) struct RepeaterIterator {
@@ -28,9 +29,11 @@ impl Iterator for RepeaterIterator {
     type Item = RepeaterState;
     fn next(&mut self) -> Option<Self::Item> {
         let mut buf = String::default();
-        let len = self.reader.read_line(&mut buf).unwrap();
-        if len == 0 {
-            return None
+        while buf.trim().len() == 0 {
+            let len = self.reader.read_line(&mut buf).unwrap();
+            if len == 0 {
+                return None
+            }
         }
 
         let ser_repeater = json::from_str::<RepeaterStateSerializable>(&buf).unwrap();
