@@ -36,4 +36,12 @@ COPY Cargo.lock cruster-src/
 RUN cargo install \
     --path ./cruster-src
 
+USER root
+
+RUN rm -rf /opt/cruster/.rustup \
+    && rm -rf /opt/cruster/.cargo/registry \
+    && rm -rf /opt/cruster/cruster-src
+
+USER cruster
+
 ENTRYPOINT [ "cruster" ]
