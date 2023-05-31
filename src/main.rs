@@ -67,7 +67,14 @@ async fn main() -> Result<(), utils::CrusterError> {
     let (config, mode) = config::handle_user_input()?;
 
     if let config::CrusterMode::CLI(subcmd_args) = mode {
-        return Ok(cli::launch(subcmd_args, config).await?);
+        if let Err(err) = cli::launch(subcmd_args, config).await {
+            let err_str: String = err.into();
+            eprintln!("Error in Cruster CLI: {}", err_str);
+            exit(-1);
+        }
+        else {
+            return Ok(());
+        }
     }
 
     utils::generate_key_and_cer(&config.tls_key_name, &config.tls_cer_name);

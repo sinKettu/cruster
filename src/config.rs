@@ -148,7 +148,7 @@ fn parse_cmd() -> clap::ArgMatches {
                                 .alias("s")
                                 .arg_required_else_help(true)
                                 .arg(
-                                    clap::arg!(<INDEX> "range of line numbers or exact line number in file with stored HTTP data to print: n -- first n pairs, n-m -- pairs from n to m, a -- all stored pairs, n$ -- only Nth pair")
+                                    clap::arg!(<INDEX> "range of line numbers or exact line number in file with stored HTTP data to print: n -- first n pairs, n-m -- pairs from n to m, 'a' -- all stored pairs, n$ -- only Nth pair")
                                         .required(true)
                                 )
                                 .arg(
