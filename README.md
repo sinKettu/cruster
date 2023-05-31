@@ -24,8 +24,6 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 - Storing/Loading proxy data on/from drive;
 - ... *Coming soon*...
 
-You can find more detailed description in [Usage.md](https://github.com/sinKettu/cruster/blob/master/docs/Usage.md)
-
 ## Usage
 
 There are three ways you can use Cruster: with *interactive text interface*, in *dump mode* (logging) and as *CLI* tool.
@@ -64,6 +62,8 @@ Options:
 Cruster has several commands (`interactive`, `dump`, etc.) and options. Options used after executable name (i.e. `cruster -p 8082`) are global and also can be managed with config. Options used after commands are command-specific. You always can call `help` or `-h` to learn details.
 
 ### Text User Interface
+
+You can find more details at [TUI.md](https://github.com/sinKettu/cruster/blob/master/docs/TUI.md)
 
 To run TUI use
 
@@ -162,6 +162,8 @@ Options:
 ```
 
 ### CLI
+
+You can find more details at [CLI.md](https://github.com/sinKettu/cruster/blob/master/docs/CLI.md)
 
 CLI is good addition to dump mode, it allows to manage all data collected with proxy in command-by-command way. To run CLI, use
 
