@@ -94,6 +94,15 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Resul
                         eprintln!("Error occured while repeater::edit executed: {}", err_str);
                         exit(6);
                     }
+                },
+                Some(("add", args)) => {
+                    let http_data_path = format!("{}/http.jsonl", &project);
+                    let settings = repeater::add::RepeaterAddSettings::try_from(args)?;
+                    if let Err(err) = repeater::add::exec(&settings, &http_data_path, &repeater_state_path) {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while repeater::add executed: {}", err_str);
+                        exit(6);
+                    }
                 }
                 _ => unreachable!()
             }

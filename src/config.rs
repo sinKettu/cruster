@@ -293,6 +293,18 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .help("Host to send request to")
                                 )
                         )
+                        .subcommand(
+                            clap::Command::new("add")
+                                .alias("a")
+                                .about("Add new repeater using record from HTTP history")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::Arg::new("index")
+                                        .required(true)
+                                        .value_name("NUMBER")
+                                        .help("Index of record in HTTP history to create repeater from")
+                                )
+                        )
                 )
         )
         .arg(

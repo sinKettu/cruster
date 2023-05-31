@@ -8,6 +8,7 @@ pub(crate) mod list;
 pub(crate) mod show;
 pub(crate) mod exec;
 pub(crate) mod edit;
+pub(crate) mod add;
 
 
 pub(crate) struct RepeaterIterator {
@@ -16,7 +17,7 @@ pub(crate) struct RepeaterIterator {
 
 impl RepeaterIterator {
     pub(crate) fn new(path: &str) -> RepeaterIterator {
-        let file = File::open(path).unwrap();
+        let file = File::open(path).expect("No file with saved repeaters exists!");
         let iter = RepeaterIterator {
             reader: BufReader::new(file)
         };
@@ -44,23 +45,30 @@ impl Iterator for RepeaterIterator {
 }
 
 pub(crate) fn update_repeaters(path: &str, repeater: &RepeaterState, number: usize) -> Result<(), CrusterCLIError> {
-    let file = File::open(path)?;
-    let fin = BufReader::new(file);
-    let mut buf: Vec<Option<String>> = Vec::with_capacity(20);
+    let buf = if std::path::Path::new(path).is_file() {
+        let file = File::open(path)?;
+        let fin = BufReader::new(file);
+        let mut buf: Vec<Option<String>> = Vec::with_capacity(20);
 
-    for (i, line) in fin.lines().enumerate() {
-        if let Ok(repeater_str) = line {
-            if i != number {
-                buf.push(Some(repeater_str));
-            }
-            else {
-                buf.push(None);
+        for (i, line) in fin.lines().enumerate() {
+            if let Ok(repeater_str) = line {
+                if i != number {
+                    buf.push(Some(repeater_str));
+                }
+                else {
+                    buf.push(None);
+                }
             }
         }
+
+        buf
     }
+    else {
+        vec![None]
+    };
 
     let mut found_flag: bool = false;
-    let mut fout = std::fs::OpenOptions::new().write(true).open(path)?;
+    let mut fout = std::fs::OpenOptions::new().create(true).write(true).open(path)?;
     for possible_repeater_str in buf {
         if let Some(repeater_str) = possible_repeater_str {
             let line = format!("{}\n", repeater_str);
