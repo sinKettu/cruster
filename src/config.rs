@@ -170,7 +170,7 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .short('r')
                                         .long("raw")
                                         .action(clap::ArgAction::SetTrue)
-                                        .help("Print raw data as it was dumped in project")
+                                        .help("Print raw data as it was dumped in project (JSONLines)")
                                 )
                                 .arg(
                                     clap::Arg::new("filter")
