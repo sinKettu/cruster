@@ -51,6 +51,14 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Resul
                         exit(1);
                     }
                 },
+                Some(("follow", args)) => {
+                    let settings = http::follow::HttpFollowSettings::try_from(args)?;
+                    if let Err(err) = http::follow::exec(&settings, &http_data_path) {
+                        let err_msg: String = err.into();
+                        eprintln!("Error occured while http::follow executed: {}", err_msg);
+                        exit(8);
+                    }
+                }
                 _ => {}
             }
         },
@@ -101,7 +109,7 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Resul
                     if let Err(err) = repeater::add::exec(&settings, &http_data_path, &repeater_state_path) {
                         let err_str: String = err.into();
                         eprintln!("Error occured while repeater::add executed: {}", err_str);
-                        exit(6);
+                        exit(7);
                     }
                 }
                 _ => unreachable!()

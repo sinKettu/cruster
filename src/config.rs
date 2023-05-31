@@ -193,6 +193,17 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .help("Get pair with specific ID")
                                 )
                         )
+                        .subcommand(
+                            clap::Command::new("follow")
+                                .alias("f")
+                                .about("Follow file with HTTP history and print new lines")
+                                .arg(
+                                    clap::Arg::new("no-old-lines")
+                                        .short('n')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Do not print old lines")
+                                )
+                        )
                 )
                 .subcommand(
                     clap::Command::new("repeater")
