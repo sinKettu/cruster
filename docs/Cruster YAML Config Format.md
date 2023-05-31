@@ -17,6 +17,7 @@ You cannot configure path to config (`-c`) and path to workplace (`-w`) with con
 | store | *String* or `null` | `null` | Path to store data collected by proxy (requests and responses) in JSONLines format (see `Stored HTTP Data Format.md` for details) |
 | load | *String* or `null` | `null` | Path to file with previously stored data by `store` option to load on start |
 | scope | *JSON* or `null` | `null` | Subconfig to maintain scope. It allows to include/exclude requests by regexes for URIs. See `Scope` section for details. |
+| editor | *String* or `null` | `null` | Executable of text editor to use in CLI Repeater |
 
 ## Dump
 
