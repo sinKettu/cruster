@@ -3,6 +3,8 @@ use clap::ArgMatches;
 use std::io::{BufRead, BufReader};
 use std::thread::sleep;
 use std::time::Duration;
+use serde_json as json;
+use crate::http_storage;
 
 
 pub(crate) struct HttpFollowSettings {
@@ -29,7 +31,11 @@ pub(crate) fn exec(settings: &HttpFollowSettings, path: &str) -> Result<(), Crus
     let mut buf = String::with_capacity(1000000);
     while reader.read_line(&mut buf)? > 0 {
         if ! settings.no_old_lines {
-            print!("{}", &buf);
+            let line_ptr = &buf;
+            let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
+            let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
+
+            super::print_briefly(&pair, false);
         }
 
         buf.clear();
@@ -40,7 +46,11 @@ pub(crate) fn exec(settings: &HttpFollowSettings, path: &str) -> Result<(), Crus
             sleep(Duration::from_millis(100));
         }
 
-        print!("{}", &buf);
+        let line_ptr = &buf;
+        let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
+        let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
+        super::print_briefly(&pair, false);
+        
         buf.clear();
     }
 }
