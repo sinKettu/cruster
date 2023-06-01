@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.6.1`
+`v0.7.0`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -19,53 +19,71 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
   - Filtering content;
   - Manual requests repeater;
 - Dump mode (`-d`) with controlable verbosity;
+- CLI, which is comparable with TUI;
 - Process requests/responses basing on scope (`-I`, `-E`);
 - Storing/Loading proxy data on/from drive;
 - ... *Coming soon*...
 
-You can find more detailed description in [Usage.md](https://github.com/sinKettu/cruster/blob/master/docs/Usage.md)
-
 ## Usage
 
-Just run `cruster` and it will create working directory in `~/.cruster`, putting there *base config*, *TLS certificate* with *key*. Then it will be listening to requests on address `127.0.0.1:8080`.
+There are three ways you can use Cruster: with *interactive text interface*, in *dump mode* (logging) and as *CLI* tool.
+
+To start, just run `cruster` and it will create working directory in `~/.cruster`, putting there *base config*, *TLS certificate* with *key*. Then it will be listening to requests on address `127.0.0.1:8080`.
 
 To use this proxy with browser you must import CA certificate of proxy (stored by default in `~/.cruster/cruster.cer`) into browser manually.
 
 ### Help output
 
 ``` shell
-$ cruster -h
-Cruster 0.6.1
-Andrey Ivanov<avangard.jazz@gmail.com>
+$ cruster help
+Usage: cruster [OPTIONS] [COMMAND]
 
-USAGE:
-    cruster [FLAGS] [OPTIONS]
+Commands:
+  interactive  Default interactive Cruster mode. This mode will be used if none is specified
+  dump         Enable non-interactive dumping mode: all communications will be shown in terminal output
+  cli          Cruster Command Line Interface
+  help         Print this message or the help of the given subcommand(s)
 
-FLAGS:
-    -d, --dump       Enable non-interactive dumping mode: all communications will be shown in terminal output
-    -h, --help       Prints help information
-        --nc         Disable colorizing in dump mode, ignored in interactive mode
-        --strict     If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from
-                     ui
-    -V, --version    Prints version information
-    -v               Verbosity in dump mode, ignored in intercative mode. 0: request/response first line,
-                     1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body
-
-OPTIONS:
-    -a, --address <ADDR>                Address for proxy to bind, default: 127.0.0.1
-    -c, --config <YAML_CONFIG>          Path to config with YAML format. Cannot be set by config file.
-        --debug-file <FILE-TO-WRITE>    A file to write debug messages, mostly needed for development
-    -E, --exclude-scope <REGEX>...      Regex for URI to exclude from scope, i.e. ^https?://www\.google\.com/.*$.
-                                        Processed after include regex if any. Option can repeat.
-    -I, --include-scope <REGEX>...      Regex for URI to include in scope, i.e. ^https?://www\.google\.com/.*$. Option
-                                        can repeat.
-    -p, --port <PORT>                   Port for proxy to listen to, default: 8080
-    -P, --project <PATH-TO-DIR>         Path to directory to store/load Cruster state. All files could be rewritten!
-    -W, --workplace <WORKPLACE_DIR>     Path to workplace, where data (configs, certs, projects, etc.) will be stored.
-                                        Cannot be set by config file.
+Options:
+  -W, --workplace <WORKPLACE_DIR>    Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.
+  -c, --config <YAML_CONFIG>         Path to config with YAML format. Cannot be set by config file.
+  -a, --address <ADDR>               Address for proxy to bind, default: 127.0.0.1
+  -p, --port <PORT>                  Port for proxy to listen to, default: 8080
+      --debug-file <FILE-TO-WRITE>   A file to write debug messages, mostly needed for development
+  -P, --project <PATH-TO-DIR>        Path to directory to store/load Cruster state. All files could be rewritten!
+      --strict                       If set, none of out-of-scope data will be written in storage, otherwise it will be just hidden from ui
+  -I, --include-scope <REGEX>        Regex for URI to include in scope, i.e. ^https?://www\.google\.com/.*$. Option can repeat.
+  -E, --exclude-scope <REGEX>        Regex for URI to exclude from scope, i.e. ^https?://www\.google\.com/.*$. Processed after include regex if any. Option can repeat.
+      --editor <PATH_TO_EXECUTABLE>  Path to editor executable to use in CLI mode
+  -h, --help                         Print help
+  -V, --version                      Print version
 ```
 
-### Navigation on text user interface
+Cruster has several commands (`interactive`, `dump`, etc.) and options. Options used after executable name (i.e. `cruster -p 8082`) are global and also can be managed with config. Options used after commands are command-specific. You always can call `help` or `-h` to learn details.
+
+### Text User Interface
+
+You can find more details at [TUI.md](https://github.com/sinKettu/cruster/blob/master/docs/TUI.md)
+
+To run TUI use
+
+``` shell
+cruster
+```
+
+or
+
+``` shell
+cruster interactive
+```
+
+Interactive mode is fully controlled by global Cruster cmd-options or config.
+
+You will be provided with interactive interface inside your terminal, which you can control with keyboard (and mouse, sometimes).
+
+> This type of interface will be developing longer than others, since it requires more efforts.
+
+#### Navigation on text user interface
 
 ``` text
 ? - Show this help view
@@ -96,11 +114,15 @@ q - Quit
 
 ### Dump mode
 
-By default, `Cruster` will run in interactive mode, drawing interface in you terminal. You can also run it in `dump-mode` 
-using option `--dump`/`-d` and it will be just logging traffic:
+To run dump mode, use
+
+```shell
+cruster dump
+```
+Example:
 
 ``` shell
-$ ./cruster -p 8082 -d -v
+$ ./cruster -p 8082 dump -v
 errr No storage defined, traffic will not be saved!
 http      0 --> GET http://google.com/ HTTP/1.1
 
@@ -120,22 +142,46 @@ http      0 <==
 http      1 --> GET http://www.google.com/ HTTP/1.1
 
 http      1 <== HTTP/1.1 200 OK
-http      1 <== accept-ranges: none
-http      1 <== cache-control: private, max-age=0
-http      1 <== content-security-policy-report-only: object-src 'none';base-uri 'self';script-src 'nonce-pikCUd1GEkT5BQk0K5Ru2g' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other-hp
-http      1 <== content-type: text/html; charset=ISO-8859-1
-http      1 <== date: Sat, 27 May 2023 13:05:45 GMT
-http      1 <== expires: -1
-http      1 <== p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
-http      1 <== server: gws
-http      1 <== set-cookie: NID=511=Vl-ShZeMOBsqbJzLjL_cM81bgPNYfAWQZSERvIFbYs6X70yGsDJ4e9Kuh_AM_y3mb6Ya0N34mCj18z-2qhBQnVrrviSMrMsEKChv3SAqIf6vwYE20PlherbpuU2ZGp2x8edD4WxWJQ0GoqlRS8K45aRtD6Ri9EZSwSTEUqTsRR4; expires=Sun, 26-Nov-2023 13:05:45 GMT; path=/; domain=.google.com; HttpOnly
-http      1 <== transfer-encoding: chunked
-http      1 <== vary: Accept-Encoding
-http      1 <== x-frame-options: SAMEORIGIN
-http      1 <== x-xss-protection: 0
-http      1 <==
+...
 
 ```
+
+Dump mode has several command-specific options:
+
+```shell
+$ cruster dump -h
+Enable non-interactive dumping mode: all communications will be shown in terminal output
+
+Usage: cruster dump [OPTIONS]
+
+Options:
+  -v...       Verbosity in dump mode, ignored in intercative mode. 0: request/response first line,
+              1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body
+      --nc    Disable colorizing in dump mode, ignored in interactive mode
+  -h, --help  Print help
+```
+
+### CLI
+
+You can find more details at [CLI.md](https://github.com/sinKettu/cruster/blob/master/docs/CLI.md)
+
+CLI is good addition to dump mode, it allows to manage all data collected with proxy in command-by-command way. To run CLI, use
+
+```shell
+cruster cli
+```
+
+For example, it can simply print dumped HTTP traffic:
+
+```shell
+$ cruster cli http show 2
+    ID   METHOD                         HOSTNAME                                                                   PATH      STATUS          LENGTH
+
+     0      GET                       google.com /                                                                              301             219
+     1      GET                   www.google.com /                                                                              200           19957
+```
+
+> Probably, in future all new features will be developing for CLI firstly and then for TUI
 
 ## Features and Compilation
 
@@ -167,7 +213,7 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.6.1"
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.0"
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
@@ -181,7 +227,7 @@ If, for some reason, you do not want to use `rcgen` to handle certificates, you 
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.6.1" --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.0" --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -189,7 +235,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.6.1" --no-defa
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.6.1" --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.0" --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## With Docker

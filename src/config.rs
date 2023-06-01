@@ -1,5 +1,5 @@
 use std::{fs, path};
-use clap::{App, Arg};
+use clap::{self, ArgMatches};
 use serde_yaml as yml;
 use shellexpand::tilde;
 use serde::{Serialize, Deserialize};
@@ -9,7 +9,30 @@ use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config as L4R_Config, Root};
 
-use crate::utils::CrusterError;
+pub(crate) struct CrusterConfigError {
+    error: String
+}
+
+impl Into<String> for CrusterConfigError {
+    fn into(self) -> String {
+        self.error
+    }
+}
+
+impl<T> From<T> for CrusterConfigError
+where  
+    T: ToString 
+{
+    fn from(value: T) -> Self {
+        Self { error: value.to_string() }
+    }
+}
+
+pub(crate) enum CrusterMode {
+    INTERACTIVE,
+    DUMP(ArgMatches),
+    CLI(ArgMatches)
+}
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct Scope {
@@ -34,7 +57,8 @@ pub(crate) struct Config {
     pub(crate) debug_file: Option<String>,
     pub(crate) project: Option<String>,
     pub(crate) scope: Option<Scope>,
-    pub(crate) dump_mode: Option<Dump>
+    pub(crate) dump_mode: Option<Dump>,
+    pub(crate) editor: Option<String>
 }
 
 impl Default for Dump {
@@ -58,13 +82,12 @@ impl Default for Config {
             project: None,
             scope: None,
             dump_mode: None,
+            editor: None
         }
     }
 }
 
-// -----------------------------------------------------------------------------------------------//
-
-pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
+fn parse_cmd() -> clap::ArgMatches {
     let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.";
     let config_help = "Path to config with YAML format. Cannot be set by config file.";
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
@@ -78,111 +101,326 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     let verbosity_help = "Verbosity in dump mode, ignored in intercative mode. 0: request/response first line, 
 1: 0 + response headers, 2: 1 + request headers, 3: 2 + response body, 4: 3 + request body";
     let nc_help = "Disable colorizing in dump mode, ignored in interactive mode";
-    
-    let default_workplace = tilde("~/.cruster");
-    let default_config = tilde("~/.cruster/config.yaml");
+    let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
+    let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>";
+    let editor_help = "Path to editor executable to use in CLI mode";
 
-    let matches = App::new("Cruster")
-        .version("0.6.1")
+    let matches = clap::Command::new("cruster")
+        .version("0.7.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
+        .subcommand(
+            clap::Command::new("interactive")
+                .alias("i")
+                .about("Default interactive Cruster mode. This mode will be used if none is specified")
+        )
+        .subcommand(
+            clap::Command::new("dump")
+                .alias("d")
+                .about(dump_help)
+                .arg(
+                    clap::Arg::new("verbosity")
+                        .short('v')
+                        .action(clap::ArgAction::Count)
+                        .help(verbosity_help)
+                )
+                .arg(
+                    clap::Arg::new("no-color")
+                        .long("nc")
+                        .action(clap::ArgAction::SetTrue)
+                        .help(nc_help)
+                )
+        )
+        .subcommand(
+            clap::Command::new("cli")
+                .alias("c")
+                .about("Cruster Command Line Interface")
+                .subcommand_required(true)
+                .arg_required_else_help(true)
+                .subcommand(
+                    clap::Command::new("http")
+                        .about("Work with dumped HTTP data")
+                        .alias("h")
+                        .subcommand_required(true)
+                        .subcommand(
+                            clap::Command::new("show")
+                                .about("Filter/Sort/Find HTTP data and print it")
+                                .alias("s")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::arg!(<INDEX> "range of line numbers or exact line number in file with stored HTTP data to print: n -- first n pairs, n-m -- pairs from n to m, 'a' -- all stored pairs, n$ -- only Nth pair")
+                                        .required(true)
+                                )
+                                .arg(
+                                    clap::Arg::new("urls")
+                                        .short('u')
+                                        .long("urls")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print only indexes and full URLs")
+                                )
+                                .arg(
+                                    clap::Arg::new("pretty")
+                                        .short('p')
+                                        .long("pretty")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print full formated requests and responses (if any)")
+                                )
+                                .arg(
+                                    clap::Arg::new("raw")
+                                        .short('r')
+                                        .long("raw")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print raw data as it was dumped in project (JSONLines)")
+                                )
+                                .arg(
+                                    clap::Arg::new("filter")
+                                        .short('f')
+                                        .long("filter")
+                                        .help(filter_help)
+                                )
+                                .arg(
+                                    clap::Arg::new("extract")
+                                        .short('e')
+                                        .long("extract")
+                                        .value_name("ATTRIBUTE")
+                                        .help(extract_help)
+                                )
+                                .arg(
+                                    clap::Arg::new("index")
+                                        .short('i')
+                                        .long("index")
+                                        .value_name("NUMBER")
+                                        .help("Get pair with specific ID")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("follow")
+                                .alias("f")
+                                .about("Follow file with HTTP history and print new lines")
+                                .arg(
+                                    clap::Arg::new("no-old-lines")
+                                        .short('n')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Do not print old lines")
+                                )
+                                .arg(
+                                    clap::Arg::new("urls")
+                                        .short('u')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("print ID with full URL")
+                                )
+                        )
+                )
+                .subcommand(
+                    clap::Command::new("repeater")
+                        .alias("r")
+                        .about("Launch repeater in CLI mode")
+                        .subcommand_required(true)
+                        .subcommand(
+                            clap::Command::new("list")
+                                .alias("l")
+                                .about("List existing repeaters in current project")
+                        )
+                        .subcommand(
+                            clap::Command::new("show")
+                                .alias("s")
+                                .about("Show specific repeater state verbously")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::Arg::new("mark")
+                                        .required(true)
+                                        .help("Number or name of repeater to print")
+                                )
+                                .arg(
+                                    clap::Arg::new("no-body")
+                                        .short('b')
+                                        .long("no-body")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print request/response without body")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("exec")
+                                .alias("e")
+                                .about("Execute choosed repeater")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::Arg::new("mark")
+                                        .required(true)
+                                        .help("Number or name of repeater to execute")
+                                )
+                                .arg(
+                                    clap::Arg::new("force")
+                                        .short('f')
+                                        .long("force")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Execute repeater without editing")
+                                )
+                                .arg(
+                                    clap::Arg::new("no-body")
+                                        .short('b')
+                                        .long("no-body")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Print request/response without body")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("edit")
+                                .alias("i")
+                                .about("Edit repeater' parameters")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::Arg::new("mark")
+                                        .required(true)
+                                        .help("Number or name of repeater to edit")
+                                )
+                                .arg(
+                                    clap::Arg::new("https")
+                                        .short('s')
+                                        .long("https")
+                                        .value_parser(["true", "false"])
+                                        .help("Enable/disable https, syntax")
+                                )
+                                .arg(
+                                    clap::Arg::new("redirects")
+                                        .short('r')
+                                        .value_parser(["true", "false"])
+                                        .long("redirects")
+                                        .help("Enable/disable redirects following")
+                                )
+                                .arg(
+                                    clap::Arg::new("max_redirects")
+                                        .short('m')
+                                        .long("max-redirects")
+                                        .value_name("NUMBER")
+                                        .help("Maximum number of redirects")
+                                )
+                                .arg(
+                                    clap::Arg::new("name")
+                                        .short('n')
+                                        .long("name")
+                                        .value_name("NAME")
+                                        .help("A name for the repeater")
+                                )
+                                .arg(
+                                    clap::Arg::new("address")
+                                        .short('a')
+                                        .long("address")
+                                        .value_name("IP-OR-HOSTNAME")
+                                        .help("Host to send request to")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("add")
+                                .alias("a")
+                                .about("Add new repeater using record from HTTP history")
+                                .arg_required_else_help(true)
+                                .arg(
+                                    clap::Arg::new("index")
+                                        .required(true)
+                                        .value_name("NUMBER")
+                                        .help("Index of record in HTTP history to create repeater from")
+                                )
+                        )
+                )
+        )
         .arg(
-            Arg::with_name("workplace")
-                .short("W")
+            clap::Arg::new("workplace")
+                .short('W')
                 .long("workplace")
-                .takes_value(true)
                 // .default_value(default_workplace)
                 .value_name("WORKPLACE_DIR")
                 .help(workplace_help)
         )
         .arg(
-            Arg::with_name("config")
-                .short("c")
+            clap::Arg::new("config")
+                .short('c')
                 .long("config")
-                .takes_value(true)
                 // .default_value(default_config)
                 .value_name("YAML_CONFIG")
                 .help(config_help)
         )
         .arg(
-            Arg::with_name("address")
-                .short("a")
+            clap::Arg::new("address")
+                .short('a')
                 .long("address")
-                .takes_value(true)
                 .value_name("ADDR")
                 .help(address_help)
         )
         .arg(
-            Arg::with_name("port")
-                .short("p")
+            clap::Arg::new("port")
+                .short('p')
                 .long("port")
-                .takes_value(true)
                 .value_name("PORT")
                 .help(port_help)
         )
         .arg(
-            Arg::with_name("debug-file")
+            clap::Arg::new("debug-file")
                 .long("debug-file")
-                .takes_value(true)
                 .value_name("FILE-TO-WRITE")
                 .help(debug_file_help)
         )
         .arg(
-            Arg::with_name("dump-mode")
-                .long("dump")
-                .short("-d")
-                .takes_value(false)
-                .help(dump_help)
-        )
-        .arg(
-            Arg::with_name("project")
+            clap::Arg::new("project")
                 .long("project")
-                .short("P")
-                .takes_value(true)
+                .short('P')
                 .value_name("PATH-TO-DIR")
                 .help(project_help)
         )
         .arg(
-            Arg::with_name("strict-scope")
+            clap::Arg::new("strict-scope")
                 .long("strict")
+                .action(clap::ArgAction::SetTrue)
                 .help(strict_help)
         )
         .arg(
-            Arg::with_name("include")
+            clap::Arg::new("include")
                 .long("include-scope")
-                .short("-I")
-                .takes_value(true)
+                .short('I')
                 .value_name("REGEX")
-                .multiple(true)
-                .number_of_values(1)
+                .action(clap::ArgAction::Append)
                 .help(include_help)
         )
         .arg(
-            Arg::with_name("exclude")
+            clap::Arg::new("exclude")
                 .long("exclude-scope")
-                .short("-E")
-                .takes_value(true)
+                .short('E')
                 .value_name("REGEX")
-                .multiple(true)
-                .number_of_values(1)
+                .action(clap::ArgAction::Append)
                 .help(exclude_help)
         )
         .arg(
-            Arg::with_name("verbosity")
-                .short("v")
-                .multiple(true)
-                .help(verbosity_help)
-        )
-        .arg(
-            Arg::with_name("no-color")
-                .long("nc")
-                .takes_value(false)
-                .help(nc_help)
+            clap::Arg::new("editor")
+                .long("editor")
+                .value_name("PATH_TO_EXECUTABLE")
+                .help(editor_help)
         )
         .get_matches();
 
-    let workplace_possible = matches.value_of("workplace");
-    let config_possible = matches.value_of("config");
+    return matches;
+}
+
+// -----------------------------------------------------------------------------------------------//
+#[allow(dead_code)]
+pub(crate) fn handle_user_input() -> Result<(Config, CrusterMode), CrusterConfigError> {
+    let matches = parse_cmd();
+    let default_workplace = tilde("~/.cruster");
+    let default_config = tilde("~/.cruster/config.yaml");
+
+    let cmd = if let Some((subcmd, args)) = matches.subcommand() {
+        match subcmd {
+            "interactive" => CrusterMode::INTERACTIVE,
+            "dump" => CrusterMode::DUMP(args.clone()),
+            "cli" => CrusterMode::CLI(args.clone()),
+            _ => unreachable!()
+        }
+    }
+    else {
+        CrusterMode::INTERACTIVE
+    };
+
+    let workplace_possible = matches.get_one::<String>("workplace");
+    let config_possible = matches.get_one::<String>("config");
 
     let (workplace, config_name) = match (workplace_possible, config_possible) {
         (None, None) => {
@@ -197,9 +435,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let workplace_path = path::Path::new(workplace);
             if !workplace_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find workplace dir at '{}'", workplace)
-                    )
+                    CrusterConfigError::from(format!("Could not find workplace dir at '{}'", workplace))
                 );
             }
 
@@ -207,9 +443,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let config_path = path::Path::new(&config_name);
             if !config_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find config file at unusual path '{}'", config_name)
-                    )
+                    CrusterConfigError::from(format!("Could not find config file at unusual path '{}'", config_name))
                 );
             }
 
@@ -219,9 +453,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let config_path = path::Path::new(config_name);
             if !config_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find config file at unusual path '{}'", config_name)
-                    )
+                    CrusterConfigError::from(format!("Could not find config file at unusual path '{}'", config_name))
                 );
             }
 
@@ -236,18 +468,14 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
             let workplace_path = path::Path::new(workplace);
             if !workplace_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find workplace dir at '{}'", workplace)
-                    )
+                    CrusterConfigError::from(format!("Could not find workplace dir at '{}'", workplace))
                 );
             }
 
             let config_path = path::Path::new(config_name);
             if !config_path.exists() {
                 return Err(
-                    CrusterError::UndefinedError(
-                        format!("Could not find config file at unusual path '{}'", config_name)
-                    )
+                    CrusterConfigError::from(format!("Could not find config file at unusual path '{}'", config_name))
                 );
             }
 
@@ -272,15 +500,15 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         unreachable!("You should not reach this place. If you somehow did it, write me to 'avangard.jazz@gmail.com'.");
     };
 
-    if let Some(addr) = matches.value_of("address") {
+    if let Some(addr) = matches.get_one::<String>("address") {
         config.address = addr.to_string();
     }
 
-    if let Some(port) = matches.value_of("port") {
+    if let Some(port) = matches.get_one::<String>("port") {
         config.port = port.parse()?;
     }
 
-    if let Some(dfile) = matches.value_of("debug-file") {
+    if let Some(dfile) = matches.get_one::<String>("debug-file") {
         let debug_file = resolve_path(&workplace, dfile, false)?;
         enable_debug(&debug_file);
         config.debug_file = Some(debug_file);
@@ -291,7 +519,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         config.debug_file = Some(debug_file);
     }
 
-    if let Some(store_path) = matches.value_of("project") {
+    if let Some(store_path) = matches.get_one::<String>("project") {
         config.project = Some(resolve_path(&workplace, store_path, true)?);
         if ! path::Path::new(config.project.as_ref().unwrap()).is_dir() {
             fs::create_dir(config.project.as_ref().unwrap())?;
@@ -307,7 +535,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
     config.tls_cer_name = resolve_path(&workplace, &config.tls_cer_name, false)?;
     config.tls_key_name = resolve_path(&workplace, &config.tls_key_name, false)?;
 
-    if matches.is_present("strict-scope") {
+    if matches.get_flag("strict-scope") {
         if let Some(scope) = config.scope.as_mut() {
             scope.strict = true;
         }
@@ -320,7 +548,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         }
     }
 
-    let include_scope = if let Some(include_re) = matches.values_of("include") {
+    let include_scope = if let Some(include_re) = matches.get_many::<String>("include") {
         let res: Vec<String> = include_re
             .into_iter()
             .map(|v| {
@@ -334,7 +562,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         None
     };
 
-    let exclude_scope = if let Some(exclude_re) = matches.values_of("exclude") {
+    let exclude_scope = if let Some(exclude_re) = matches.get_many::<String>("exclude") {
         let res: Vec<String> = exclude_re
             .into_iter()
             .map(|v| {
@@ -372,7 +600,7 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
         }
     }
 
-    if matches.is_present("dump-mode") {
+    if let CrusterMode::DUMP(subcmd_args) = &cmd {
         if let Some(dm) = config.dump_mode.as_mut() {
             dm.enabled = true;
         }
@@ -384,26 +612,30 @@ pub(crate) fn handle_user_input() -> Result<Config, CrusterError> {
                 }
             );
         }
-    }
 
-    if matches.is_present("verbosity") {
-        if let Some(dm) = config.dump_mode.as_mut() {
-            let mut count = matches.occurrences_of("verbosity");
-            if count > 4 {
-                count = 4;
+        let mut verbosity = subcmd_args.get_count("verbosity");
+        if verbosity > 0 {
+            if let Some(dm) = config.dump_mode.as_mut() {
+                if verbosity > 4 {
+                    verbosity = 4;
+                }
+
+                dm.verbosity = verbosity;
             }
+        }
 
-            dm.verbosity = count as u8;
+        if subcmd_args.get_flag("no-color") {
+            if let Some(dm) = config.dump_mode.as_mut() {
+                dm.color = false;
+            }
         }
     }
 
-    if matches.is_present("no-color") {
-        if let Some(dm) = config.dump_mode.as_mut() {
-            dm.color = false;
-        }
+    if let Some(editor) = matches.get_one::<String>("editor") {
+        config.editor = Some(editor.to_string());
     }
 
-    Ok(config)
+    Ok((config, cmd))
 }
 
 fn enable_debug(debug_file_path: &str) {
@@ -463,7 +695,7 @@ fn enable_debug(debug_file_path: &str) {
 // }
 
 /// Return such path state, which is accessbile with cruster
-fn resolve_path(base_path: &str, path: &str, dir: bool) -> Result<String, CrusterError> {
+fn resolve_path(base_path: &str, path: &str, dir: bool) -> Result<String, CrusterConfigError> {
     let fpath = path::Path::new(path);
     if fpath.is_absolute() {
         return Ok(path.to_string());

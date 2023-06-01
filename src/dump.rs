@@ -13,7 +13,10 @@ use crate::{
             HyperResponseWrapper
         }
     },
-    config::Config, http_storage::HTTPStorage, utils::CrusterError
+    config::Config,
+    http_storage::HTTPStorage,
+    utils::CrusterError,
+    scope
 };
 
 pub(crate) trait DumpMode {
@@ -261,6 +264,23 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
     let mut time_mark = time::SystemTime::now();
     let cycle_duration = time::Duration::new(600, 0);
 
+    let mut inc_scope = Vec::new();
+    let mut exc_scope = Vec::new();
+
+    if let Some(cruster_scope) = config.scope.as_ref() {
+        inc_scope = if let Some(inc) = cruster_scope.include.as_ref() {
+            scope::make_re_list(inc.as_slice())
+        } else {
+            Vec::new()
+        };
+
+        exc_scope = if let Some(exc) = cruster_scope.exclude.as_ref() {
+            scope::make_re_list(exc.as_slice())
+        } else {
+            Vec::new()
+        };
+    }
+
     loop {
         let event = rx.try_recv();
         if let Err(_) = event {
@@ -269,14 +289,23 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
 
         match event.unwrap() {
             ProxyEvents::RequestSent((wrapper, hash)) => {
-                let _ = http_storage.put_request(wrapper, hash);
+                if let Some(cruster_scope) = config.scope.as_ref() {
+                    if ! cruster_scope.strict || scope::fit(&wrapper.uri, &inc_scope, &exc_scope) {
+                        let _ = http_storage.put_request(wrapper, hash);        
+                    }
+                } else {
+                    let _ = http_storage.put_request(wrapper, hash);
+                }
             },
             ProxyEvents::ResponseSent((wrapper, hash)) => {
                 let id = http_storage.put_response(wrapper, &hash);
                 if let Some(id) = id {
                     let pair = http_storage.get_by_id(id).unwrap();
-                    print_request(pair.request.as_ref().unwrap(), id, &config);
-                    print_response(pair.response.as_ref().unwrap(), id, &config);
+
+                    if scope::fit(&pair.request.as_ref().unwrap().uri, &inc_scope, &exc_scope) {
+                        print_request(pair.request.as_ref().unwrap(), id, &config);
+                        print_response(pair.response.as_ref().unwrap(), id, &config);
+                    }
 
                     if let Err(err) = http_storage.flush_by_id(id) {
                         print_error(err, config.with_color());
