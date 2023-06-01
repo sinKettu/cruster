@@ -252,13 +252,6 @@ Also you can build a version with use of `openssl` and `ncurses`:
 $ cd cruster && sudo docker build . -f docker/Dockerfile-openssl-ncurses -t local/cruster
 ```
 
-Or you can use ready image:
-
-``` shell
-$ sudo docker pull sinfox/cruster:latest
-$ sudo docker run -it sinfox/cruster
-```
-
 ## RoadMap
 
 - [X] Improve proxy performance.

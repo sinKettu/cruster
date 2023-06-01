@@ -48,4 +48,12 @@ RUN cargo install \
     --no-default-features \
     --features openssl-ca,ncurses
 
+USER root
+
+RUN rm -rf /opt/cruster/.rustup \
+    && rm -rf /opt/cruster/.cargo/registry \
+    && rm -rf /opt/cruster/cruster-src
+
+USER cruster
+
 ENTRYPOINT [ "cruster" ]
