@@ -302,7 +302,7 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
                 if let Some(id) = id {
                     let pair = http_storage.get_by_id(id).unwrap();
 
-                    if config.scope.is_some() && scope::fit(&pair.request.as_ref().unwrap().uri, &inc_scope, &exc_scope) {
+                    if scope::fit(&pair.request.as_ref().unwrap().uri, &inc_scope, &exc_scope) {
                         print_request(pair.request.as_ref().unwrap(), id, &config);
                         print_response(pair.response.as_ref().unwrap(), id, &config);
                     }
