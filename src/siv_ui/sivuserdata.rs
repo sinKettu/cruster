@@ -88,7 +88,7 @@ impl SivUserData {
     }
 
     pub(super) fn store_repeater_state(&self, pth: &str) -> Result<(), CrusterError> {
-        let mut fout = fs::OpenOptions::new().write(true).create(true).open(pth)?;
+        let mut fout = fs::OpenOptions::new().create(true).truncate(true).write(true).open(pth)?;
         for rs in self.repeater_state.iter() {
             let serializable = RepeaterStateSerializable::from(rs);
             let jsn = json::to_string(&serializable)?;

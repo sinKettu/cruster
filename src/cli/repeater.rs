@@ -47,11 +47,15 @@ impl Iterator for RepeaterIterator {
 pub(crate) fn update_repeaters(path: &str, repeater: &RepeaterState, number: usize) -> Result<(), CrusterCLIError> {
     let buf = if std::path::Path::new(path).is_file() {
         let file = File::open(path)?;
-        let fin = BufReader::new(file);
+        let fin = BufReader::with_capacity(4000000, file);
         let mut buf: Vec<Option<String>> = Vec::with_capacity(20);
 
         for (i, line) in fin.lines().enumerate() {
             if let Ok(repeater_str) = line {
+                if repeater_str.trim().len() == 0 {
+                    continue;
+                }
+
                 if i != number {
                     buf.push(Some(repeater_str));
                 }
@@ -68,7 +72,7 @@ pub(crate) fn update_repeaters(path: &str, repeater: &RepeaterState, number: usi
     };
 
     let mut found_flag: bool = false;
-    let mut fout = std::fs::OpenOptions::new().create(true).write(true).open(path)?;
+    let mut fout = std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(path)?;
     for possible_repeater_str in buf {
         if let Some(repeater_str) = possible_repeater_str {
             let line = format!("{}\n", repeater_str);

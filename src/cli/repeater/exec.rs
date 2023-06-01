@@ -1,15 +1,15 @@
-use std::{process, io::Read};
 use std::io::Write;
+use std::{process, io::Read};
 use rand::{distributions::Alphanumeric, Rng};
 
 use clap::ArgMatches;
+use cursive::views::TextContent;
+use http::{HeaderMap, HeaderValue};
 use reqwest::{self, Request, Response};
 
 use super::RepeaterIterator;
 use crate::cli::CrusterCLIError;
 use crate::siv_ui::repeater::{RepeaterState, RepeaterParameters};
-use cursive::views::TextContent;
-use http::{HeaderMap, HeaderValue};
 
 
 pub(crate) struct RepeaterExecSettings {
@@ -132,6 +132,7 @@ fn open_editor(editor: &str, request: String) -> Result<String, CrusterCLIError>
     drop(fout);
 
     let _status = process::Command::new(editor).arg(&tmp_path).status()?;
+    std::thread::sleep(std::time::Duration::from_millis(500));
 
     let mut fin = std::fs::File::open(&tmp_path)?;
     let mut edited_request = String::with_capacity(request.len() + 100);
