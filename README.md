@@ -165,6 +165,8 @@ Options:
 
 You can find more details at [CLI.md](https://github.com/sinKettu/cruster/blob/master/docs/CLI.md)
 
+CLI works with data, stored in dump or interactive modes, so it is required to provide a path to project to use CLI (via cmd argument or config).
+
 CLI is good addition to dump mode, it allows to manage all data collected with proxy in command-by-command way. To run CLI, use
 
 ```shell

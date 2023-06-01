@@ -2,6 +2,8 @@
 
 Cruster CLI interface is similar to such programs like `Docker`, `Kubectl`, `Git`, etc.
 
+CLI works with data, stored in dump or interactive modes, so it is required to provide a path to project to use CLI.
+
 ## Basic commands
 
 CLI has the following basic commands:
