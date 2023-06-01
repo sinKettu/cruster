@@ -203,6 +203,12 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Do not print old lines")
                                 )
+                                .arg(
+                                    clap::Arg::new("urls")
+                                        .short('u')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("print ID with full URL")
+                                )
                         )
                 )
                 .subcommand(
