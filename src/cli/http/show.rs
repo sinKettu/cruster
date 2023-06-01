@@ -2,7 +2,7 @@ use crate::http_storage;
 use crate::cli::CrusterCLIError;
 
 use serde_json as json;
-use std::{cmp::min, io::BufRead};
+use std::io::BufRead;
 use regex::Regex;
 
 use regex;
@@ -188,57 +188,6 @@ pub(crate) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIE
     );
 }
 
-fn print_briefly(pair: &http_storage::RequestResponsePair, with_header: bool) {
-    let idx = pair.index;
-    
-    let (hostname, path, method) = if let Some(request) = pair.request.as_ref() {
-        (request.get_hostname(), request.get_request_path(), request.method.clone())
-    }
-    else {
-        ("<UNKNOWN>".to_string(), "<UNKNOWN>".to_string(), "<UNKNOWN>".to_string())
-    };
-
-    let (status, length) = if let Some(response) = pair.response.as_ref() {
-        let status = response.status.split(" ").next().unwrap().to_string();
-        let length = response.body.len().to_string();
-        (status, length)
-    }
-    else {
-        ("<UNKNOWN>".to_string(), "<UNKNOWN>".to_string())
-    };
-
-    if with_header {
-        println!("{:>6} {:>8} {:>32} {:>70} {:>11} {:>15}\n", "ID", "METHOD", "HOSTNAME", "PATH", "STATUS", "LENGTH");
-    }
-
-    println!(
-        "{:>6} {:>8} {:>32} {:<70} {:>11} {:>15}",
-        idx,
-        &method[..min(8, method.len())],
-        &hostname[..min(32, hostname.len())],
-        &path[..min(70, path.len())],
-        status,
-        length
-    );
-}
-
-fn print_urls(pair: &http_storage::RequestResponsePair) {
-    if let Some(request) = pair.request.as_ref() {
-        println!(
-            "{:>6} {}",
-            pair.index,
-            request.uri
-        )
-    }
-    else {
-        println!(
-            "{:>6} {}",
-            pair.index,
-            "<NONE>"
-        )
-    }
-}
-
 fn print_pretty(pair: &http_storage::RequestResponsePair) {
     println!("----------------------");
     println!("   {}", pair.index);
@@ -267,13 +216,13 @@ fn print_pretty(pair: &http_storage::RequestResponsePair) {
 
 fn print_pair(pair: &http_storage::RequestResponsePair, settings: &ShowSettings, header_if_any: bool) {
     if settings.print_urls {
-        print_urls(pair);
+        super::print_urls(pair);
     }
     else if settings.pretty {
         print_pretty(pair);
     }
     else {
-        print_briefly(pair, header_if_any);
+        super::print_briefly(pair, header_if_any);
     }
 }
 
