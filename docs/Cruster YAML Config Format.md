@@ -14,7 +14,7 @@ You cannot configure path to config (`-c`) and path to workplace (`-w`) with con
 | port | *Integer* | `8080` | Port for proxy to listen to |
 | debug_file | *String* or `null` | `null` | Path to file to write debug logs. Mostly used for development, for now you will not find there anything useful |
 | dump_mode | *JSON* or `null` | `null` | Subconfig to maintain dump mode. See `Dump` section for details. |
-| project | *String* or `null` | `null` | Path where current project is stored (HTTP history, repeaters, etc.) in JSONLines format. |
+| project | *String* or `null` | `null` | Path where current project, wchi is directory, is stored (HTTP history, repeaters, etc.) in JSONLines format. |
 | scope | *JSON* or `null` | `null` | Subconfig to maintain scope. It allows to include/exclude requests by regexes for URIs. See `Scope` section for details. |
 | editor | *String* or `null` | `null` | Executable of text editor to use in CLI Repeater |
 
@@ -42,9 +42,11 @@ tls_cer_name: /home/user/.cruster/cruster.cer
 address: 127.0.0.1
 port: 8080
 debug_file: ~
-dump_mode: false
-store: /home/user/.cruster/data.jsonl
-load: /home/user/.cruster/saved_data.jsonl
+dump_mode:
+  enabled: false
+  verbosity: 0
+  color: true
+project: /home/user/.cruster/test-project
 scope:
   strict: false
   include:
