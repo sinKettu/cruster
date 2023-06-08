@@ -17,6 +17,7 @@ use std::ffi::CString;
 
 use crate::CrusterError;
 use regex::Regex;
+use hyper::body::Bytes;
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -347,10 +348,20 @@ impl HyperResponseWrapper {
             headers.insert(k.clone(), v.clone());
         }
 
-        let body = match hyper::body::to_bytes(rsp_body).await {
+        let mut body = match hyper::body::to_bytes(rsp_body).await {
             Ok(body_bytes) => body_bytes,
             Err(e) => return Err(e.into())
         };
+
+        // A kind of crutch
+        // Connection hangs if Trunsfer-Encoding is 'chnked', but body is empty
+        if body.len() == 0 {
+            if let Some(te) = headers.get("transfer-encoding") {
+                if te.to_str()? == "chunked" {
+                    body = Bytes::from("\r\n");
+                }
+            }
+        }
 
         let reconstructed_body = Body::from(body.clone());
         let reconstructed_response = Response::from_parts(rsp_parts, reconstructed_body);
