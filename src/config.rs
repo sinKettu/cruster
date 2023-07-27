@@ -106,7 +106,7 @@ fn parse_cmd() -> clap::ArgMatches {
     let editor_help = "Path to editor executable to use in CLI mode";
 
     let matches = clap::Command::new("cruster")
-        .version("0.7.2")
+        .version("0.8.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .subcommand(
