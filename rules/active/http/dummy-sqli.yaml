@@ -1,1 +1,52 @@
 # Config example will be here
+# Config example will be here
+metadata:
+  authors:
+    - sinKettu<avangard.jazz@gmail.com>
+  name: Dummy SQLI
+  references: []
+  tags:
+    - test
+    - sqli
+severity: info
+id: dummy-sqli-test
+rule:
+  type: active
+  protocol: http
+  watch:
+    - id: query-watch
+      part: path
+      # Regex for query values
+      paattern: '=(?P<qv>[^=&$]+)(&|$)'
+    - id: body-watch
+      part: body
+      pattern: '=(?P<bv>[^=&$]+)(&|$)'
+  change:
+    - placement: after
+      watch_id: query-watch::qv
+      values:
+        - test\' OR \'1\'=\'1\'
+    - placement: after
+      watch_id: body-watch::bv
+      values:
+        - test\' OR \'1\'=\'1\'
+  send:
+    - id: check-sqli-in-query
+      apply:
+        - 0
+      repeat: 0
+      timeout_after: 0
+    - id: check-sqli-in-body
+      apply:
+        - 1
+      repeat: 0
+      timeout_after: 0
+  find:
+    - id: sqli-in-body
+      look_for: any
+      expressions:
+        - len(0.response.body)>len(check-sqli-in-body.response.body)
+    - id: sqli-in-query
+      look_for: any
+      expressions:
+        - len(0.response.body)>len(check-sqli-in-query.response.body)
