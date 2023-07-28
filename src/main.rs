@@ -64,7 +64,7 @@ async fn start_proxy(
 
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
-    let (config, mode) = config::handle_user_input()?;
+    let (config, _audit_config, mode) = config::handle_user_input()?;
 
     if let config::CrusterMode::CLI(subcmd_args) = mode {
         if let Err(err) = cli::launch(subcmd_args, config).await {
