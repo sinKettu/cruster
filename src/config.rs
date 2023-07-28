@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::{fs, path};
 use clap::{self, ArgMatches};
 use serde_yaml as yml;
@@ -715,7 +714,12 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
         config.audit_config = Some(audit_conf.clone());
     }
 
-    let audit_config = load_audit_config(config.audit_config.as_ref())?;
+    let audit_config = if config.audit {
+        load_audit_config(config.audit_config.as_ref())?
+    }
+    else {
+        AuditConfig::default()
+    };
 
     match config.save_with_project() {
         Err(CrusterError::UndefinedError(_)) => {},
