@@ -12,4 +12,9 @@ if ! [ -d "$cruster_base_dir" ]; then
 fi;
 
 cp -r "$rules_dir" "${cruster_base_dir}/rules"
-echo "Rules are installed successfully into '${cruster_base_dir}/rules'"
+
+if [ "$?" = "0" ]; then
+    echo "Rules are installed successfully into '${cruster_base_dir}/rules'";
+else
+    echo "There were issues while installing rules. See above.";
+fi;
