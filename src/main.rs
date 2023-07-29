@@ -6,6 +6,7 @@ mod siv_ui;
 mod scope;
 mod dump;
 mod cli;
+mod audit;
 
 
 #[cfg(feature = "rcgen-ca")]
