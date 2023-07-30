@@ -382,6 +382,17 @@ fn parse_cmd() -> clap::ArgMatches {
                                 )
                         )
                 )
+                .subcommand(
+                    clap::Command::new("audit")
+                        .alias("a")
+                        .about("Work with audit via CLI")
+                        .subcommand_required(true)
+                        .subcommand(
+                            clap::Command::new("run")
+                                .alias("r")
+                                .about("Run audit using audit config")
+                        )
+                )
         )
         .arg(
             clap::Arg::new("workplace")
@@ -714,8 +725,12 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
         config.audit_config = Some(audit_conf.clone());
     }
 
+    if let Some(audit_conf) = config.audit_config {
+        config.audit_config = Some(resolve_path(&workplace, &audit_conf, false)?);
+    }
+
     let audit_config = if config.audit {
-        load_audit_config(config.audit_config.as_ref())?
+        load_audit_config(config.audit_config.as_ref(), &workplace)?
     }
     else {
         AuditConfig::default()
@@ -732,7 +747,7 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
     Ok((config, audit_config, cmd))
 }
 
-fn load_audit_config(conf_path: Option<&String>) -> Result<AuditConfig, CrusterConfigError> {
+fn load_audit_config(conf_path: Option<&String>, workplace: &str) -> Result<AuditConfig, CrusterConfigError> {
     if conf_path.is_none() {
         return Ok(AuditConfig::default());
     }
@@ -741,7 +756,13 @@ fn load_audit_config(conf_path: Option<&String>) -> Result<AuditConfig, CrusterC
         .read(true)
         .open(conf_path.unwrap())?;
 
-    return Ok(yml::from_reader(&conf_file)?);
+    let mut audit_conf: AuditConfig = yml::from_reader(&conf_file)?;
+    for i in 0..audit_conf.rules.len() {
+        let rule_path_str = audit_conf.rules[i].as_str();
+        audit_conf.rules[i] = find_file_or_dir(workplace, rule_path_str)?;
+    }
+
+    return Ok(audit_conf);
 }
 
 fn enable_debug(debug_file_path: &str) {
@@ -760,45 +781,40 @@ fn enable_debug(debug_file_path: &str) {
         debug!("Debugging enabled");
 }
 
-/// For existing files and dirs
-// fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
-//     let fpath = path::Path::new(path);
-//     if fpath.is_absolute() {
-//         if fpath.exists() {
-//             return Ok(path.to_string());
-//         }
-//         else {
-//             return Err(
-//                 CrusterError::ConfigError(
-//                     format!("Could not find file or dir at absolute path '{}'", path)
-//                 )
-//             );
-//         }
-//     }
-//     else {
-//         if fpath.starts_with("./") && fpath.exists() {
-//             return Ok(path.to_string());
-//         }
+// For existing files and dirs
+fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
+    let fpath = path::Path::new(path);
+    if fpath.is_absolute() {
+        if fpath.exists() {
+            return Ok(path.to_string());
+        }
+        else {
+            return Err(
+                CrusterError::ConfigError(
+                    format!("Could not find file or dir at absolute path '{}'", path)
+                )
+            );
+        }
+    }
+    else {
+        if fpath.starts_with("./") && fpath.exists() {
+            return Ok(path.to_string());
+        }
 
-//         let workspace_path = format!("{}/{}", base_path, path);
-//         let wpath = path::Path::new(&workspace_path);
-//         if wpath.exists() {
-//             return Ok(workspace_path);
-//         }
-//         else {
-//             if fpath.exists() {
-//                 return Ok(path.to_string());
-//             }
-//             else {
-//                 return Err(
-//                     CrusterError::ConfigError(
-//                         format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
-//                     )
-//                 );
-//             }
-//         }
-//     }
-// }
+        let workspace_path = format!("{}/{}", base_path, path);
+        let wpath = path::Path::new(&workspace_path);
+        if wpath.exists() {
+            return Ok(workspace_path);
+        }
+        else {
+            return Err(
+                CrusterError::ConfigError(
+                    format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
+                )
+            );
+        }
+    }
+}
 
 /// Return such path state, which is accessbile with cruster
 fn resolve_path(base_path: &str, path: &str, dir: bool) -> Result<String, CrusterConfigError> {
