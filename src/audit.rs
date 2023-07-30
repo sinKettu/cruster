@@ -174,6 +174,24 @@ impl Rule {
                 }
             }
         }
+
+
+        // Check variable values and references in SEND struct and fill .send_ref
+        if let Some(send_actions) = self.rule.send.as_mut() {
+            self.send_ref = Some(std::collections::HashMap::default());
+            for (index, send_action) in send_actions.iter_mut().enumerate() {
+                if let Err(err) = send_action.check_up(self.change_ref.as_ref()) {
+                    return Err(self.make_error(Some(err)));
+                }
+
+                if let Some(send_id) = send_action.get_id() {
+                    self.send_ref
+                        .as_mut()
+                        .unwrap()
+                        .insert(send_id, index);
+                }
+            }
+        }
         
 
         Ok(())
