@@ -10,9 +10,9 @@ metadata:
     - sqli
 severity: info
 id: dummy-sqli-test
+type: active
+protocol: http
 rule:
-  type: active
-  protocol: http
   watch:
     - id: query-watch
       part: path
@@ -23,22 +23,20 @@ rule:
       pattern: '=(?P<bv>[^=&$]+)(&|$)'
   change:
     - placement: after
-      watch_id: query-watch::qv
+      watch_id: query-watch.qv
       values:
         - test\' OR \'1\'=\'1\'
     - placement: after
-      watch_id: body-watch::bv
+      watch_id: body-watch.bv
       values:
         - test\' OR \'1\'=\'1\'
   send:
     - id: check-sqli-in-query
-      apply:
-        - 0
+      apply: 0
       repeat: 0
       timeout_after: 0
     - id: check-sqli-in-body
-      apply:
-        - 1
+      apply: 1
       repeat: 0
       timeout_after: 0
   find:

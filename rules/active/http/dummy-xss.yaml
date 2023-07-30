@@ -20,13 +20,13 @@ rule:
   change:
     - id: change-after
       placement: after
-      watch_id: query-watch::qv
+      watch_id: query-watch.qv
       values:
         - <script>alert(1)</script>
         - \'<script>alert(1)</script>
     - id: change-replace
       placement: replace
-      watch_id: query-watch::qv
+      watch_id: query-watch.qv
       values:
         - <script>alert(1)</script>
         - \'<script>alert(1)</script>
