@@ -17,8 +17,6 @@ use get::RuleGetAction;
 
 pub(crate) struct AuditError(String);
 
-trait AuditErrorTrait {}
-
 impl FromStr for AuditError {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -62,10 +60,29 @@ pub(crate) struct Rule {
     watch_ref: Option<std::collections::HashMap<String, usize>>,
     change_ref: Option<std::collections::HashMap<String, usize>>,
     send_ref: Option<std::collections::HashMap<String, usize>>,
+    find_ref: Option<std::collections::HashMap<String, usize>>,
 }
 
 // TODO: Need also check for indexes bounds in check_up() methods
 impl Rule {
+    pub(crate) fn from_file(filename: &str) -> Result<Rule, AuditError> {
+        let rule_file = match std::fs::OpenOptions::new().read(true).open(filename) {
+            Ok(rule_file) => { rule_file },
+            Err(err) => {
+                return Err(AuditError(err.to_string()));
+            }
+        };
+        
+        let rule: Rule = match yml::from_reader(rule_file) {
+            Ok(rule) => { rule },
+            Err(err) => {
+                return Err(AuditError(format!("Unable to parse '{}': {}", filename, err.to_string())));
+            }
+        };
+
+        Ok(rule)
+    }
+
     fn make_error<T: Display>(&self, possible_details: Option<T>) -> AuditError {
         if let Some(details) = possible_details {
             AuditError(
@@ -192,7 +209,34 @@ impl Rule {
                 }
             }
         }
+
+
+        // Check the same for FIND
+        if let Some(find_actions) = self.rule.find.as_mut() {
+            self.find_ref = Some(std::collections::HashMap::default());
+            for (index, find_action) in find_actions.iter_mut().enumerate() {
+                if let Err(err) = find_action.check_up(self.send_ref.as_ref()) {
+                    return Err(self.make_error(Some(err)));
+                }
+
+                if let Some(find_id) = find_action.get_id() {
+                    self.find_ref
+                        .as_mut()
+                        .unwrap()
+                        .insert(find_id, index);
+                }
+            }
+        }
+
         
+        // Check the same for GET
+        if let Some(get_actions) = self.rule.get.as_mut() {
+            for get_action in get_actions.iter_mut() {
+                if let Err(err) = get_action.check_up(self.find_ref.as_ref()) {
+                    return Err(self.make_error(Some(err)));
+                }
+            }
+        }
 
         Ok(())
     }
