@@ -22,7 +22,7 @@ pub(crate) struct RuleFindAction {
 }
 
 impl RuleFindAction {
-    pub(crate) fn check_up(&mut self, possible_send_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
+    pub(crate) fn check_up(&mut self, _possible_send_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
         let lowercase_look_for = self.look_for.to_lowercase();
         match lowercase_look_for.as_str() {
             "any" => {

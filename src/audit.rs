@@ -3,7 +3,7 @@ mod change;
 mod send;
 mod find;
 mod get;
-mod load_rule;
+pub(crate) mod load_rule;
 
 use std::{fmt::Display, str::FromStr};
 use serde::{Serialize, Deserialize};
