@@ -65,10 +65,10 @@ async fn start_proxy(
 
 #[tokio::main]
 async fn main() -> Result<(), utils::CrusterError> {
-    let (config, _audit_config, mode) = config::handle_user_input()?;
+    let (config, audit_config, mode) = config::handle_user_input()?;
 
     if let config::CrusterMode::CLI(subcmd_args) = mode {
-        if let Err(err) = cli::launch(subcmd_args, config).await {
+        if let Err(err) = cli::launch(subcmd_args, config, audit_config).await {
             let err_str: String = err.into();
             eprintln!("Error in Cruster CLI: {}", err_str);
             exit(-1);
