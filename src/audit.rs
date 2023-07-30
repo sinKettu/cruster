@@ -3,10 +3,9 @@ mod change;
 mod send;
 mod find;
 mod get;
+mod load_rule;
 
 use std::{fmt::Display, str::FromStr};
-
-use serde_yaml as yml;
 use serde::{Serialize, Deserialize};
 
 use watch::RuleWatchAction;
@@ -65,24 +64,6 @@ pub(crate) struct Rule {
 
 // TODO: Need also check for indexes bounds in check_up() methods
 impl Rule {
-    pub(crate) fn from_file(filename: &str) -> Result<Rule, AuditError> {
-        let rule_file = match std::fs::OpenOptions::new().read(true).open(filename) {
-            Ok(rule_file) => { rule_file },
-            Err(err) => {
-                return Err(AuditError(err.to_string()));
-            }
-        };
-        
-        let rule: Rule = match yml::from_reader(rule_file) {
-            Ok(rule) => { rule },
-            Err(err) => {
-                return Err(AuditError(format!("Unable to parse '{}': {}", filename, err.to_string())));
-            }
-        };
-
-        Ok(rule)
-    }
-
     fn make_error<T: Display>(&self, possible_details: Option<T>) -> AuditError {
         if let Some(details) = possible_details {
             AuditError(
