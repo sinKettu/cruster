@@ -17,7 +17,7 @@ rule:
     - id: query-watch
       part: path
       # Regex for query values
-      paattern: '=(?P<qv>[^=&$]+)(&|$)'
+      pattern: '=(?P<qv>[^=&$]+)(&|$)'
     - id: body-watch
       part: body
       pattern: '=(?P<bv>[^=&$]+)(&|$)'
