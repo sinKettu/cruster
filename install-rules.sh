@@ -11,7 +11,7 @@ if ! [ -d "$cruster_base_dir" ]; then
     mkdir "$cruster_base_dir";
 fi;
 
-cp -r "$rules_dir" "${cruster_base_dir}/rules"
+cp -v -r "$rules_dir" "${cruster_base_dir}/"
 
 if [ "$?" = "0" ]; then
     echo "Rules are installed successfully into '${cruster_base_dir}/rules'";
