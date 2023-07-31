@@ -19,8 +19,8 @@ use cursive_buffered_backend;
 #[cfg(feature = "ncurses")]
 use cursive::CursiveExt;
 
-use cursive::{Cursive, };
-use cursive::{traits::*, };
+use cursive::Cursive;
+use cursive::traits::*;
 use cursive_table_view::TableViewItem;
 use cursive::utils::markup::StyledString;
 use cursive::theme::{BaseColor, BorderStyle, Palette, };
@@ -35,7 +35,7 @@ use crossbeam_channel::Receiver as CBReceiver;
 
 use std::time::Instant;
 use crate::config::Config;
-use sivuserdata::{SivUserData};
+use sivuserdata::SivUserData;
 use crate::utils::CrusterError;
 use status_bar::StatusBarContent;
 use crate::http_storage::HTTPStorage;

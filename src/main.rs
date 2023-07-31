@@ -9,10 +9,10 @@ mod cli;
 
 
 #[cfg(feature = "rcgen-ca")]
-use hudsucker::{ProxyBuilder, certificate_authority::{RcgenAuthority as HudSuckerCA}};
+use hudsucker::{ProxyBuilder, certificate_authority::RcgenAuthority as HudSuckerCA};
 
 #[cfg(feature = "openssl-ca")]
-use hudsucker::{ProxyBuilder, certificate_authority::{OpensslAuthority as HudSuckerCA}};
+use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority as HudSuckerCA};
 
 use tokio;
 use utils::CrusterError;
