@@ -41,7 +41,7 @@ async fn start_proxy(
 
     let proxy = ProxyBuilder::new()
         .with_addr(socket_addr)
-        .with_rustls_client()
+        .with_native_tls_client()
         .with_ca(ca)
         .with_http_handler(
             CrusterHandler {
