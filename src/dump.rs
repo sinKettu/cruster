@@ -249,7 +249,7 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
             );
             print_error(err, config.with_color());
         };
-        http_storage.clear().unwrap();
+        http_storage.clear(true).unwrap();
 
         http_storage.keep_open(&path).unwrap();
     }
@@ -311,7 +311,7 @@ pub(super) async fn launch_dump(rx: Receiver<ProxyEvents>, config: super::config
                         print_error(err, config.with_color());
                     }
                     else {
-                        if let Err(err) = http_storage.remove_by_id(id) {
+                        if let Err(err) = http_storage.remove_by_id(id, false) {
                             print_error(err, config.with_color());
                         }
                     }

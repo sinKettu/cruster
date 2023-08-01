@@ -9,10 +9,10 @@ mod cli;
 
 
 #[cfg(feature = "rcgen-ca")]
-use hudsucker::{ProxyBuilder, certificate_authority::{RcgenAuthority as HudSuckerCA}};
+use hudsucker::{ProxyBuilder, certificate_authority::RcgenAuthority as HudSuckerCA};
 
 #[cfg(feature = "openssl-ca")]
-use hudsucker::{ProxyBuilder, certificate_authority::{OpensslAuthority as HudSuckerCA}};
+use hudsucker::{ProxyBuilder, certificate_authority::OpensslAuthority as HudSuckerCA};
 
 use tokio;
 use utils::CrusterError;
@@ -41,7 +41,7 @@ async fn start_proxy(
 
     let proxy = ProxyBuilder::new()
         .with_addr(socket_addr)
-        .with_rustls_client()
+        .with_native_tls_client()
         .with_ca(ca)
         .with_http_handler(
             CrusterHandler {

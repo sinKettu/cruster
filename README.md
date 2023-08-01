@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.7.1`
+`v0.7.2`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -215,7 +215,7 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.1"
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.2"
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
@@ -229,7 +229,7 @@ If, for some reason, you do not want to use `rcgen` to handle certificates, you 
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.1" --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.2" --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -237,7 +237,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.1" --no-defa
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.1" --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.2" --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## With Docker

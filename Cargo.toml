@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 authors = ["Andrey Ivanov"]
 description = "Something between MitMProxy, Burp Suite/ZAP and Nuclei"
@@ -12,7 +12,7 @@ description = "Something between MitMProxy, Burp Suite/ZAP and Nuclei"
 async-trait = "0.1.7"
 regex = "1.6.0"
 rustls = "0.20.8"
-reqwest = { version = "0.11.14", default_features = false, features = ["rustls-tls", "gzip", "brotli", "deflate", "multipart", "stream"]}
+reqwest = { version = "0.11.14", default_features = false, features = ["rustls-tls-native-roots", "gzip", "brotli", "deflate", "multipart", "stream"]}
 hyper = { version = "0.14.7", features = ["http1", "http2", "client"] }
 hyper-rustls = { version = "0.23.2", features = ["webpki-roots", "http2", "http1"]}
 # reqwest = { version = "0.11.13", features = ["blocking"] }
@@ -21,7 +21,7 @@ rand = { version = "0.8.0"}
 http = "0.2.0"
 tokio = { version = "1.6.1", features = ["full"] }
 time = { version = "0.3.1" }
-hudsucker = { version = "0.20.0", features = ["http2", "rustls-client"] }
+hudsucker = { version = "0.20.0", features = ["http2", "rustls-client", "native-tls-client"] }
 rustls-pemfile = { version = "1.0.1", optional = true}
 colored = "2.0.0"
 # ---------------------------------------------------------------------

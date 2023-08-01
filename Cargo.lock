@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "cruster"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "async-trait",
  "base64 0.13.1",
@@ -1256,6 +1256,7 @@ dependencies = [
  "http",
  "hyper",
  "hyper-rustls 0.24.0",
+ "hyper-tls",
  "hyper-tungstenite",
  "moka",
  "openssl",
@@ -1329,6 +1330,19 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.24.0",
  "webpki-roots 0.23.1",
+]
+
+[[package]]
+name = "hyper-tls"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
+dependencies = [
+ "bytes",
+ "hyper",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
 ]
 
 [[package]]
@@ -1656,6 +1670,24 @@ dependencies = [
  "thiserror",
  "triomphe",
  "uuid",
+]
+
+[[package]]
+name = "native-tls"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07226173c32f2926027b63cce4bcd8076c3552846cbe7925f3aaffeac0a3b92e"
+dependencies = [
+ "lazy_static",
+ "libc",
+ "log",
+ "openssl",
+ "openssl-probe",
+ "openssl-sys",
+ "schannel",
+ "security-framework",
+ "security-framework-sys",
+ "tempfile",
 ]
 
 [[package]]
@@ -2203,6 +2235,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rustls 0.20.8",
+ "rustls-native-certs",
  "rustls-pemfile",
  "serde",
  "serde_json",
@@ -2216,7 +2249,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
- "webpki-roots 0.22.6",
  "winreg",
 ]
 
@@ -2790,6 +2822,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-native-tls"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
+dependencies = [
+ "native-tls",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-rustls"
 version = "0.23.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2818,8 +2860,10 @@ checksum = "ec509ac96e9a0c43427c74f003127d953a265737636129424288d27cb5c4b12c"
 dependencies = [
  "futures-util",
  "log",
+ "native-tls",
  "rustls 0.21.1",
  "tokio",
+ "tokio-native-tls",
  "tokio-rustls 0.24.0",
  "tungstenite",
  "webpki-roots 0.23.1",
@@ -2916,6 +2960,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
+ "native-tls",
  "rand",
  "rustls 0.21.1",
  "sha1",

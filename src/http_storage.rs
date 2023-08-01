@@ -185,10 +185,10 @@ impl HTTPStorage {
         return self.storage.len().clone();
     }
 
-    pub(crate) fn clear(&mut self) -> Result<(), CrusterError> {
+    pub(crate) fn clear(&mut self, force_uncompleted: bool) -> Result<(), CrusterError> {
         while self.len() > 0 {
             let idx = self.storage[self.len() - 1].index;
-            self.remove_by_id(idx)?;
+            self.remove_by_id(idx, force_uncompleted)?;
         }
 
         Ok(())
@@ -301,7 +301,7 @@ impl HTTPStorage {
         Ok(())
     }
 
-    pub(crate) fn remove_by_id(&mut self, id: usize) -> Result<(), CrusterError> {
+    pub(crate) fn remove_by_id(&mut self, id: usize, force_uncompleted: bool) -> Result<(), CrusterError> {
         if self.len() > 0 {
             let index = self.seq_reference[id];
             if let None = index {
@@ -313,7 +313,7 @@ impl HTTPStorage {
             }
 
             let pair = &self.storage[index.unwrap()];
-            if pair.request.is_none() || pair.response.is_none() {
+            if (pair.request.is_none() || pair.response.is_none()) && ! force_uncompleted {
                 return Err(
                     CrusterError::UndefinedError(
                         format!("Cannot remove record with id {}, because it is uncompleted", id)
