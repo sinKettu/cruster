@@ -1,28 +1,6 @@
 use std::collections::HashMap;
 
-use serde::{Serialize, Deserialize};
-
-use super::AuditError;
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) enum ExtractionMode {
-    LINE,
-    MATCH,
-    GROUP(String)
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) struct RuleGetAction {
-    find_id: String,
-    // This field will store more convinient representation of find_id after first check
-    find_id_cache: Option<usize>,
-
-    extract: String,
-    // This field will store more convinient representation of extract after first check
-    extract_cache: Option<ExtractionMode>,
-
-    pattern: String
-}
+use super::*;
 
 impl RuleGetAction {
     pub(crate) fn check_up(&mut self, possible_find_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {

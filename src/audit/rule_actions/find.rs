@@ -1,25 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use serde::{Serialize, Deserialize};
-
-use super::AuditError;
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) enum LookFor {
-    ANY,
-    ALL
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) struct RuleFindAction {
-    id: Option<String>,
-
-    look_for: String,
-    // This field will store more convinient representation of look_for after first check
-    look_for_cache: Option<LookFor>,
-
-    expressions: Vec<String>
-}
+use super::*;
 
 impl RuleFindAction {
     pub(crate) fn check_up(&mut self, _possible_send_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {

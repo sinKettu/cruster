@@ -1,45 +1,6 @@
 use std::{str::FromStr, collections::HashMap};
 
-use serde::{Serialize, Deserialize};
-
-use super::AuditError;
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) struct WatchId {
-    id: usize,
-    group_name: Option<String>
-}
-
-impl WatchId {
-    pub(crate) fn new(id: usize, group_name: Option<String>) -> Self {
-        WatchId {
-            id,
-            group_name
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) enum ChangeValuePlacement {
-    BEFORE,
-    AFTER,
-    REPLACE
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) struct RuleChangeAction {
-    id: Option<String>,
-
-    watch_id: String,
-    // This field will store more convinient representation of watch_id after first check
-    watch_id_cache: Option<WatchId>,
-
-    placement: String,
-    // This field will store more convinient representation of placement after first check
-    placement_cache: Option<ChangeValuePlacement>,
-
-    values: Vec<String>,
-}
+use super::*;
 
 impl RuleChangeAction {
     pub(crate) fn check_up(&mut self, watch_id_ref: &HashMap<String, usize>) -> Result<(), AuditError> {

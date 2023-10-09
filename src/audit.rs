@@ -1,18 +1,16 @@
-mod watch;
-mod change;
-mod send;
-mod find;
-mod get;
+mod rule_actions;
 pub(crate) mod load_rule;
 
 use std::{fmt::Display, str::FromStr};
 use serde::{Serialize, Deserialize};
 
-use watch::RuleWatchAction;
-use change::RuleChangeAction;
-use send::RuleSendAction;
-use find::RuleFindAction;
-use get::RuleGetAction;
+use rule_actions::{
+    RuleChangeAction,
+    RuleFindAction,
+    RuleSendAction,
+    RuleWatchAction,
+    RuleGetAction
+};
 
 pub(crate) struct AuditError(String);
 

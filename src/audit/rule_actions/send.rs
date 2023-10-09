@@ -1,16 +1,6 @@
-use serde::{Serialize, Deserialize};
 use std::{collections::HashMap, str::FromStr};
 
-use super::AuditError;
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) struct RuleSendAction {
-    id: Option<String>,
-    apply: String,
-    apply_cache: Option<usize>,
-    repeat: Option<usize>,
-    timeout_after: Option<usize>,
-}
+use super::*;
 
 impl RuleSendAction {
     pub(crate) fn check_up(&mut self, possible_change_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
