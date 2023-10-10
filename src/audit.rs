@@ -1,5 +1,6 @@
 mod rule_actions;
 pub(crate) mod load_rule;
+mod expressions;
 
 use std::{fmt::Display, str::FromStr};
 use serde::{Serialize, Deserialize};
@@ -35,7 +36,7 @@ pub(crate) struct RuleMetadata {
     tags: Vec<String>
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub(crate) struct RuleActions {
     watch: Option<Vec<RuleWatchAction>>,
     change: Option<Vec<RuleChangeAction>>,
@@ -44,7 +45,7 @@ pub(crate) struct RuleActions {
     get: Option<Vec<RuleGetAction>>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub(crate) struct Rule {
     // These are "working" fields, to be used by users
     metadata: RuleMetadata,
@@ -70,7 +71,7 @@ impl Rule {
         }
         else {
             AuditError(
-                format!("Rule {} hash an undefined error!", self.id.as_str())
+                format!("Rule {} has an undefined error!", self.id.as_str())
             )
         }
     }

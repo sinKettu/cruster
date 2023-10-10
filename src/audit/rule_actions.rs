@@ -7,6 +7,7 @@ pub(super) mod get;
 use serde::{Serialize, Deserialize};
 
 use super::AuditError;
+use super::expressions::functions::Function;
 
 
 // Used to parse string watch_id to speed up future operations
@@ -60,10 +61,12 @@ pub(crate) struct RuleFindAction {
     id: Option<String>,
 
     look_for: String,
-    // This field will store more convinient representation of look_for after first check
+    // This field stores more convinient representation of look_for after first check
     look_for_cache: Option<LookFor>,
 
-    expressions: Vec<String>
+    expressions: Vec<String>,
+    // This field stores parsed expressions in a shape convinient to execute
+    parsed_expressions: Option<Vec<Function>>
 }
 
 

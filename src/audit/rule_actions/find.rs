@@ -1,6 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use super::*;
+use crate::audit::expressions;
 
 impl RuleFindAction {
     pub(crate) fn check_up(&mut self, _possible_send_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
@@ -21,7 +22,18 @@ impl RuleFindAction {
             }
         }
 
-        // TODO: validate and eval expressions in .expressions
+        let mut parsed_expressions: Vec<Function> = Vec::with_capacity(self.expressions.len());
+        for (index, str_exp) in self.expressions.iter().enumerate() {
+            match expressions::parse_expression(str_exp) {
+                Ok(expr) => parsed_expressions.push(expr),
+                Err(err) => {
+                    let err_str = format!("Expression {} has an error: {}", index, err);
+                    return Err(AuditError(err_str));
+                }
+            }
+        }
+
+        self.parsed_expressions = Some(parsed_expressions);
 
         Ok(())
     }
@@ -30,3 +42,4 @@ impl RuleFindAction {
         self.id.clone()
     }
 }
+
