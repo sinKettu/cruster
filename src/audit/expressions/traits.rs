@@ -3,7 +3,7 @@ use crate::audit::AuditError;
 use super::args::{FunctionArg, ArgType};
 
 pub(crate) trait ExecutableFunction: KnownType {
-    fn execute(&mut self) -> Result<FunctionArg, AuditError>;
+    fn execute(&self) -> Result<FunctionArg, AuditError>;
 }
 
 pub(crate) trait IntoFunctionArg: KnownType {

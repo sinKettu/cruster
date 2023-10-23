@@ -230,11 +230,11 @@ impl KnownType for Function {
 }
 
 impl ExecutableFunction for Function {
-    fn execute(&mut self) -> Result<FunctionArg, AuditError> {
-        let func_ref = &mut self.function;
+    fn execute(&self) -> Result<FunctionArg, AuditError> {
+        let func_ref = &self.function;
 
         let mut args: Vec<FunctionArg> = Vec::with_capacity(self.args.len());
-        for fut_arg in self.args.iter_mut() {
+        for fut_arg in self.args.iter() {
             match fut_arg {
                 GenericArg::Arg(arg) => { args.push(arg.clone()) },
                 GenericArg::Function(func) => { args.push(func.execute()?) }
