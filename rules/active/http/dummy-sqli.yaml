@@ -12,6 +12,7 @@ severity: info
 id: dummy-sqli-test
 type: active
 protocol: http
+max-redirects: 0
 rule:
   watch:
     - id: query-watch

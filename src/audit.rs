@@ -53,6 +53,7 @@ pub(crate) struct Rule {
     protocol: String,
     severity: String,
     id: String,
+    max_redirects: usize,
     rule: RuleActions,
     // These are "service" fields, to be used by cruster
     watch_ref: Option<std::collections::HashMap<String, usize>>,
