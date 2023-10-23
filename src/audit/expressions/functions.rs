@@ -1,11 +1,12 @@
 use std::str::FromStr;
 
 use serde::{Serialize, Deserialize};
+use regex;
 
 use crate::audit::AuditError;
-
 use super::traits::*;
 use super::args::*;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) enum GenericArg {
@@ -34,12 +35,27 @@ impl KnownType for GenericArg {
             GenericArg::Function(f) => f.is_string()
         }
     }
+
+    fn get_type(&self) -> ArgType {
+        match &self {
+            GenericArg::Arg(a) => a.get_type(),
+            GenericArg::Function(f) => f.get_type()
+        }
+    }
+}
+
+impl GenericArg {
+    // The method requires manual check when new type is added
+    fn has_the_same_type_as(&self, arg: &ArgType) -> bool {
+        return self.get_type() == *arg;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) enum FunctionType {
     CompareInteger(CompareIntegerFunction),
     StringLength,
+    MatchString,
     UNDEFINED
 }
 
@@ -58,14 +74,6 @@ pub(crate) struct Function {
     args: Vec<GenericArg>
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-enum FunctionReturnTypes {
-    BOOLEAN,
-    STRING,
-    INTEGER,
-    NULL
-}
-
 impl Default for Function {
     fn default() -> Self {
         Function { function: FunctionType::UNDEFINED, args: Vec::with_capacity(3) }
@@ -73,18 +81,28 @@ impl Default for Function {
 }
 
 impl Function {
-    fn get_type(&self) -> FunctionReturnTypes {
-        match &self.function {
-            FunctionType::CompareInteger(_) => {
-                return FunctionReturnTypes::BOOLEAN
-            },
-            FunctionType::StringLength => {
-                return FunctionReturnTypes::INTEGER
-            }
-            _ => {
-                return FunctionReturnTypes::NULL
+    fn check_args(&self, args_number_cond: usize, arg1_type_cond: ArgType, arg2_type_cond: Option<ArgType>) -> Result<(), AuditError> {
+        if self.args.len() > args_number_cond {
+            return Err(AuditError(format!("Function has {} arguments, but takes only {}.", self.args.len(), args_number_cond)));
+        }
+
+        if self.args.len() >= 1 {
+            if ! self.args[0].has_the_same_type_as(&arg1_type_cond) {
+                let err = format!("Function has the first argument with type {:?}, but {:?} is expected.", self.args[0].get_type(), arg1_type_cond);
+                return Err(AuditError(err));
             }
         }
+
+        if let Some(arg2tc) = arg2_type_cond.as_ref() {
+            if self.args.len() >= 2 {
+                if ! self.args[1].has_the_same_type_as(&arg2tc) {
+                    let err = format!("Function has the second argument with type {:?}, but {:?} is expected.", self.args[1].get_type(), arg2tc);
+                    return Err(AuditError(err));
+                }
+            }
+        }
+
+        return Ok(())
     }
 
     pub(crate) fn set_function(&mut self, generic_function: FunctionType) -> Result<(), AuditError> {
@@ -97,42 +115,33 @@ impl Function {
 
         match &generic_function {
             FunctionType::CompareInteger(_) => {
-                if self.args.len() == 0 {
-                    self.function = generic_function;
-                    return Ok(())
-                }
-                else if self.args.len() <= 2 {
-                    if self.args.iter_mut().all(|arg| { arg.is_integer() }) {
-                        self.function = generic_function;
-                        return Ok(())
-                    }
-                    else {
-                        return Err(AuditError::from_str("Function that compares integers has one or more non-integer arguments.").unwrap());
-                    }
+                if let Err(err) =  self.check_args(2, ArgType::INTEGER, Some(ArgType::INTEGER)) {
+                    return Err(AuditError(format!("Error in integer comparison: {}", err)));
                 }
                 else {
-                    return Err(AuditError::from_str("Function that compares integers has 3 or more arguments, must be 2.").unwrap());
+                    self.function = generic_function;
+                    return Ok(());
                 }
             },
             FunctionType::StringLength => {
-                if self.args.len() > 1 {
-                    return Err(AuditError::from_str("Function that calculates length of a string must have exactly 1 argument.").unwrap());
+                if let Err(err) = self.check_args(1, ArgType::STRING, None) {
+                    return Err(AuditError(format!("Error in string length retrieving: {}", err)));
                 }
-                else if self.args.len() == 1 {
-                    if self.args[0].is_string() {
-                        self.function = generic_function;
-                        return Ok(());
-                    }
-                    else {
-                        return Err(AuditError::from_str("Function that calculates length of a string must have exactly 1 string argument.").unwrap());
-                    }
+                else {
+                    self.function = generic_function;
+                    return Ok(());
+                }
+            },
+            FunctionType::MatchString => {
+                if let Err(err) = self.check_args(2, ArgType::STRING, Some(ArgType::STRING)) {
+                    return Err(AuditError(format!("Error in string match: {}", err)));
                 }
                 else {
                     self.function = generic_function;
                     return Ok(());
                 }
             }
-            _ => {
+            FunctionType::UNDEFINED => {
                 unreachable!("You have tried to explicitly assign UNDEFINED function and I do not know how you could. Please, contact me and tell it.")
             }
         }
@@ -166,6 +175,20 @@ impl Function {
                     }
                 }
             },
+            FunctionType::MatchString => {
+                if self.args.len() >= 2 {
+                    return Err(AuditError::from_str("Function matching string takes exactly 2 arguments, but 3 or more were given").unwrap());
+                }
+                else {
+                    if ! arg.is_string() {
+                        let str_err = format!("Cannot assign non-string argument to function that matches string: '{:?}'", arg);
+                        return Err(AuditError(str_err));
+                    }
+                    else {
+                        self.args.push(arg);
+                    }
+                }
+            }
             FunctionType::UNDEFINED => {
                 self.args.push(arg);
             },
@@ -176,16 +199,33 @@ impl Function {
 }
 
 impl KnownType for Function {
+    fn get_type(&self) -> ArgType {
+        match &self.function {
+            FunctionType::CompareInteger(_) => {
+                return ArgType::BOOLEAN
+            },
+            FunctionType::StringLength => {
+                return ArgType::INTEGER
+            },
+            FunctionType::MatchString => {
+                return ArgType::BOOLEAN
+            }
+            FunctionType::UNDEFINED => {
+                return ArgType::NULL
+            }
+        }
+    }
+
     fn is_boolean(&self) -> bool {
-        return self.get_type() == FunctionReturnTypes::BOOLEAN;
+        return self.get_type() == ArgType::BOOLEAN;
     }
 
     fn is_integer(&self) -> bool {
-        return self.get_type() == FunctionReturnTypes::INTEGER;
+        return self.get_type() == ArgType::INTEGER;
     }
 
     fn is_string(&self) -> bool {
-        return self.get_type() == FunctionReturnTypes::STRING;
+        return self.get_type() == ArgType::STRING;
     }
 }
 
@@ -232,6 +272,22 @@ impl ExecutableFunction for Function {
                             .len()
                     )
                 )
+            },
+            FunctionType::MatchString => {
+                let str_re = args[0].string().unwrap();
+                let re = match regex::Regex::new(&str_re) {
+                    Ok(re) => re,
+                    Err(err) => return Err(AuditError(format!("Could not parse regex in string match function: {}", err)))
+                };
+
+                let str_arg = args[1].string().unwrap();
+                let result = re.is_match(&str_arg);
+
+                return Ok(
+                    FunctionArg::BOOLEAN(
+                        result
+                    )
+                );
             }
             FunctionType::UNDEFINED => {
                 return Err(AuditError::from_str("Cannot execute an undefined function. Check expression.").unwrap())

@@ -6,6 +6,14 @@ use super::functions::GenericArg;
 use super::traits::{IntoFunctionArg, KnownType};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) enum ArgType {
+    STRING,
+    INTEGER,
+    BOOLEAN,
+    NULL
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) enum FunctionArg {
     STRING(String),
     INTEGER(usize),
@@ -69,6 +77,15 @@ impl KnownType for FunctionArg {
         return match self {
             FunctionArg::STRING(_) => { true },
             _ => { false }
+        }
+    }
+
+    fn get_type(&self) -> ArgType {
+        return match &self {
+            FunctionArg::STRING(_) => ArgType::STRING,
+            FunctionArg::BOOLEAN(_) => ArgType::BOOLEAN,
+            FunctionArg::INTEGER(_)  => ArgType::INTEGER,
+            FunctionArg::NULL => ArgType::NULL
         }
     }
 }

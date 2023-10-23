@@ -149,6 +149,10 @@ fn parse(exp: &str) -> Result<Function, AuditError> {
                     function.set_function(f)?;
                     reminder
                 },
+                "~" => {
+                    function.set_function(FunctionType::MatchString)?;
+                    reminder
+                }
                 _ => {
                     unreachable!()
                 }
