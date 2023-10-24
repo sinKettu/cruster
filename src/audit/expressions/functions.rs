@@ -274,6 +274,8 @@ impl ExecutableFunction for Function {
                 )
             },
             FunctionType::MatchString => {
+                // TODO: point how is_match works in Cruster's docs
+                // https://docs.rs/regex/latest/regex/#example-validating-a-particular-date-format
                 let str_re = args[0].string().unwrap();
                 let re = match regex::Regex::new(&str_re) {
                     Ok(re) => re,

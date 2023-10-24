@@ -1,4 +1,4 @@
-mod traits;
+pub(crate) mod traits;
 mod args;
 pub(super) mod functions;
 
@@ -24,7 +24,7 @@ fn next_is_string(exp: &str) -> nom::IResult<&str, &str> {
 }
 
 fn next_is_operator(exp: &str) -> nom::IResult<&str, &str> {
-    is_a("><=")(exp)
+    is_a("><=~")(exp)
 }
 
 fn next_is_integer(exp: &str) -> nom::IResult<&str, usize> {
