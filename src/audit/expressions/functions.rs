@@ -56,6 +56,7 @@ pub(crate) enum FunctionType {
     CompareInteger(CompareIntegerFunction),
     StringLength,
     MatchString,
+    Negotiation,
     UNDEFINED
 }
 
@@ -71,12 +72,13 @@ pub(crate) enum CompareIntegerFunction {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct Function {
     function: FunctionType,
-    args: Vec<GenericArg>
+    args: Vec<GenericArg>,
+    pub(super) priority: usize
 }
 
 impl Default for Function {
     fn default() -> Self {
-        Function { function: FunctionType::UNDEFINED, args: Vec::with_capacity(3) }
+        Function { function: FunctionType::UNDEFINED, args: Vec::with_capacity(3), priority: 0 }
     }
 }
 
@@ -120,6 +122,7 @@ impl Function {
                 }
                 else {
                     self.function = generic_function;
+                    self.priority = 1;
                     return Ok(());
                 }
             },
@@ -129,6 +132,7 @@ impl Function {
                 }
                 else {
                     self.function = generic_function;
+                    self.priority = 0;
                     return Ok(());
                 }
             },
@@ -138,9 +142,20 @@ impl Function {
                 }
                 else {
                     self.function = generic_function;
+                    self.priority = 1;
                     return Ok(());
                 }
-            }
+            },
+            FunctionType::Negotiation => {
+                if let Err(err) = self.check_args(1, ArgType::BOOLEAN, None) {
+                    return Err(AuditError(format!("Error in negotiation function: {}", err)));
+                }
+                else {
+                    self.function = generic_function;
+                    self.priority = 2;
+                    return Ok(());
+                }
+            },
             FunctionType::UNDEFINED => {
                 unreachable!("You have tried to explicitly assign UNDEFINED function and I do not know how you could. Please, contact me and tell it.")
             }
@@ -188,6 +203,20 @@ impl Function {
                         self.args.push(arg);
                     }
                 }
+            },
+            FunctionType::Negotiation => {
+                if self.args.len() >= 1 {
+                    return Err(AuditError::from_str("Negotiation function takes exactly 1 argument, but 2 or more were given").unwrap());
+                }
+                else {
+                    if ! arg.is_boolean() {
+                        let str_err = format!("Cannot assign non-boolean argument to negotiation function: '{:?}'", arg);
+                        return Err(AuditError(str_err));
+                    }
+                    else {
+                        self.args.push(arg);
+                    }
+                }
             }
             FunctionType::UNDEFINED => {
                 self.args.push(arg);
@@ -208,6 +237,9 @@ impl KnownType for Function {
                 return ArgType::INTEGER
             },
             FunctionType::MatchString => {
+                return ArgType::BOOLEAN
+            },
+            FunctionType::Negotiation => {
                 return ArgType::BOOLEAN
             }
             FunctionType::UNDEFINED => {
@@ -290,6 +322,15 @@ impl ExecutableFunction for Function {
                         result
                     )
                 );
+            },
+            FunctionType::Negotiation => {
+                return Ok(
+                    FunctionArg::BOOLEAN(
+                        ! args[0]
+                            .boolean()
+                            .unwrap()
+                    )
+                )
             }
             FunctionType::UNDEFINED => {
                 return Err(AuditError::from_str("Cannot execute an undefined function. Check expression.").unwrap())

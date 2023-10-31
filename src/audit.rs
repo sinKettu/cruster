@@ -1,6 +1,6 @@
 mod rule_actions;
 pub(crate) mod load_rule;
-mod expressions;
+pub(crate) mod expressions;
 
 use std::{fmt::Display, str::FromStr};
 use serde::{Serialize, Deserialize};
@@ -25,6 +25,12 @@ impl FromStr for AuditError {
 impl Display for AuditError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.as_str())
+    }
+}
+
+impl From<nom::error::Error<&str>> for AuditError {
+    fn from(value: nom::error::Error<&str>) -> Self {
+        AuditError(value.to_string())
     }
 }
 
