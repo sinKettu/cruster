@@ -127,7 +127,7 @@ fn parse_1(exp: &str) -> Result<Function, AuditError> {
         }
         else {
             stack[depth - 1].add_arg(arg)?;
-            Ok(())
+            return Ok(());
         }
     };
 
@@ -210,11 +210,22 @@ fn parse_1(exp: &str) -> Result<Function, AuditError> {
 
     }
 
-    let mut index = functions_stack.len() - 1;
+    let mut index = if functions_stack.len() > 0 {
+        functions_stack.len() - 1
+    }
+    else {
+        let err_str = format!("Could not parse expression '{}', seems like it is empty.", exp);
+        return Err(AuditError(err_str));
+    };
+
     let mut result = Function::default();
     while ! functions_stack.is_empty() {
         if index == 0 && functions_stack.len() == 1 {
             result = functions_stack.pop().unwrap();
+        }
+        else if index == 0 && functions_stack.len() > 1 {
+            let err_str = format!("Could not parse the expression '{}', several functions/operators are used sequentually without connection", exp);
+            return Err(AuditError(err_str));
         }
         else {
             while functions_stack[index].priority == functions_stack[index - 1].priority {

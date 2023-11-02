@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use super::*;
-use crate::audit::expressions;
+use crate::audit::expressions::{self, traits::KnownType};
 
 impl RuleFindAction {
     pub(crate) fn check_up(&mut self, _possible_send_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
@@ -25,7 +25,15 @@ impl RuleFindAction {
         let mut parsed_expressions: Vec<Function> = Vec::with_capacity(self.expressions.len());
         for (index, str_exp) in self.expressions.iter().enumerate() {
             match expressions::parse_expression(str_exp) {
-                Ok(expr) => parsed_expressions.push(expr),
+                Ok(expr) => {
+                    if expr.is_boolean() {
+                        parsed_expressions.push(expr);
+                    }
+                    else {
+                        let err_str = format!("Expression {} must return boolean value, but the value with type '{:?}' is found", index, expr.get_type());
+                        return Err(AuditError(err_str));
+                    }
+                },
                 Err(err) => {
                     let err_str = format!("Expression {} has an error: {}", index, err);
                     return Err(AuditError(err_str));
