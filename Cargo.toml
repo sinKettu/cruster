@@ -21,7 +21,7 @@ rand = { version = "0.8.0"}
 http = "0.2.0"
 tokio = { version = "1.6.1", features = ["full"] }
 time = { version = "0.3.1" }
-hudsucker = { version = "0.20.0", features = ["http2", "rustls-client", "native-tls-client"] }
+hudsucker = { version = "0.20.0", features = ["http2", "rustls-client"] }
 rustls-pemfile = { version = "1.0.1", optional = true}
 colored = "2.0.0"
 nom = "7.1.3"
@@ -51,5 +51,5 @@ crossterm = ["cursive/crossterm-backend"]
 rcgen-ca = ["hudsucker/rcgen-ca", "dep:rustls-pemfile"]
 default = ["crossterm", "rcgen-ca"]
 ncurses = ["cursive/ncurses-backend"]
-openssl-ca = ["hudsucker/openssl-ca"]
+openssl-ca = ["hudsucker/native-tls-client", "hudsucker/openssl-ca"]
 termion = ["cursive/termion-backend"]
