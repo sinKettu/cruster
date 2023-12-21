@@ -7,6 +7,7 @@ mod scope;
 mod dump;
 mod cli;
 mod audit;
+mod http_sender;
 
 
 #[cfg(feature = "rcgen-ca")]
@@ -41,8 +42,15 @@ async fn start_proxy(
     ) {
 
     let proxy = ProxyBuilder::new()
-        .with_addr(socket_addr)
-        .with_native_tls_client()
+        .with_addr(socket_addr);
+
+    #[cfg(feature = "openssl-ca")]
+    let proxy = proxy.with_native_tls_client();
+
+    #[cfg(feature = "rcgen-ca")]
+    let proxy = proxy.with_rustls_client();
+
+    let proxy = proxy
         .with_ca(ca)
         .with_http_handler(
             CrusterHandler {
@@ -56,8 +64,9 @@ async fn start_proxy(
             CrusterWSHandler {
                 proxy_tx: tx.clone()
             }
-        )
-        .build();
+        );
+
+    let proxy = proxy.build();
 
     // TODO: something better than unwrap()
     proxy.start(shutdown_signal()).await.unwrap();
