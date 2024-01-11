@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use serde::{Serialize, Deserialize};
-use regex;
 
 use crate::audit::AuditError;
+use crate::audit::rule_actions::send::SendActionResults;
 use super::traits::*;
 use super::args::*;
 
@@ -262,14 +262,31 @@ impl KnownType for Function {
 }
 
 impl ExecutableFunction for Function {
-    fn execute(&self) -> Result<FunctionArg, AuditError> {
+    fn execute(&self, send_id_ref: Option<&std::collections::HashMap<String, usize>>, send_results: Option<&Vec<SendActionResults>>) -> Result<FunctionArg, AuditError> {
         let func_ref = &self.function;
 
         let mut args: Vec<FunctionArg> = Vec::with_capacity(self.args.len());
         for fut_arg in self.args.iter() {
             match fut_arg {
-                GenericArg::Arg(arg) => { args.push(arg.clone()) },
-                GenericArg::Function(func) => { args.push(func.execute()?) }
+                GenericArg::Arg(arg) => { 
+                    match arg {
+                        FunctionArg::REF(_) => {
+                            match (send_id_ref, send_results) {
+                                (Some(sir), Some(sr)) => {
+                                    args.push(arg.with_deref(sir, sr)?)
+                                },
+                                _ => {
+                                    let err_str = format!("Cannot execute expression with reference, because not enough info to dereference was given");
+                                    return Err(AuditError(err_str));
+                                }
+                            }
+                        },
+                        _ => {
+                            args.push(arg.arg()?)
+                        }
+                    }
+                 },
+                GenericArg::Function(func) => { args.push(func.execute(send_id_ref, send_results)?) }
             }
         }
 
@@ -277,51 +294,32 @@ impl ExecutableFunction for Function {
             FunctionType::CompareInteger(func) => {
                 let result = match func {
                     CompareIntegerFunction::Equal => {
-                        args[0].integer().unwrap() == args[1].integer().unwrap()
+                        super::executions::exec_equal(&args[0], &args[1])
                     },
                     CompareIntegerFunction::Greater => {
-                        args[0].integer().unwrap() > args[1].integer().unwrap()
+                        super::executions::greater_than(&args[0], &args[1])
                     },
                     CompareIntegerFunction::GreaterOrEqual => {
-                        args[0].integer().unwrap() >= args[1].integer().unwrap()
+                        super::executions::greater_than_or_equal(&args[0], &args[1])
                     },
                     CompareIntegerFunction::Lower => {
-                        args[0].integer().unwrap() < args[1].integer().unwrap()
+                        super::executions::less_than(&args[0], &args[1])
                     },
                     CompareIntegerFunction::LowerOrEqual => {
-                        args[0].integer().unwrap() <= args[1].integer().unwrap()
+                        super::executions::less_than_or_equal(&args[0], &args[1])
                     }
                 };
 
-                return Ok(FunctionArg::BOOLEAN(result));
+                return Ok(result);
             },
             FunctionType::StringLength => {
-                return Ok(
-                    FunctionArg::INTEGER(
-                        args[0]
-                            .string()
-                            .unwrap()
-                            .len()
-                    )
-                )
+                return super::executions::exec_string_length(&args[0]);
             },
             FunctionType::MatchString => {
                 // TODO: point how is_match works in Cruster's docs
                 // https://docs.rs/regex/latest/regex/#example-validating-a-particular-date-format
-                let str_re = args[0].string().unwrap();
-                let re = match regex::Regex::new(&str_re) {
-                    Ok(re) => re,
-                    Err(err) => return Err(AuditError(format!("Could not parse regex in string match function: {}", err)))
-                };
-
-                let str_arg = args[1].string().unwrap();
-                let result = re.is_match(&str_arg);
-
-                return Ok(
-                    FunctionArg::BOOLEAN(
-                        result
-                    )
-                );
+                
+                return super::executions::exec_str_match_regex(&args[0], &args[1]);
             },
             FunctionType::Negotiation => {
                 return Ok(

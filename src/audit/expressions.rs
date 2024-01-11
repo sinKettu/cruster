@@ -1,15 +1,16 @@
 pub(crate) mod traits;
 mod args;
 pub(super) mod functions;
+mod executions;
 
 use std::str::FromStr;
 
 use nom::{
     self,
-    sequence::delimited,
+    sequence::{delimited, tuple, pair},
     character::complete::{char, digit1, space0, space1},
     bytes::complete::{is_not, is_a, tag},
-    IResult,
+    IResult, multi::many0,
 };
 
 use args::*;
@@ -109,6 +110,100 @@ fn is_whitespace(reminder: &str) -> IResult<&str, &str> {
     Ok(space1(reminder)?)
 }
 
+fn is_reference<'a>(initial_reminder: &'a str) -> IResult<&'a str, Reference> { 
+    let (reminder, _) = space0(initial_reminder)?;
+
+    let mut parser = tuple(
+        (
+            is_a("abcdefghijklmnopqrstuvwxyz0123456789_"),
+            pair(char('.'), is_a("abcdefghijklmnopqrstuvwxyz0123456789_")),
+            many0(
+                pair(char('.'), is_a("abcdefghijklmnopqrstuvwxyz0123456789_"))
+            )
+        )
+    );
+
+    let (reminder, (send_id, (dot, pair_part), message_parts)) = parser(reminder)?;
+    let pair_part_parsed = match pair_part {
+        "request" => {
+            PairPart::REQUEST
+        },
+        "response" => {
+            PairPart::RESPONSE
+        },
+        _ => {
+            return Err(
+                nom::Err::Failure(
+                    nom::error::Error::new(initial_reminder, nom::error::ErrorKind::Fail)
+                )
+            );
+        }
+    };
+    
+    let message_part = if message_parts.len() == 1 {
+        let str_message_part = message_parts[0].1;
+        match pair_part_parsed {
+            PairPart::REQUEST => {
+                match str_message_part {
+                    "method" => { MessagePart::METHOD },
+                    "path" => { MessagePart::PATH },
+                    "version" => { MessagePart::VERSION },
+                    "body" => { MessagePart::BODY },
+                    _ => {
+                        return Err(
+                            nom::Err::Failure(
+                                nom::error::Error::new(initial_reminder, nom::error::ErrorKind::Fail)
+                            )
+                        );
+                    }
+                }
+            },
+            PairPart::RESPONSE => {
+                match str_message_part {
+                    "status" => { MessagePart::STATUS },
+                    "version" => { MessagePart::VERSION },
+                    "body" => { MessagePart::BODY },
+                    _ => {
+                        return Err(
+                            nom::Err::Failure(
+                                nom::error::Error::new(initial_reminder, nom::error::ErrorKind::Fail)
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+    else if message_parts.len() == 2 {
+        let message_part = message_parts[0].1;
+        if message_part != "headers" {
+            return Err(
+                nom::Err::Failure(
+                    nom::error::Error::new(initial_reminder, nom::error::ErrorKind::Fail)
+                )
+            );
+        }
+
+        let header_name = message_parts[1].1;
+        MessagePart::HEADER(header_name.to_string())
+    }
+    else {
+        return Err(
+            nom::Err::Failure(
+                nom::error::Error::new(initial_reminder, nom::error::ErrorKind::Fail)
+            )
+        );
+    };
+
+    let reference = Reference {
+        id: send_id.to_string(),
+        pair_part: pair_part_parsed,
+        message_part
+    };
+
+    return Ok((reminder, reference));
+}
+
 fn parse_1(exp: &str) -> Result<Function, AuditError> {
     // Priority: !, <>=~, functions()
     // Unary and binary operators, any amount of arguments in functions
@@ -163,6 +258,11 @@ fn parse_1(exp: &str) -> Result<Function, AuditError> {
 
             reminder
 
+        }
+        else if let Ok((reminder, arg)) = is_reference(reminder) {
+            add_arg(depth, &mut functions_stack, FunctionArg::REF(arg).into_generic());
+
+            reminder
         }
         else if let Ok((reminder, arg)) = is_integer(reminder) {
             add_arg(depth, &mut functions_stack, arg.into_generic())?;
