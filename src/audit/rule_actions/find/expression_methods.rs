@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::audit::AuditError;
+use crate::audit::{rule_contexts::traits::RuleExecutionContext, AuditError};
 
-use super::expression_args::{ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues, ExecutableExpressionArg};
+use super::{expression_args::{ExecutableExpressionArg, ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues}, ExecutableExpression};
+
+use super::operations::Operations;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub enum ExecutableExpressionMethod {
@@ -46,15 +48,10 @@ impl ExecutableExpressionMethod {
 
     pub(crate) fn check_args(&self, args: &Vec<ExecutableExpressionArg>) -> Result<(), AuditError> {
         let args_have_the_same_type = | args: &Vec<ExecutableExpressionArg> | -> bool {
-            let mut first_type: ExecutableExpressionArgsTypes;
-            for (i, arg) in args.iter().enumerate() {
-                if i == 0 {
-                    first_type = arg.type_cache.as_ref().unwrap().get_type();
-                }
-                else {
-                    if first_type != arg.type_cache.as_ref().unwrap().get_type() {
-                        return false;
-                    }
+            let first_type: ExecutableExpressionArgsTypes = args[0].type_cache.as_ref().unwrap().get_type();
+            for arg in args.iter().skip(1) {
+                if first_type != arg.type_cache.as_ref().unwrap().get_type() {
+                    return false;
                 }
             }
 
@@ -153,4 +150,32 @@ impl ExecutableExpressionMethod {
 
         Ok(())
     }
+
+    pub(crate) fn exec(&self, args: &Vec<ExecutableExpressionArgsValues>) -> Result<ExecutableExpressionArgsValues, AuditError> {
+        match self {
+            Self::LEN => {
+                Ok(args[0].len())
+            },
+            Self::ReMatch => {
+                Ok(args[0].re_match(&args[1]))
+            },
+            Self::EQUAL => {
+                Ok(args[0].equal(&args[1]))
+            },
+            Self::GREATER => {
+                Ok(args[0].greater(&args[1]))
+            },
+            Self::LESS => {
+                Ok(args[0].less(&args[1]))
+            },
+            Self::LessOrEqual => {
+                Ok(args[0].less_or_equal(&args[1]))
+            },
+            Self::GreaterOrEqual => {
+                Ok(args[0].greater_or_equal(&args[1]))
+            },
+        }   
+    }
 }
+
+

@@ -1,13 +1,17 @@
 mod expression_args;
 mod expression_methods;
+mod methods_implementations;
+mod operations;
 
-use std::{collections::{HashMap, HashSet}, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
-use self::{expression_args::ExecutableExpressionArgsTypes, expression_methods::ExecutableExpressionMethod};
+use crate::{audit::rule_contexts::traits::RuleExecutionContext, http_storage::RequestResponsePair};
 
-use super::{*, send::SendActionResults};
+use self::{expression_args::{ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues}, expression_methods::ExecutableExpressionMethod};
+
+use super::*;
 
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -25,9 +29,15 @@ pub(crate) struct ExecutableExpression {
     operation_cache: Option<ExecutableExpressionMethod>
 }
 
+impl ExecutableExpression {
+    fn exec(&self, args: &Vec<ExecutableExpressionArgsValues>) -> Result<ExecutableExpressionArgsValues, AuditError> {
+        self.operation_cache.as_ref().unwrap().exec(args)
+    }
+}
+
 
 impl RuleFindAction {
-    pub(crate) fn check_up(&mut self, _possible_send_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
+    pub(crate) fn check_up(&mut self, possible_send_ref: Option<&HashMap<String, usize>>, send_actions_count: usize) -> Result<(), AuditError> {
         let lowercase_look_for = self.look_for.to_lowercase();
         match lowercase_look_for.as_str() {
             "any" => {
@@ -132,6 +142,35 @@ impl RuleFindAction {
                         }
 
                         let id = parts[0];
+                        let int_id = match id.parse::<usize>() {
+                            Ok(i) => {
+                                i
+                            },
+                            Err(_) => {
+                                match possible_send_ref {
+                                    Some(send_ref) => {
+                                        match send_ref.get(id) {
+                                            Some(index) => {
+                                                index.to_owned()
+                                            },
+                                            None => {
+                                                let err_str = format!("Could not parse Refrence ({} arg) in {}: could not resolve str id - {}", index, &operation.name, id);
+                                                return Err(AuditError(err_str));
+                                            }
+                                        }
+                                    },
+                                    None => {
+                                        let err_str = format!("Could not parse Refrence ({} arg) in {}: could not resolve str id - {}, no mappings for resolving", index, &operation.name, id);
+                                        return Err(AuditError(err_str));
+                                    }
+                                }
+                            }
+                        };
+
+                        if int_id > send_actions_count {
+                            let err_str = format!("Refrence ({} arg) in {} resolved to index {}, but there are only {} send actions", index, &operation.name, int_id, send_actions_count);
+                            return Err(AuditError(err_str));
+                        }
 
                         let pair_part = match parts[1] {
                             "request" => expression_args::PairPart::REQUEST,
@@ -197,7 +236,7 @@ impl RuleFindAction {
 
                         expression_args::ExecutableExpressionArgsValues::Reference(
                             expression_args::Reference {
-                                id: id.to_string(),
+                                id: int_id,
                                 pair_part,
                                 message_part
                             }
@@ -234,8 +273,68 @@ impl RuleFindAction {
         self.id.clone()
     }
 
-    pub(crate) fn exec(&self, send_actions_ref: &std::collections::HashMap<String, usize>, send_results: &Vec<SendActionResults>) -> Result<bool, AuditError> {
-        todo!()
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<bool, AuditError> {
+        let mut executed: HashMap<&str, ExecutableExpressionArgsValues> = HashMap::with_capacity(self.exec.len());
+        let mut last_op: &str = "";
+        for op in self.exec.iter() {
+            let mut args: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(op.args.len());
+            for arg in op.args.iter() {
+                match arg.type_cache.as_ref().unwrap() {
+                    ExecutableExpressionArgsValues::Reference(refer) => {
+                        let dereferenced = refer.deref(ctxt.initial_pair(), ctxt.send_results())?;
+                        args.push(dereferenced);
+                    },
+                    ExecutableExpressionArgsValues::Variable((op_name, _)) => {
+                        let Some(op_result) = executed.get(op_name.as_str()) else {
+                            let err_str = format!("Cannot use result of operation '{}' as variable: operation does not exists or has not executed yet", op_name);
+                            return Err(AuditError(err_str));
+                        };
+
+                        args.push(op_result.clone());
+                    },
+                    _ => {
+                        args.push(arg.type_cache.clone().unwrap())
+                    }
+                }
+            }
+
+            let res = match op.exec(&args) {
+                Ok(value) => {
+                    value
+                },
+                Err(err) => {
+                    let err_str = format!("Error on operation '{}': {}", op.name.as_str(), err);
+                    return Err(AuditError(err_str))
+                }
+            };
+
+            last_op = op.name.as_str();
+            let _ = executed.insert(last_op, res);
+        }
+
+        let last_result = &executed[last_op];
+        
+        if last_result.get_type() != ExecutableExpressionArgsTypes::BOOLEAN {
+            let err_str = format!("Last operation ({}) in find action has type {:?}, but it should be BOOLEAN", last_op, last_result.get_type());
+            return Err(AuditError(err_str));
+        }
+
+        match last_result {
+            ExecutableExpressionArgsValues::Boolean(b) => {
+                Ok(b.to_owned())
+            },
+            ExecutableExpressionArgsValues::Several(s) => {
+                Ok(s.iter().any(|i| { i.boolean() }))
+            },
+            _ => {
+                let err_str = format!("Last operation ({}) in find action has type {:?}, but it should be BOOLEAN", last_op, last_result.get_type());
+                Err(AuditError(err_str))
+            }
+        }
+
+        // TODO Put result into context
     }
+
+
 }
 
