@@ -1,3 +1,9 @@
+use std::collections::HashMap;
+
+use nom::AsChar;
+
+use crate::audit::{rule_contexts::traits::RuleExecutionContext, types::{CapturesBorders, SingleCoordinates}};
+
 use super::*;
 
 impl RuleWatchAction {
@@ -19,5 +25,118 @@ impl RuleWatchAction {
 
     pub(crate) fn get_id(&self) -> Option<String> {
         self.id.clone()
+    }
+
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<(), AuditError> {
+        let Some(request) = ctxt.initial_request() else {
+            let err_str = format!("HTTP pair with id {} has empty request", ctxt.pair_id());
+            return Err(AuditError(err_str));
+        };
+
+        let byte_re = match regex::bytes::Regex::new(&self.pattern) {
+            Ok(re) => {
+                re
+            },
+            Err(err) => {
+                let err_str = format!("Could not parse pattern (for bytes) '{}': {}", &self.pattern, err);
+                return Err(AuditError(err_str));
+            }
+        };
+
+        let insert_closure = |line_index: usize, line: &[u8], substring_offset: usize, byte_re: &regex::bytes::Regex| -> CapturesBorders {
+            let mut cap_borders: CapturesBorders = HashMap::default();
+
+            let Some(cptrs) = byte_re.captures(line) else {
+                return cap_borders;
+            };
+
+            for (cname_index, cname) in byte_re.capture_names().enumerate() {
+                match cname {
+                    Some(cname) => {
+                        let Some(mtch) = cptrs.name(cname) else {
+                            continue;
+                        };
+
+                        let coordinates = SingleCoordinates {
+                            line: line_index,
+                            start: mtch.start() + substring_offset,
+                            end: mtch.end() + substring_offset
+                        };
+
+                        cap_borders.insert(cname.to_string(), vec![coordinates]);
+                    },
+                    None => {
+                        let Some(mtch) = cptrs.get(cname_index) else {
+                            continue;
+                        };
+
+                        let coordinates = SingleCoordinates {
+                            line: line_index,
+                            start: mtch.start() + substring_offset,
+                            end: mtch.end() + substring_offset
+                        };
+
+                        cap_borders.insert(cname_index.to_string(), vec![coordinates]);
+                    }
+                }
+            }
+
+            return cap_borders;
+        };
+
+        let captures_borders: CapturesBorders = match self.part_cache.as_ref().unwrap() {
+            WatchPart::Method => {
+                insert_closure(0, request.method.as_bytes(), 0, &byte_re)
+            },
+            WatchPart::Headers => {
+                let mut captures_borders: CapturesBorders = HashMap::default();
+                for (h_index, (key, value)) in request.headers.iter().enumerate() {
+                    let str_for_search = [key.as_str().as_bytes(), b": ", value.as_bytes()].concat();
+                    let sub_results = insert_closure(h_index + 1, &str_for_search, 0, &byte_re);
+
+                    for (cname, borders) in sub_results {
+                        if captures_borders.contains_key(&cname) {
+                            let mut initial_results = captures_borders.remove(&cname).unwrap();
+                            initial_results.extend(borders);
+                            captures_borders.insert(cname, initial_results);
+                        }
+                    }
+                }
+
+                captures_borders
+            },
+            WatchPart::Path => {
+                let pth = request.get_request_path();
+                let offset = request.method.as_bytes().len() + 1;
+                insert_closure(0, pth.as_bytes(), offset, &byte_re)
+            },
+            WatchPart::Version => {
+                let offset = request.method.as_bytes().len() + 1 + request.get_request_path().as_bytes().len() + 1;
+                insert_closure(0, request.version.as_bytes(), offset, &byte_re)
+            },
+            WatchPart::Body => {
+                let lines_count_start = 1 + request.headers.len();
+                // I'm not sure how this will work in case of utf-*
+                let body_lines = request.body.split(|chr| { chr.as_char() == '\n' });
+                let mut captures_borders: CapturesBorders = HashMap::default();
+
+                for (index, body_line) in body_lines.enumerate() {
+                    let sub_results = insert_closure(lines_count_start + index, &body_line, 0, &byte_re);
+
+                    for (cname, borders) in sub_results {
+                        if captures_borders.contains_key(&cname) {
+                            let mut initial_results = captures_borders.remove(&cname).unwrap();
+                            initial_results.extend(borders);
+                            captures_borders.insert(cname, initial_results);
+                        }
+                    }
+                }
+
+                captures_borders
+            },
+        };
+
+        ctxt.add_watch_result(captures_borders);
+        Ok(())
     }
 }
