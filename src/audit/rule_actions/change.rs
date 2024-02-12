@@ -1,5 +1,7 @@
 use std::{str::FromStr, collections::HashMap};
 
+use crate::audit::{rule_contexts::traits::RuleExecutionContext, types::SingleCoordinates};
+
 use super::*;
 
 impl RuleChangeAction {
@@ -10,6 +12,7 @@ impl RuleChangeAction {
             return Err(AuditError::from_str(&err_mes).unwrap());
         }
 
+        // TODO: Do not use numbers in groups names
         let parsed_watch_id: WatchId = match splitted_watch_id.len() {
             2 => {
                 if let Ok(num_id) = splitted_watch_id[0].parse::<usize>() {
@@ -60,5 +63,32 @@ impl RuleChangeAction {
 
     pub(crate) fn get_id(&self) -> Option<String> {
         self.id.clone()
+    }
+
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<(), AuditError> {
+        let watch_results = ctxt.watch_results();
+        let wid = self.watch_id_cache.as_ref().unwrap();
+
+        if wid.id >= watch_results.len() {
+            let err_str = format!("Rule has watch_id '{}' which is resolved into watch-list element with index {} that is greater than the list size - {}", &self.watch_id, wid.id, watch_results.len());
+            return Err(AuditError(err_str));
+        }
+
+        let group_name = match wid.group_name.as_ref() {
+            Some(gn) => { gn },
+            None => { "0" }
+        };
+
+        let single_watch_result = &watch_results[wid.id];
+
+        match single_watch_result.get(group_name) {
+            Some(f) => {
+                ctxt.add_change_result(f.clone());
+                Ok(())
+            },
+            None => {
+                Ok(())
+            }
+        }
     }
 }
