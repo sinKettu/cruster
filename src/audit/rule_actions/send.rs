@@ -1,10 +1,11 @@
-use std::{collections::HashMap, str::{FromStr, Bytes}};
+use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
 
 use bstr::ByteSlice;
 use http::{header::HeaderName, HeaderValue, HeaderMap};
 use nom::AsChar;
 
-use crate::cruster_proxy::request_response::HyperRequestWrapper;
+use crate::{audit::{rule_contexts::traits::RuleExecutionContext, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}}, cruster_proxy::request_response::HyperRequestWrapper};
+use crate::http_sender;
 
 use super::*;
 
@@ -38,7 +39,11 @@ impl RuleSendAction {
         self.id.clone()
     }
 
-    fn modify_request(&self, request: &HyperRequestWrapper, new_line: Vec<u8>, (ln, start, end): ReqResCoordinates) -> Result<HyperRequestWrapper, AuditError> {
+    pub(crate) fn get_apply_id(&self) -> usize {
+        self.apply_cache.as_ref().unwrap().to_owned()
+    }
+
+    fn modify_request(&self, request: &HyperRequestWrapper, new_line: Vec<u8>, ln: usize) -> Result<HyperRequestWrapper, AuditError> {
         let headers_number = request.headers.len();
         
         if ln == 0 {
@@ -114,7 +119,7 @@ impl RuleSendAction {
             return Ok(new_request)
         }
         else {
-            let mut splitted = request.body.split(|c| {c.as_char() == '\n'}).collect::<Vec<&[u8]>>();
+            let splitted = request.body.split(|c| {c.as_char() == '\n'}).collect::<Vec<&[u8]>>();
             let index = ln - headers_number - 1;
             if index >= splitted.len() {
                 let err_str = format!("Cannot apply {} change, because it's index is out of bounds of the request", self.apply_cache.unwrap());
@@ -143,10 +148,16 @@ impl RuleSendAction {
         }
     }
 
-    pub(crate) fn exec(&self, change_results: &Vec<&Vec<ReqResCoordinates>>, placement: ChangeValuePlacement, payloads: &Vec<String>, request: &HyperRequestWrapper) -> Result<(), AuditError> {
+    pub(crate) async fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T, placement: ChangeValuePlacement, payloads: &'rule_lt Vec<String>) -> Result<(), AuditError> {
         let change_to_apply = self.apply_cache.unwrap();
+        let coordinates = &ctxt.change_results()[change_to_apply];
+        let request = ctxt.initial_request().unwrap();
 
-        for (line_number, start, end) in change_results[change_to_apply] {
+        // First level - one per pattern entry
+        // Second level - one per payload value
+        // third level - one per every repeat
+        let mut results = SendActionResultsPerPatternEntry::with_capacity(coordinates.len());
+        for SingleCoordinates { line: line_number, start, end} in coordinates {
             let workline = if line_number.to_owned() == 0 {
                 let method_bytes = request.method.as_bytes();
                 let path = request.get_request_path();
@@ -179,26 +190,81 @@ impl RuleSendAction {
                 request_line.to_vec()
             };
 
+            let mut second_level_results: PayloadsTests = PayloadsTests::with_capacity(payloads.len());
             for payload in payloads {
-                match placement {
+                let (new_line, new_start, new_end) = match placement {
                     ChangeValuePlacement::AFTER => {
                         let left_line_part = &workline[0..=*end];
                         let right_line_part = &workline[*end+1..];
-                        let new_line = [left_line_part, payload.as_bytes(), right_line_part].concat();
 
-
+                        (
+                            [left_line_part, payload.as_bytes(), right_line_part].concat(),
+                            left_line_part.len(),
+                            (left_line_part.len() + payload.len()).saturating_sub(1)
+                        )
                     },
                     ChangeValuePlacement::BEFORE => {
-                        todo!()
+                        let left_line_part = &workline[0..=*start];
+                        let right_line_part = &workline[*start+1..];
+
+                        (
+                            [left_line_part, payload.as_bytes(), right_line_part].concat(),
+                            left_line_part.len(),
+                            (left_line_part.len() + payload.len()).saturating_sub(1)
+                        )
                     },
                     ChangeValuePlacement::REPLACE => {
-                        todo!()
+                        let left_line_part = &workline[0..=*start];
+                        let right_line_part = &workline[*end+1..];
+                        
+                        (
+                            [left_line_part, payload.as_bytes(), right_line_part].concat(),
+                            left_line_part.len(),
+                            (left_line_part.len() + payload.len()).saturating_sub(1)
+                        )
+                    }
+                };
+
+                let modified_request = self.modify_request(request, new_line, line_number.to_owned())?;
+                let repeat_number = if let Some(rn) = self.repeat.as_ref() { rn.to_owned() } else { 0 };
+                let timeout = if let Some(tout) = self.timeout_after.as_ref() { tout.to_owned() } else { 0 };
+
+                let mut third_level_results: SingleSendActionResult = SingleSendActionResult {
+                    request_sent: modified_request,
+                    positions_changed: SingleCoordinates {
+                        line: line_number.to_owned(),
+                        start: new_start,
+                        end: new_end
+                    },
+                    responses_received: Vec::with_capacity(repeat_number + 1)
+                };
+
+                for _ in 0..(repeat_number + 1) {
+                    let response = match http_sender::send_request_from_wrapper(&third_level_results.request_sent, 0).await {
+                        Ok((response, _)) => {
+                            response
+                        },
+                        Err(err) => {
+                            let err_str = format!("Action failed on sending request: {}", err);
+                            return Err(AuditError(err_str));
+                        }  
+                    };
+
+                    third_level_results.responses_received.push(response);
+
+                    if repeat_number > 0 && timeout > 0 {
+                        sleep(Duration::from_millis(timeout as u64));
                     }
                 }
+
+                second_level_results.insert(payload.as_str(), third_level_results);
             }
+
+            results.push(second_level_results);
         }
 
+        ctxt.add_send_result(results);
 
-        todo!()
+        Ok(())
     }
 }
