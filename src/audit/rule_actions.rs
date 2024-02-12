@@ -7,14 +7,20 @@ pub(super) mod get;
 use serde::{Serialize, Deserialize};
 
 use super::AuditError;
-use super::expressions::functions::Function;
+
+// (line_number, substring start, substring end)
+// METHOD /path Version -- is 0 line
+// HeaderKey: HeaderVal - is 'index-of-header + 1' line
+// BodyLine = Body split by \n -- is 'index-of-body-line + 1 + count-of-headers' line
+// (line_number, 0, 0) - to take whole line
+pub(crate) type ReqResCoordinates = (usize, usize, usize);
 
 
 // Used to parse string watch_id to speed up future operations
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct WatchId {
-    id: usize,
-    group_name: Option<String>
+    pub(crate) id: usize,
+    pub(crate) group_name: Option<String>
 }
 
 impl WatchId {
@@ -42,18 +48,11 @@ pub(crate) struct RuleChangeAction {
     // This field will store more convinient representation of watch_id after first check
     watch_id_cache: Option<WatchId>,
 
-    placement: String,
+    pub(super) placement: String,
     // This field will store more convinient representation of placement after first check
-    placement_cache: Option<ChangeValuePlacement>,
+    pub(super) placement_cache: Option<ChangeValuePlacement>,
 
-    values: Vec<String>,
-}
-
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub(crate) enum LookFor {
-    ANY,
-    ALL
+    pub(super) values: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -62,11 +61,9 @@ pub(crate) struct RuleFindAction {
 
     look_for: String,
     // This field stores more convinient representation of look_for after first check
-    look_for_cache: Option<LookFor>,
+    look_for_cache: Option<find::LookFor>,
 
-    expressions: Vec<String>,
-    // This field stores parsed expressions in a shape convinient to execute
-    parsed_expressions: Option<Vec<Function>>
+    exec: Vec<find::ExecutableExpression>
 }
 
 
