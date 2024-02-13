@@ -21,4 +21,6 @@ pub(crate) trait RuleExecutionContext<'pair_lt, 'rule_lt> {
     fn add_send_result(&mut self, res: SendActionResultsPerPatternEntry<'rule_lt>);
     fn send_results(&self) -> &Vec<SendActionResultsPerPatternEntry>;
 
+    fn add_find_result(&mut self, res: bool);
+    fn find_results(&self) -> &Vec<bool>;
 }

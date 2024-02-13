@@ -1,6 +1,5 @@
 mod expression_args;
 mod expression_methods;
-mod methods_implementations;
 mod operations;
 
 use std::{collections::HashMap, str::FromStr};
@@ -273,7 +272,7 @@ impl RuleFindAction {
         self.id.clone()
     }
 
-    pub(crate) fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<bool, AuditError> {
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<(), AuditError> {
         let mut executed: HashMap<&str, ExecutableExpressionArgsValues> = HashMap::with_capacity(self.exec.len());
         let mut last_op: &str = "";
         for op in self.exec.iter() {
@@ -321,18 +320,18 @@ impl RuleFindAction {
 
         match last_result {
             ExecutableExpressionArgsValues::Boolean(b) => {
-                Ok(b.to_owned())
+                ctxt.add_find_result(b.to_owned());
             },
             ExecutableExpressionArgsValues::Several(s) => {
-                Ok(s.iter().any(|i| { i.boolean() }))
+                ctxt.add_find_result(s.iter().any(|i| { i.boolean() }));
             },
             _ => {
                 let err_str = format!("Last operation ({}) in find action has type {:?}, but it should be BOOLEAN", last_op, last_result.get_type());
-                Err(AuditError(err_str))
+                return Err(AuditError(err_str));
             }
         }
 
-        // TODO Put result into context
+        Ok(())
     }
 
 

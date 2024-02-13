@@ -15,5 +15,7 @@ pub(crate) struct ActiveRuleContext<'pair_lt, 'rule_lt> {
     change_results: Vec<SingleCaptureGroupCoordinates>,
 
     send_results: Vec<SendActionResultsPerPatternEntry<'rule_lt>>,
+
+    find_results: Vec<bool>,
 }
 

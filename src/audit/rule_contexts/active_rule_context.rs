@@ -13,6 +13,7 @@ impl<'a, 'b> ActiveRuleContext<'a, 'b> {
             watch_succeeded_for_change: false,
             change_results: Vec::with_capacity(10),
             send_results: Vec::with_capacity(10),
+            find_results: Vec::with_capacity(10),
         }
     }
 }
@@ -64,5 +65,13 @@ impl<'pair_lt, 'rule_lt,> RuleExecutionContext<'pair_lt, 'rule_lt> for ActiveRul
 
     fn send_results(&self) -> &Vec<crate::audit::types::SendActionResultsPerPatternEntry> {
         &self.send_results
+    }
+
+    fn add_find_result(&mut self, res: bool) {
+        self.find_results.push(res);
+    }
+
+    fn find_results(&self) -> &Vec<bool> {
+        &self.find_results
     }
 }
