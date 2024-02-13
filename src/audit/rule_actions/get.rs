@@ -1,40 +1,59 @@
 use std::collections::HashMap;
 
+use regex::Regex;
+
 use super::*;
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(super) enum ExtractModifier {
+    LINE,
+    MATCH,
+    Group(String)
+}
+
 impl RuleGetAction {
-    pub(crate) fn check_up(&mut self, possible_find_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
-        if let Ok(num_find_id) = self.find_id.parse::<usize>() {
-            self.find_id_cache = Some(num_find_id)
-        }
+    pub(crate) fn check_up(&mut self, possible_find_ref: Option<&HashMap<String, usize>>, possible_send_ref: Option<&HashMap<String, usize>>) -> Result<(), AuditError> {
+        self.from_cache = if let Ok(str_from_id) = self.from.parse::<usize>() {
+            Some(str_from_id)
+        } 
         else {
-            if let Some(find_ref) = possible_find_ref {
-                if let Some(num_find_id) = find_ref.get(&self.find_id) {
-                    self.find_id_cache = Some(num_find_id.to_owned());
+            if let Some(refer) = possible_send_ref {
+                if let Some(index) = refer.get(&self.from) {
+                    Some(index.to_owned())
                 }
                 else {
-                    return Err(
-                        AuditError(format!("could not find a FIND action with id '{}'", &self.find_id))
-                    );
+                    let err_str = format!("Found send action id '{}' in get action, but cannot find action with this id", self.from.as_str());
+                    return Err(AuditError(err_str));    
                 }
             }
             else {
-                return Err(
-                    AuditError(format!("FIND action with id '{}' cannot be found", &self.find_id))
-                );
+                let err_str = format!("Found send action id '{}' in get action, but cannot find action with this id", self.from.as_str());
+                return Err(AuditError(err_str));
             }
-        }
+        };
 
-        match self.extract.as_str() {
-            "LINE" => {
-                self.extract_cache = Some(ExtractionMode::LINE)
-            },
-            "MATCH" => {
-                self.extract_cache = Some(ExtractionMode::MATCH)
-            },
-            _ => {
-                self.extract_cache = Some(ExtractionMode::GROUP(self.extract.clone()))
+        self.if_succeed_cache = if let Ok(str_find_id) = self.if_succeed.parse::<usize>() {
+            Some(str_find_id)
+        }
+        else {
+            if let Some(refer) = possible_find_ref {
+                if let Some(index) = refer.get(&self.if_succeed) {
+                    Some(index.to_owned())
+                }
+                else {
+                    let err_str = format!("Found find action id '{}' in get, but cannot find action with this id", self.if_succeed.as_str());
+                    return Err(AuditError(err_str));    
+                }
             }
+            else {
+                let err_str = format!("Found find action id '{}' in get, but cannot find the action with this id", self.if_succeed.as_str());
+                return Err(AuditError(err_str));
+            }
+        };
+
+        if let Err(e) = Regex::new(&self.pattern) {
+            let err_str = format!("Given pattern - '{}' - cannot be parsed as regex", &self.pattern);
+            return Err(AuditError(err_str));
         }
 
         Ok(())
