@@ -6,7 +6,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{audit::rule_contexts::traits::RuleExecutionContext, http_storage::RequestResponsePair};
+use crate::audit::rule_contexts::traits::{WithFindAction, WithSendAction};
 
 use self::{expression_args::{ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues}, expression_methods::ExecutableExpressionMethod};
 
@@ -272,7 +272,10 @@ impl RuleFindAction {
         self.id.clone()
     }
 
-    pub(crate) fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<(), AuditError> {
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T) -> Result<(), AuditError> 
+    where
+        T: WithFindAction<'pair_lt, 'rule_lt> + WithSendAction<'pair_lt, 'rule_lt>
+    {
         let mut executed: HashMap<&str, ExecutableExpressionArgsValues> = HashMap::with_capacity(self.exec.len());
         let mut last_op: &str = "";
         for op in self.exec.iter() {

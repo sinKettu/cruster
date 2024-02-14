@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use regex::Regex;
 
+use crate::audit::rule_contexts::traits::{WithFindAction};
+
 use super::*;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -55,6 +57,15 @@ impl RuleGetAction {
             let err_str = format!("Given pattern - '{}' - cannot be parsed as regex", &self.pattern);
             return Err(AuditError(err_str));
         }
+
+        Ok(())
+    }
+
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T) -> Result<(), AuditError>
+    where
+        T: WithFindAction<'pair_lt, 'rule_lt>
+    {
+
 
         Ok(())
     }

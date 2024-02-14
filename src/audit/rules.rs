@@ -155,7 +155,7 @@ impl Rule {
         // Check the same for GET
         if let Some(get_actions) = self.rule.get.as_mut() {
             for get_action in get_actions.iter_mut() {
-                if let Err(err) = get_action.check_up(self.find_ref.as_ref()) {
+                if let Err(err) = get_action.check_up(self.find_ref.as_ref(), self.send_ref.as_ref()) {
                     return Err(self.make_error(Some(err)));
                 }
             }

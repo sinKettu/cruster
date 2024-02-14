@@ -1,6 +1,6 @@
 use std::{str::FromStr, collections::HashMap};
 
-use crate::audit::{rule_contexts::traits::RuleExecutionContext, types::SingleCoordinates};
+use crate::audit::{rule_contexts::traits::{WithChangeAction, WithWatchAction}, types::SingleCoordinates};
 
 use super::*;
 
@@ -65,7 +65,10 @@ impl RuleChangeAction {
         self.id.clone()
     }
 
-    pub(crate) fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<(), AuditError> {
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T) -> Result<(), AuditError>
+    where
+        T: WithWatchAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt>
+    {
         let watch_results = ctxt.watch_results();
         let wid = self.watch_id_cache.as_ref().unwrap();
 

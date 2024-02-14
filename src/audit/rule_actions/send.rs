@@ -4,7 +4,7 @@ use bstr::ByteSlice;
 use http::{header::HeaderName, HeaderValue, HeaderMap};
 use nom::AsChar;
 
-use crate::{audit::{rule_contexts::traits::RuleExecutionContext, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}}, cruster_proxy::request_response::HyperRequestWrapper};
+use crate::{audit::{rule_contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}}, cruster_proxy::request_response::HyperRequestWrapper};
 use crate::http_sender;
 
 use super::*;
@@ -148,7 +148,10 @@ impl RuleSendAction {
         }
     }
 
-    pub(crate) async fn exec<'pair_lt, 'rule_lt, T: RuleExecutionContext<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T, placement: ChangeValuePlacement, payloads: &'rule_lt Vec<String>) -> Result<(), AuditError> {
+    pub(crate) async fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T, placement: ChangeValuePlacement, payloads: &'rule_lt Vec<String>) -> Result<(), AuditError>
+    where
+        T: WithSendAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt> 
+    {
         let change_to_apply = self.apply_cache.unwrap();
         let coordinates = &ctxt.change_results()[change_to_apply];
         let request = ctxt.initial_request().unwrap();

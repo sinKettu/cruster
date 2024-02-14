@@ -16,8 +16,6 @@ use rule_actions::{
     RuleGetAction
 };
 
-use self::rule_contexts::traits::RuleExecutionContext;
-
 pub(crate) struct AuditError(String);
 
 impl FromStr for AuditError {
@@ -91,6 +89,6 @@ pub(crate) struct RuleResult {
 
 pub(crate) enum RuleFinalState {
     Skipped(String),
-    Finished(RuleResult),
+    Finished(Option<RuleResult>),
     Failed(String)
 }

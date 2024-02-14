@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::audit::{rule_contexts::traits::RuleExecutionContext, AuditError};
+use crate::audit::{AuditError};
 
 use super::{expression_args::{ExecutableExpressionArg, ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues}, ExecutableExpression};
 
