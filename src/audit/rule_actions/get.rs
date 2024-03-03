@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use regex::Regex;
+use regex::bytes::Regex;
 
-use crate::audit::rule_contexts::traits::{WithFindAction};
+use crate::audit::{rule_contexts::traits::{WithFindAction, WithGetAction, WithSendAction}, types::PayloadsTests};
 
 use super::*;
 
@@ -63,10 +63,44 @@ impl RuleGetAction {
 
     pub(crate) fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T) -> Result<(), AuditError>
     where
-        T: WithFindAction<'pair_lt, 'rule_lt>
+        T: WithFindAction<'pair_lt, 'rule_lt> + WithGetAction<'pair_lt, 'rule_lt>
     {
+        let find_id = self.if_succeed_cache.unwrap();
+        if ! ctxt.find_action_secceeded(find_id) {
+            ctxt.add_empty_result();
+            return Ok(())
+        }
+
+        // Checks are done before
+        let pattern = Regex::new(&self.pattern).unwrap();
+
+        let send_data: &Vec<PayloadsTests<'rule_lt>> = ctxt.get_pair_by_id(find_id)?;
+        for accordance in send_data {
+            for (_, send_result) in accordance {
+                let request = &send_result.request_sent;
+                let responses = &send_result.responses_received;
+
+                match &self.extract {
+                    ExtractionModeByPart::REQUEST(mode) => {
+                        let extracted_data = request.extract_with_byte_re(&pattern, mode);
+                        if extracted_data.is_empty() {
+                            continue;
+                        }
+                        else {
+                            ctxt.add_get_result(extracted_data);
+                            return Ok(());
+                        }
+                    },
+                    ExtractionModeByPart::RESPONSE(mode) => {
+                        todo!()
+                    }
+                }
 
 
+            }
+        }
+
+        ctxt.add_empty_result();
         Ok(())
     }
 }

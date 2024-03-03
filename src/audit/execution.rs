@@ -11,6 +11,7 @@ impl Rule {
             crate::audit::RuleType::Active => {
                 let mut ctxt: ActiveRuleContext = ActiveRuleContext::init(self, pair);
 
+                // WATCH
                 for action in self.rule.watch.as_ref().unwrap().iter() {
                     if let Err(err) = action.exec(&mut ctxt) {
                         let err_str = format!("Rule '{}' failed for pair {} on watch action: {}", self.get_id(), pair.index, err);
@@ -18,6 +19,7 @@ impl Rule {
                     }
                 }
 
+                // CHANGE
                 for action in self.rule.change.as_ref().unwrap() {
                     if let Err(err) = action.exec(&mut ctxt) {
                         let err_str = format!("Rule '{}' failed for pair {} on change action: {}", self.get_id(), pair.index, err);
@@ -30,6 +32,7 @@ impl Rule {
                     return RuleFinalState::Skipped(reason);
                 }
 
+                // SEND
                 for action in self.rule.send.as_ref().unwrap() {
                     let apply_id = action.get_apply_id();
 
@@ -59,6 +62,7 @@ impl Rule {
                     }
                 }
 
+                // FIND
                 for action in self.rule.find.as_ref().unwrap() {
                     if let Err(err) = action.exec(&mut ctxt) {
                         let err_str = format!("Rule '{}' failed for pair {} on find action: {}", self.get_id(), pair.index, err);
@@ -70,6 +74,7 @@ impl Rule {
                     return RuleFinalState::Finished(None);
                 }
 
+                // GET
                 for action in self.rule.get.as_ref().unwrap() {
                     if let Err(err) = action.exec(&mut ctxt) {
                         let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err);

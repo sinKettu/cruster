@@ -17,5 +17,7 @@ pub(crate) struct ActiveRuleContext<'pair_lt, 'rule_lt> {
     send_results: Vec<SendActionResultsPerPatternEntry<'rule_lt>>,
 
     find_results: Vec<bool>,
+
+    get_result: Vec<Option<Vec<u8>>>,
 }
 

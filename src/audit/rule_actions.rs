@@ -104,6 +104,12 @@ pub(crate) enum ExtractionMode {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) enum ExtractionModeByPart {
+    REQUEST(ExtractionMode),
+    RESPONSE(ExtractionMode)
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleGetAction {
     from: String,
     from_cache: Option<usize>,
@@ -111,7 +117,7 @@ pub(crate) struct RuleGetAction {
     if_succeed: String,
     if_succeed_cache: Option<usize>,
 
-    extract: ExtractionMode,
+    extract: ExtractionModeByPart,
 
     pattern: String
 }

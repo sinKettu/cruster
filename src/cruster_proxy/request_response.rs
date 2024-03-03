@@ -15,8 +15,8 @@ use bstr::ByteSlice;
 use std::{fmt::Display, borrow::Cow};
 use std::ffi::CString;
 
-use crate::CrusterError;
-use regex::Regex;
+use crate::{audit::rule_actions::{ExtractionMode, ExtractionModeByPart}, CrusterError};
+use regex::{bytes::{Captures, Regex as ByteRegex}, Regex};
 use hyper::body::Bytes;
 
 #[derive(Clone, Debug)]
@@ -260,6 +260,87 @@ impl HyperRequestWrapper {
 
         let body = self.body.as_slice().to_str_lossy();
         return re.find(&body).is_some();
+    }
+
+    pub(crate) fn extract_with_byte_re(&self, re: &ByteRegex, mode: &ExtractionMode) -> Vec<u8> {
+        // closure to make life easier
+        let get_capture = |cap: Captures, line: &[u8], mode: &ExtractionMode| -> Vec<u8> {
+            match mode {
+                ExtractionMode::MATCH => {
+                    return cap.get(0).unwrap().as_bytes().to_owned();
+                },
+                ExtractionMode::LINE => {
+                    return line.to_owned();
+                },
+                ExtractionMode::GROUP(gname) => {
+                    match cap.name(gname) {
+                        Some(group) => {
+                            return group.as_bytes().to_owned();
+                        },
+                        None => {
+                            return vec![]
+                        }
+                    }
+                }
+            }
+        };
+
+        // First Line
+        // GET http://something HTTP/3
+        let path = self.uri.split("/").skip(3).collect::<Vec<&str>>().join("/");
+        let first_line = [
+            self.method.as_bytes(),
+            " /".as_bytes(),
+            path.as_bytes(),
+            " ".as_bytes(),
+            self.version.as_bytes(),
+            "\r\n".as_bytes()
+        ]
+            .into_iter()
+            .flatten()
+            .map(|c| { *c })
+            .collect::<Vec<u8>>();
+        
+        let cap = re.captures(&first_line);
+        if let Some(cap) = cap {
+            return get_capture(cap, &first_line, mode);
+        }
+
+        // Headers
+        // Name: Value1; Value2
+        for k in self.headers.keys() {
+            let v = self.headers
+                .get_all(k)
+                .iter()
+                .flat_map(|hv| { [hv.as_bytes(), "; ".as_bytes()] })
+                .flatten()
+                .map(|c| { *c })
+                .collect::<Vec<u8>>();
+
+            let header_line = [
+                k.as_str().as_bytes(),
+                ": ".as_bytes(),
+                &v[0..v.len() - 2],
+                "\r\n".as_bytes()
+            ]
+                .into_iter()
+                .flatten()
+                .map(|c| { *c })
+                .collect::<Vec<u8>>();
+
+            if let Some(cap) = re.captures(&header_line) {
+                return get_capture(cap, &header_line, mode);
+            }
+        }
+
+        // Body
+        for body_line in self.body.split(|c| { *c == b'c' }) {
+            if let Some(cap) = re.captures(&body_line) {
+                return get_capture(cap, body_line, mode);
+            }
+        }
+
+        vec![]
     }
 }
 

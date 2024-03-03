@@ -1,17 +1,40 @@
-use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
-use crate::{audit::{rule_actions::WatchId, types::CapturesBorders, Rule}, http_storage::RequestResponsePair};
+use std::collections::HashMap;
+
+use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
+use crate::{audit::{rule_actions::WatchId, types::{CapturesBorders, PairToGetData, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}, AuditError, Rule}, http_storage::RequestResponsePair};
 
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt>
 {
     fn init(rule: &'rule_lt Rule, pair: &'pair_lt RequestResponsePair) -> Self {
+        // set initial pair as send action result with index 0
+        let initial_send_results: Vec<SendActionResultsPerPatternEntry<'rule_lt>> = vec![
+            vec![
+                HashMap::from([
+                    (
+                        "__VERY_INITIAL_PAIR__",
+                        SingleSendActionResult {
+                            request_sent: pair.request.as_ref().unwrap().clone(),
+                            positions_changed: SingleCoordinates {
+                                line: 0,
+                                start: 0,
+                                end: 0
+                            },
+                            responses_received: vec![pair.response.as_ref().unwrap().clone()]
+                        }
+                    )
+                ])
+            ]
+        ];
+
         ActiveRuleContext {
             rule_id: rule.get_id().to_string(),
             pair,
             watch_results: Vec::with_capacity(10),
             watch_succeeded_for_change: false,
             change_results: Vec::with_capacity(10),
-            send_results: Vec::with_capacity(10),
+            send_results: initial_send_results,
             find_results: Vec::with_capacity(10),
+            get_result: Vec::with_capacity(10),
         }
     }
 
@@ -82,6 +105,33 @@ impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt, 'rule_lt> for ActiveRuleContex
 
     fn found_anything(&self) -> bool {
         self.find_results.iter().any(|result| { *result })
+    }
+}
+
+impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt> {
+    fn find_action_secceeded(&self, id: usize) -> bool {
+        if id >= self.find_results.len() {
+            false
+        }
+        else {
+            self.find_results[id]
+        }
+    }
+
+    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry<'rule_lt>, AuditError> {
+        if id >= self.send_results.len() {
+            return Err(AuditError("Index of Send results is out of bounds".to_string()));
+        }
+
+        Ok(&self.send_results[id])
+    }
+
+    fn add_empty_result(&mut self) {
+        self.get_result.push(None);
+    }
+
+    fn add_get_result(&mut self, res: Vec<u8>) {
+        self.get_result.push(Some(res));
     }
 }
 

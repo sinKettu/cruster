@@ -1,4 +1,4 @@
-use crate::{audit::{rule_actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
+use crate::{audit::{rule_actions::WatchId, types::{CapturesBorders, PairToGetData, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
 
 
 pub(crate) trait BasicContext<'pair_lt, 'rule_lt> {
@@ -33,6 +33,13 @@ pub(crate) trait WithFindAction<'pair_lt, 'rule_lt>: BasicContext<'pair_lt, 'rul
     fn add_find_result(&mut self, res: bool);
     fn find_results(&self) -> &Vec<bool>;
     fn found_anything(&self) -> bool;
+}
+
+pub(crate) trait WithGetAction<'pair_lt, 'rule_lt>: BasicContext<'pair_lt, 'rule_lt> {
+    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry<'rule_lt>, AuditError>;
+    fn find_action_secceeded(&self, id: usize) -> bool;
+    fn add_empty_result(&mut self);
+    fn add_get_result(&mut self, res: Vec<u8>);
 }
 
 pub(crate) trait ActiveRuleExecutionContext<'pair_lt, 'rule_lt>: WithWatchAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt> + WithSendAction<'pair_lt, 'rule_lt> + WithFindAction<'pair_lt, 'rule_lt> {

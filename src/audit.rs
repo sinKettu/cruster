@@ -1,4 +1,4 @@
-mod rule_actions;
+pub(crate) mod rule_actions;
 pub(crate) mod load_rule;
 pub(crate) mod execution;
 pub(crate) mod rules;
