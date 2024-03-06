@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use regex::bytes::Regex;
 
-use crate::audit::{rule_contexts::traits::{WithFindAction, WithGetAction, WithSendAction}, types::PayloadsTests};
+use crate::audit::{rule_contexts::traits::{WithFindAction, WithGetAction}, types::PayloadsTests};
+use crate::cruster_proxy::request_response::extract::ExtractFromHTTPPartByRegex;
 
 use super::*;
 
@@ -53,7 +54,7 @@ impl RuleGetAction {
             }
         };
 
-        if let Err(e) = Regex::new(&self.pattern) {
+        if let Err(_) = Regex::new(&self.pattern) {
             let err_str = format!("Given pattern - '{}' - cannot be parsed as regex", &self.pattern);
             return Err(AuditError(err_str));
         }
@@ -82,17 +83,20 @@ impl RuleGetAction {
 
                 match &self.extract {
                     ExtractionModeByPart::REQUEST(mode) => {
-                        let extracted_data = request.extract_with_byte_re(&pattern, mode);
-                        if extracted_data.is_empty() {
-                            continue;
-                        }
-                        else {
+                        let possible_extracted_data = request.extract(&pattern, mode);
+                        if let Some(extracted_data) = possible_extracted_data {
                             ctxt.add_get_result(extracted_data);
                             return Ok(());
                         }
                     },
                     ExtractionModeByPart::RESPONSE(mode) => {
-                        todo!()
+                        for response in responses {
+                            let possible_extracted_data = response.extract(&pattern, mode);
+                            if let Some(extracted_data) = possible_extracted_data {
+                                ctxt.add_get_result(extracted_data);
+                                return Ok(());
+                            }
+                        }
                     }
                 }
 
