@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
-use crate::{audit::{rule_actions::WatchId, types::{CapturesBorders, PairToGetData, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}, AuditError, Rule}, http_storage::RequestResponsePair};
+use crate::{audit::{rule_actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}, AuditError, Rule}, http_storage::RequestResponsePair};
 
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt>
 {
