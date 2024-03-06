@@ -9,6 +9,8 @@ use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config as L4R_Config, Root};
 
+use crate::utils::CrusterError;
+
 pub(crate) struct CrusterConfigError {
     error: String
 }
@@ -49,6 +51,22 @@ pub(crate) struct Dump {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct AuditEntities {
+    pub(crate) tags: Vec<String>,
+    pub(crate) paths: Vec<String>,
+    pub(crate) ids: Vec<String>
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct AuditConfig {
+    pub(crate) passive: bool,
+    pub(crate) active: bool,
+    pub(crate) rules: Vec<String>,
+    pub(crate) exclude: Option<AuditEntities>,
+    pub(crate) include: Option<AuditEntities>,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct Config {
     pub(crate) tls_key_name: String,
     pub(crate) tls_cer_name: String,
@@ -58,7 +76,9 @@ pub(crate) struct Config {
     pub(crate) project: Option<String>,
     pub(crate) scope: Option<Scope>,
     pub(crate) dump_mode: Option<Dump>,
-    pub(crate) editor: Option<String>
+    pub(crate) editor: Option<String>,
+    pub(crate) audit: bool,
+    pub(crate) audit_config: Option<String>,
 }
 
 impl Default for Dump {
@@ -67,6 +87,24 @@ impl Default for Dump {
             enabled: false,
             verbosity: 0,
             color: true
+        }
+    }
+}
+
+impl Default for AuditEntities {
+    fn default() -> Self {
+        AuditEntities { tags: Vec::new(), paths: Vec::new(), ids: Vec::new() }
+    }
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        AuditConfig {
+            passive: false,
+            active: false,
+            rules: Vec::new(),
+            exclude: None,
+            include: None
         }
     }
 }
@@ -82,8 +120,27 @@ impl Default for Config {
             project: None,
             scope: None,
             dump_mode: None,
-            editor: None
+            editor: None,
+            audit: false,
+            audit_config: None
         }
+    }
+}
+
+impl Config {
+    pub(crate) fn save_with_project(&self) -> Result<(), CrusterError> {
+        if self.project.is_none() {
+            return Err(CrusterError::UndefinedError("Cannot save config with project, no project path is set".to_string()));
+        }
+
+        let config_path = format!("{}/config.yaml", self.project.as_ref().unwrap());
+        let config_file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&config_path)?;
+
+        yml::to_writer(&config_file, self)?;
+        Ok(())
     }
 }
 
@@ -104,9 +161,11 @@ fn parse_cmd() -> clap::ArgMatches {
     let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
     let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>";
     let editor_help = "Path to editor executable to use in CLI mode";
+    let audit_help = "Enable audit";
+    let audit_conf_help = "Path to audit config with YAML format";
 
     let matches = clap::Command::new("cruster")
-        .version("0.7.2")
+        .version("0.8.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .subcommand(
@@ -323,6 +382,17 @@ fn parse_cmd() -> clap::ArgMatches {
                                 )
                         )
                 )
+                .subcommand(
+                    clap::Command::new("audit")
+                        .alias("a")
+                        .about("Work with audit via CLI")
+                        .subcommand_required(true)
+                        .subcommand(
+                            clap::Command::new("run")
+                                .alias("r")
+                                .about("Run audit using audit config")
+                        )
+                )
         )
         .arg(
             clap::Arg::new("workplace")
@@ -395,6 +465,18 @@ fn parse_cmd() -> clap::ArgMatches {
                 .value_name("PATH_TO_EXECUTABLE")
                 .help(editor_help)
         )
+        .arg(
+            clap::Arg::new("audit")
+                .short('A')
+                .action(clap::ArgAction::SetTrue)
+                .help(audit_help)
+        )
+        .arg(
+            clap::Arg::new("audit-config")
+                .long("audit-config")
+                .value_name("AUDIT_CONFIG_PATH")
+                .help(audit_conf_help)
+        )
         .get_matches();
 
     return matches;
@@ -402,7 +484,7 @@ fn parse_cmd() -> clap::ArgMatches {
 
 // -----------------------------------------------------------------------------------------------//
 #[allow(dead_code)]
-pub(crate) fn handle_user_input() -> Result<(Config, CrusterMode), CrusterConfigError> {
+pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), CrusterConfigError> {
     let matches = parse_cmd();
     let default_workplace = tilde("~/.cruster");
     let default_config = tilde("~/.cruster/config.yaml");
@@ -635,7 +717,52 @@ pub(crate) fn handle_user_input() -> Result<(Config, CrusterMode), CrusterConfig
         config.editor = Some(editor.to_string());
     }
 
-    Ok((config, cmd))
+    if matches.get_flag("audit") {
+        config.audit = true;
+    }
+
+    if let Some(audit_conf) = matches.get_one::<String>("audit-config") {
+        config.audit_config = Some(audit_conf.clone());
+    }
+
+    if let Some(audit_conf) = config.audit_config {
+        config.audit_config = Some(resolve_path(&workplace, &audit_conf, false)?);
+    }
+
+    let audit_config = if config.audit {
+        load_audit_config(config.audit_config.as_ref(), &workplace)?
+    }
+    else {
+        AuditConfig::default()
+    };
+
+    match config.save_with_project() {
+        Err(CrusterError::UndefinedError(_)) => {},
+        Err(err) => {
+            return Err(err.into());
+        }
+        _ => {}
+    }
+
+    Ok((config, audit_config, cmd))
+}
+
+fn load_audit_config(conf_path: Option<&String>, workplace: &str) -> Result<AuditConfig, CrusterConfigError> {
+    if conf_path.is_none() {
+        return Ok(AuditConfig::default());
+    }
+
+    let conf_file = std::fs::OpenOptions::new()
+        .read(true)
+        .open(conf_path.unwrap())?;
+
+    let mut audit_conf: AuditConfig = yml::from_reader(&conf_file)?;
+    for i in 0..audit_conf.rules.len() {
+        let rule_path_str = audit_conf.rules[i].as_str();
+        audit_conf.rules[i] = find_file_or_dir(workplace, rule_path_str)?;
+    }
+
+    return Ok(audit_conf);
 }
 
 fn enable_debug(debug_file_path: &str) {
@@ -654,45 +781,40 @@ fn enable_debug(debug_file_path: &str) {
         debug!("Debugging enabled");
 }
 
-/// For existing files and dirs
-// fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
-//     let fpath = path::Path::new(path);
-//     if fpath.is_absolute() {
-//         if fpath.exists() {
-//             return Ok(path.to_string());
-//         }
-//         else {
-//             return Err(
-//                 CrusterError::ConfigError(
-//                     format!("Could not find file or dir at absolute path '{}'", path)
-//                 )
-//             );
-//         }
-//     }
-//     else {
-//         if fpath.starts_with("./") && fpath.exists() {
-//             return Ok(path.to_string());
-//         }
+// For existing files and dirs
+fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
+    let fpath = path::Path::new(path);
+    if fpath.is_absolute() {
+        if fpath.exists() {
+            return Ok(path.to_string());
+        }
+        else {
+            return Err(
+                CrusterError::ConfigError(
+                    format!("Could not find file or dir at absolute path '{}'", path)
+                )
+            );
+        }
+    }
+    else {
+        if fpath.starts_with("./") && fpath.exists() {
+            return Ok(path.to_string());
+        }
 
-//         let workspace_path = format!("{}/{}", base_path, path);
-//         let wpath = path::Path::new(&workspace_path);
-//         if wpath.exists() {
-//             return Ok(workspace_path);
-//         }
-//         else {
-//             if fpath.exists() {
-//                 return Ok(path.to_string());
-//             }
-//             else {
-//                 return Err(
-//                     CrusterError::ConfigError(
-//                         format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
-//                     )
-//                 );
-//             }
-//         }
-//     }
-// }
+        let workspace_path = format!("{}/{}", base_path, path);
+        let wpath = path::Path::new(&workspace_path);
+        if wpath.exists() {
+            return Ok(workspace_path);
+        }
+        else {
+            return Err(
+                CrusterError::ConfigError(
+                    format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
+                )
+            );
+        }
+    }
+}
 
 /// Return such path state, which is accessbile with cruster
 fn resolve_path(base_path: &str, path: &str, dir: bool) -> Result<String, CrusterConfigError> {

@@ -1,5 +1,6 @@
 mod http;
 mod repeater;
+mod audit;
 
 use clap::{self, ArgMatches};
 
@@ -23,7 +24,7 @@ impl Into<String> for CrusterCLIError {
     }
 }
 
-pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Result<(), CrusterCLIError> {
+pub(crate) async fn launch(command: ArgMatches, config: config::Config, audit_conf: config::AuditConfig) -> Result<(), CrusterCLIError> {
     let project = match config.project.as_ref() {
         Some(path) => {
             path.to_string()
@@ -113,6 +114,20 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Resul
                     }
                 }
                 _ => unreachable!()
+            }
+        },
+        Some(("audit", subcommands)) => {
+            match subcommands.subcommand() {
+                Some(("run", _args)) => {
+                    if let Err(err) = audit::run::exec(&audit_conf) {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured  while audit::run executed: {}", err_str);
+                        exit(8);
+                    }
+                },
+                _ => {
+                    unreachable!()
+                }
             }
         }
         _ => {
