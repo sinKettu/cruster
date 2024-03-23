@@ -293,11 +293,12 @@ impl Operations for ExecutableExpressionArgsValues {
                 ExecutableExpressionArgsValues::Integer(s.len() as i64)
             },
             Self::Several(arg1) => {
+                println!("{:?}", arg1);
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
                 for i in 0..arg1.len() {
                     let iter_arg2 = &arg1[i];
 
-                    let res = self.len();
+                    let res = iter_arg2.len();
                     collected.push(res);
                 }
 
