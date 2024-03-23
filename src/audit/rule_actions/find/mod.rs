@@ -14,6 +14,7 @@ use super::*;
 
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum LookFor {
     ANY,
     ALL
@@ -22,7 +23,7 @@ pub(crate) enum LookFor {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct ExecutableExpression {
     name: String,
-    operation_name: String,
+    operation: String,
     args: Vec<expression_args::ExecutableExpressionArg>,
 
     operation_cache: Option<ExecutableExpressionMethod>
@@ -37,26 +38,26 @@ impl ExecutableExpression {
 
 impl RuleFindAction {
     pub(crate) fn check_up(&mut self, possible_send_ref: Option<&HashMap<String, usize>>, send_actions_count: usize) -> Result<(), AuditError> {
-        let lowercase_look_for = self.look_for.to_lowercase();
-        match lowercase_look_for.as_str() {
-            "any" => {
-                self.look_for_cache = Some(LookFor::ANY);
-            },
-            "all" => {
-                self.look_for_cache = Some(LookFor::ALL);
-            },
-            _ => {
-                return Err(
-                    AuditError::from_str(
-                        format!("unsupported look_for statement: {}", &self.look_for).as_str()
-                    ).unwrap()
-                );
-            }
-        }
+        // let lowercase_look_for = self.look_for.to_lowercase();
+        // match lowercase_look_for.as_str() {
+        //     "any" => {
+        //         self.look_for_cache = Some(LookFor::ANY);
+        //     },
+        //     "all" => {
+        //         self.look_for_cache = Some(LookFor::ALL);
+        //     },
+        //     _ => {
+        //         return Err(
+        //             AuditError::from_str(
+        //                 format!("unsupported look_for statement: {}", &self.look_for).as_str()
+        //             ).unwrap()
+        //         );
+        //     }
+        // }
 
         let mut existing_operations: HashMap<&str, ExecutableExpressionArgsTypes> = HashMap::with_capacity(self.exec.len());
         for operation in self.exec.iter_mut() {
-            let operation_name = operation.operation_name.to_lowercase().replace("_", "");
+            let operation_name = operation.operation.to_lowercase().replace("_", "");
             let method = match operation_name.as_str() {
                 "len" => {
                     expression_methods::ExecutableExpressionMethod::LEN
@@ -105,7 +106,7 @@ impl RuleFindAction {
                 },
 
                 _ => {
-                    let err_str = format!("Found unknown operation type - {} - at operation {}", &operation.operation_name, &operation.name);
+                    let err_str = format!("Found unknown operation type - {} - at operation {}", &operation.operation, &operation.name);
                     return Err(AuditError(err_str));
                 }
             };
@@ -262,9 +263,10 @@ impl RuleFindAction {
                 let err_str = format!("Error in operation '{}': {}", &operation.name, err);
                 return Err(AuditError(err_str));
             }
+
+            operation.operation_cache = Some(method);
         }
 
-        
         Ok(())
     }
 
