@@ -4,8 +4,9 @@ pub(crate) mod execution;
 pub(crate) mod rules;
 pub(crate) mod rule_contexts;
 pub(crate) mod types;
+pub(crate) mod result;
 
-use std::{fmt::{Display, Debug}, str::FromStr};
+use std::{collections::HashMap, fmt::{Debug, Display}, str::FromStr};
 use serde::{Serialize, Deserialize};
 
 use rule_actions::{
@@ -61,6 +62,7 @@ pub(crate) struct RuleActions {
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum RuleType {
     Active,
     Passive,
@@ -74,7 +76,6 @@ pub(crate) struct Rule {
     protocol: String,
     severity: String,
     id: String,
-    max_redirects: usize,
     rule: RuleActions,
     // These are "service" fields, to be used by cruster
     watch_ref: Option<std::collections::HashMap<String, usize>>,
@@ -83,10 +84,14 @@ pub(crate) struct Rule {
     find_ref: Option<std::collections::HashMap<String, usize>>,
 }
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleResult {
-    rule_id: String
+    rule_id: String,
+    severity: String,
+    findings: HashMap<String, Vec<String>>,
 }
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) enum RuleFinalState {
     Skipped(String),
     Finished(Option<RuleResult>),
