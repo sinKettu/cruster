@@ -86,12 +86,13 @@ impl RuleChangeAction {
 
         match single_watch_result.get(group_name) {
             Some(f) => {
-                ctxt.add_change_result(f.clone());
-                Ok(())
+                ctxt.add_change_result(Some(f.clone()));
             },
             None => {
-                Ok(())
+                ctxt.add_change_result(None);
             }
         }
+
+        Ok(())
     }
 }
