@@ -29,14 +29,18 @@ pub(crate) async fn send_request_from_wrapper(wrapper: &HyperRequestWrapper, max
         Version::HTTP_11
     }
     else if version == "HTTP/2" || version == "HTTP/2.0" {
-        return Err(
-            CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
-        );
+        // Crutch!
+        Version::HTTP_11
+        // return Err(
+        //     CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
+        // );
     }
     else if version == "HTTP/3" || version == "HTTP/3.0" {
-        return Err(
-            CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
-        );
+        // Crutch!
+        Version::HTTP_11
+        // return Err(
+        //     CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
+        // );
     }
     else {
         let err_str = format!("Unknown HTTP version of request in repeater: {}", &version);

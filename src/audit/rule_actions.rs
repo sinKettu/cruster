@@ -59,9 +59,9 @@ pub(crate) struct RuleChangeAction {
 pub(crate) struct RuleFindAction {
     id: Option<String>,
 
-    look_for: String,
-    // This field stores more convinient representation of look_for after first check
-    look_for_cache: Option<find::LookFor>,
+    // look_for: String,
+    // // This field stores more convinient representation of look_for after first check
+    // look_for_cache: Option<find::LookFor>,
 
     exec: Vec<find::ExecutableExpression>
 }
@@ -97,6 +97,7 @@ pub(crate) struct RuleWatchAction {
 
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum ExtractionMode {
     LINE,
     MATCH,
@@ -104,6 +105,7 @@ pub(crate) enum ExtractionMode {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum ExtractionModeByPart {
     REQUEST(ExtractionMode),
     RESPONSE(ExtractionMode)

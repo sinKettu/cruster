@@ -1,6 +1,6 @@
 use super::{Rule, AuditError, RuleFinalState};
 use crate::audit::rule_actions::ReqResCoordinates;
-use crate::audit::rule_contexts::traits::{BasicContext, WithChangeAction, WithFindAction};
+use crate::audit::rule_contexts::traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction};
 use crate::audit::rule_contexts::ActiveRuleContext;
 use crate::http_storage::RequestResponsePair;
 
@@ -57,7 +57,7 @@ impl Rule {
                     };
 
                     if let Err(err) = action.exec(&mut ctxt, placement, payloads).await {
-                        let err_str = format!("Rule '{}' failed for pair {} on watch action: {}", self.get_id(), pair.index, err);
+                        let err_str = format!("Rule '{}' failed for pair {} on send action: {}", self.get_id(), pair.index, err);
                         return RuleFinalState::Failed(err_str)
                     }
                 }
@@ -75,19 +75,21 @@ impl Rule {
                 }
 
                 // GET
-                for action in self.rule.get.as_ref().unwrap() {
-                    if let Err(err) = action.exec(&mut ctxt) {
-                        let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err);
-                        return RuleFinalState::Failed(err_str)
-                    }
+                if let Some(get_actions) = self.rule.get.as_ref() {
+                    for action in get_actions {
+                        if let Err(err) = action.exec(&mut ctxt) {
+                            let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err);
+                            return RuleFinalState::Failed(err_str)
+                        }
+                    }    
                 }
+
+                return RuleFinalState::Finished(Some(ctxt.make_result(&self)));
             },
             crate::audit::RuleType::Passive => {
                 todo!()
             }
         }
-
-        todo!()
     }
 }
 

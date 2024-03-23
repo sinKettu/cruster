@@ -68,7 +68,7 @@ impl RuleGetAction {
     {
         let find_id = self.if_succeed_cache.unwrap();
         if ! ctxt.find_action_secceeded(find_id) {
-            ctxt.add_empty_result();
+            ctxt.add_empty_result(find_id);
             return Ok(())
         }
 
@@ -85,7 +85,7 @@ impl RuleGetAction {
                     ExtractionModeByPart::REQUEST(mode) => {
                         let possible_extracted_data = request.extract(&pattern, mode);
                         if let Some(extracted_data) = possible_extracted_data {
-                            ctxt.add_get_result(extracted_data);
+                            ctxt.add_get_result(find_id, extracted_data);
                             return Ok(());
                         }
                     },
@@ -93,7 +93,7 @@ impl RuleGetAction {
                         for response in responses {
                             let possible_extracted_data = response.extract(&pattern, mode);
                             if let Some(extracted_data) = possible_extracted_data {
-                                ctxt.add_get_result(extracted_data);
+                                ctxt.add_get_result(find_id, extracted_data);
                                 return Ok(());
                             }
                         }
@@ -104,7 +104,7 @@ impl RuleGetAction {
             }
         }
 
-        ctxt.add_empty_result();
+        ctxt.add_empty_result(find_id);
         Ok(())
     }
 }

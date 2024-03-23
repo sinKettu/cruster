@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use super::{rule_actions::{ChangeValuePlacement, RuleWatchAction}, AuditError, Rule, RuleType};
+use super::{rule_actions::{ChangeValuePlacement, RuleFindAction, RuleWatchAction}, AuditError, Rule, RuleType};
 
 
 // TODO: Need also check for indexes bounds in check_up() methods
@@ -222,6 +222,24 @@ impl Rule {
         }
         else {
             None
+        }
+    }
+
+    pub(crate) fn get_find_actions(&self) -> &Vec<RuleFindAction> {
+        self.rule.find.as_ref().unwrap()
+    }
+
+    pub(crate) fn get_find_action_str_id(&self, index: usize) -> Result<String, AuditError> {
+        if index >= self.get_find_actions().len() {
+            let err_str = format!("Index ({}) of find action is out of bounds", index);
+            return Err(AuditError(err_str));
+        }
+
+        if let Some(str_id) = self.get_find_actions()[index].get_id() {
+            Ok(str_id)
+        }
+        else {
+            Ok(index.to_string())
         }
     }
 }

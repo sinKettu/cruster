@@ -156,11 +156,20 @@ impl RuleSendAction {
         let coordinates = &ctxt.change_results()[change_to_apply];
         let request = ctxt.initial_request().unwrap();
 
+        let coordinates = if coordinates.is_none() {
+            ctxt.add_send_result(SendActionResultsPerPatternEntry::default());
+            return Ok(());
+        }
+        else {
+            coordinates.as_ref().unwrap()
+        };
+
         // First level - one per pattern entry
         // Second level - one per payload value
         // third level - one per every repeat
         let mut results = SendActionResultsPerPatternEntry::with_capacity(coordinates.len());
-        for SingleCoordinates { line: line_number, start, end} in coordinates {
+
+        for SingleCoordinates { line: line_number, start, end } in coordinates {
             let workline = if line_number.to_owned() == 0 {
                 let method_bytes = request.method.as_bytes();
                 let path = request.get_request_path();
@@ -197,8 +206,8 @@ impl RuleSendAction {
             for payload in payloads {
                 let (new_line, new_start, new_end) = match placement {
                     ChangeValuePlacement::AFTER => {
-                        let left_line_part = &workline[0..=*end];
-                        let right_line_part = &workline[*end+1..];
+                        let left_line_part = &workline[0..*end];
+                        let right_line_part = &workline[*end..];
 
                         (
                             [left_line_part, payload.as_bytes(), right_line_part].concat(),
@@ -207,8 +216,8 @@ impl RuleSendAction {
                         )
                     },
                     ChangeValuePlacement::BEFORE => {
-                        let left_line_part = &workline[0..=*start];
-                        let right_line_part = &workline[*start+1..];
+                        let left_line_part = &workline[0..*start];
+                        let right_line_part = &workline[*start..];
 
                         (
                             [left_line_part, payload.as_bytes(), right_line_part].concat(),
@@ -217,8 +226,8 @@ impl RuleSendAction {
                         )
                     },
                     ChangeValuePlacement::REPLACE => {
-                        let left_line_part = &workline[0..=*start];
-                        let right_line_part = &workline[*end+1..];
+                        let left_line_part = &workline[0..*start];
+                        let right_line_part = &workline[*end..];
                         
                         (
                             [left_line_part, payload.as_bytes(), right_line_part].concat(),

@@ -19,8 +19,8 @@ pub(crate) trait WithWatchAction<'pair_lt, 'rule_lt>: BasicContext<'pair_lt, 'ru
 
 pub(crate) trait WithChangeAction<'pair_lt, 'rule_lt>: BasicContext<'pair_lt, 'rule_lt> {
     // Result of change action is WatchId of successful watch action, that should be changed
-    fn add_change_result(&mut self, res: SingleCaptureGroupCoordinates);
-    fn change_results(&self) -> &Vec<SingleCaptureGroupCoordinates>;
+    fn add_change_result(&mut self, res: Option<SingleCaptureGroupCoordinates>);
+    fn change_results(&self) -> &Vec<Option<SingleCaptureGroupCoordinates>>;
     fn found_anything_to_change(&self) -> bool;
 }
 
@@ -38,10 +38,10 @@ pub(crate) trait WithFindAction<'pair_lt, 'rule_lt>: BasicContext<'pair_lt, 'rul
 pub(crate) trait WithGetAction<'pair_lt, 'rule_lt>: BasicContext<'pair_lt, 'rule_lt> {
     fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry<'rule_lt>, AuditError>;
     fn find_action_secceeded(&self, id: usize) -> bool;
-    fn add_empty_result(&mut self);
-    fn add_get_result(&mut self, res: Vec<u8>);
+    fn add_empty_result(&mut self, find_action_index: usize);
+    fn add_get_result(&mut self, find_action_index: usize, res: Vec<u8>);
 }
 
 pub(crate) trait ActiveRuleExecutionContext<'pair_lt, 'rule_lt>: WithWatchAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt> + WithSendAction<'pair_lt, 'rule_lt> + WithFindAction<'pair_lt, 'rule_lt> {
-    fn make_result(self) -> RuleResult;
+    fn make_result(self, rule: &Rule) -> RuleResult;
 }
