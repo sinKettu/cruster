@@ -1,3 +1,5 @@
+use std::fs::File;
+
 use super::AuditError;
 use super::Rule;
 use crate::config::AuditConfig;
@@ -15,7 +17,9 @@ impl Rule {
         };
         
         let rule: Rule = match yml::from_reader(rule_file) {
-            Ok(rule) => { rule },
+            Ok(rule) => {
+                rule
+            },
             Err(err) => {
                 return Err(AuditError(format!("Unable to parse '{}': {}", filename, err.to_string())));
             }
@@ -62,6 +66,7 @@ fn recursively_walk_dir(dir_path: &std::path::Path, base_dir: String) -> Vec<Str
 }
 
 pub(crate) fn compose_files_list_by_config(audit_conf: &AuditConfig) -> Result<Vec<String>, AuditError> {
+    // TODO: include/exclude
     if ! (audit_conf.active || audit_conf.passive) {
         debug!("All audit types are disabled");
         return Err(AuditError("Cannot compose list of rules because all types of rules are disabled".to_string()));

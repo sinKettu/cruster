@@ -11,6 +11,7 @@ impl Display for RuleResult {
         for (found, extracted) in self.findings.iter() {
             write!(f, "{} (", found.yellow())?;
             let mut first = true;
+
             for extracted_item in extracted.iter() {
                 if first {
                     first = false;
