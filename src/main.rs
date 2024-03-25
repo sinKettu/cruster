@@ -20,8 +20,8 @@ use tokio;
 use utils::CrusterError;
 use cursive::{Cursive, CbSink};
 use std::{net::{IpAddr, SocketAddr}, process::exit};
-use crossbeam_channel::Sender as CB_Sender;
-use crossbeam_channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
+use crossbeam::channel::Sender as CB_Sender;
+use crossbeam::channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
 use cruster_proxy::{CrusterHandler, CrusterWSHandler, events::ProxyEvents};
 use dump::DumpMode;
 
@@ -72,7 +72,7 @@ async fn start_proxy(
     proxy.start(shutdown_signal()).await.unwrap();
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), utils::CrusterError> {
     let (config, audit_config, mode) = config::handle_user_input()?;
 

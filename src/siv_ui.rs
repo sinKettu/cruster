@@ -30,7 +30,7 @@ use log::debug;
 use std::rc::Rc;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use crossbeam_channel::Receiver as CBReceiver;
+use crossbeam::channel::Receiver as CBReceiver;
 // use std::thread::{self, JoinHandle, sleep};
 
 use std::time::Instant;

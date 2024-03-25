@@ -43,7 +43,7 @@ use http::{
     method::InvalidMethod
 };
 
-use crossbeam_channel::{SendError, TryRecvError as CBTryRecvError};
+use crossbeam::channel::{SendError, TryRecvError as CBTryRecvError};
 
 use crate::{cruster_proxy::events::ProxyEvents};
 use crate::config::CrusterConfigError;
