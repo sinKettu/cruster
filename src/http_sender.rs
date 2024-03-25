@@ -84,7 +84,7 @@ async fn follow_redirect(response: Response, client: &Client, mut redirects_coun
                 url
             },
             Err(err) => {
-                return Err(CrusterError::HeaderValueParseError(format!("Could not parse location URL for redirect from '{}'", location_str)));
+                return Err(CrusterError::HeaderValueParseError(format!("Could not parse location URL for redirect from '{}': {}", location_str, err)));
             }
         };
 
