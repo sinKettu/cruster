@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
+use crossbeam::channel::{unbounded as unbounded_channel, Receiver, Sender, TryRecvError};
+use tokio;
+
 use super::{Rule, AuditError, RuleFinalState};
-use crate::audit::rule_actions::ReqResCoordinates;
-use crate::audit::rule_contexts::traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction};
-use crate::audit::rule_contexts::ActiveRuleContext;
+use crate::audit::contexts::traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction};
+use crate::audit::contexts::ActiveRuleContext;
 use crate::http_storage::RequestResponsePair;
 
 
@@ -93,7 +97,68 @@ impl Rule {
     }
 }
 
-pub(crate) async fn execute_one(rule: &Rule, pair: &RequestResponsePair) -> Result<RuleFinalState, AuditError> {
 
-    todo!()
+pub(crate) enum MainToWorkerCmd {
+    Start,
+    Scan((Arc<Rule>, Arc<RequestResponsePair>)),
+    Stop,
+}
+
+pub(crate) enum WorkerToMainMsg {
+    Result(RuleFinalState),
+    Error(AuditError),
+    Stopped
+}
+
+
+pub(crate) async fn spawn_threads<'a, 'b>(num: usize) -> (Sender<MainToWorkerCmd>, Receiver<WorkerToMainMsg>) {
+    let (main_to_workers_tx, main_to_workers_rx) = unbounded_channel::<MainToWorkerCmd>();
+    let (workers_to_main_tx, workers_to_main_rx) = unbounded_channel::<WorkerToMainMsg>();
+
+    // use arc to store rules and pairs
+    for _i in 0..num {
+        let cloned_tx = workers_to_main_tx.clone();
+        let cloned_rx = main_to_workers_rx.clone();
+
+        tokio::spawn(
+            async move {
+                println!("Spawned worker {}", _i);
+                loop {
+                    match cloned_rx.try_recv() {
+                        Ok(cmd) => {
+                            match cmd {
+                                MainToWorkerCmd::Scan(data) => {
+                                    let (rule, pair) = (data.0, data.1);
+                                    // println!("Thread {} received rule={} and pair={}", _i, rule.get_id(), pair.index);
+                                    let state = rule.execute(&pair).await;
+                                    if let Err(err) = cloned_tx.send(WorkerToMainMsg::Result(state)) {
+                                        println!("Task {} Error: {}", _i, err);
+                                    }
+                                },
+                                MainToWorkerCmd::Stop => {
+                                    println!("Finished task {}", _i);
+                                    cloned_tx.send(WorkerToMainMsg::Stopped).unwrap();
+                                    return;
+                                },
+                                MainToWorkerCmd::Start => {
+                                    println!("Task {} started", _i);
+                                }
+                            }
+                        },
+                        Err(err) => {
+                            if let TryRecvError::Empty = err { }
+                            else {
+                                let audit_err = AuditError(err.to_string());
+                                if let Err(err) = cloned_tx.send(WorkerToMainMsg::Error(audit_err)) {
+                                    println!("Task error on receiving command: {}", err);
+                                }
+                            }
+                        }
+                    };
+                }
+            }
+        );
+    }
+
+    return (main_to_workers_tx, workers_to_main_rx);
 }
