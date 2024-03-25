@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use bstr::ByteSlice;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
-use crate::{audit::{rule_actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
+use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt>
 {
@@ -172,6 +172,7 @@ impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt, 'rule_lt> for Acti
 
         RuleResult {
             rule_id: rule.id.clone(),
+            pair_index: self.pair_id(),
             severity: rule.severity.clone(),
             findings
         }

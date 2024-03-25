@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use regex::bytes::Regex;
 
-use crate::audit::{rule_contexts::traits::{WithFindAction, WithGetAction}, types::PayloadsTests};
+use crate::audit::{contexts::traits::{WithFindAction, WithGetAction}, types::PayloadsTests};
 use crate::cruster_proxy::request_response::extract::ExtractFromHTTPPartByRegex;
 
 use super::*;

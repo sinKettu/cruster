@@ -8,13 +8,6 @@ use serde::{Serialize, Deserialize};
 
 use super::AuditError;
 
-// (line_number, substring start, substring end)
-// METHOD /path Version -- is 0 line
-// HeaderKey: HeaderVal - is 'index-of-header + 1' line
-// BodyLine = Body split by \n -- is 'index-of-body-line + 1 + count-of-headers' line
-// (line_number, 0, 0) - to take whole line
-pub(crate) type ReqResCoordinates = (usize, usize, usize);
-
 
 // Used to parse string watch_id to speed up future operations
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

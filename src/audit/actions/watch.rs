@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use nom::AsChar;
-
-use crate::audit::{rule_contexts::traits::{WithWatchAction}, types::{CapturesBorders, SingleCoordinates}};
+use crate::audit::{contexts::traits::{WithWatchAction}, types::{CapturesBorders, SingleCoordinates}};
 
 use super::*;
 
@@ -117,7 +115,7 @@ impl RuleWatchAction {
             WatchPart::Body => {
                 let lines_count_start = 1 + request.headers.len();
                 // I'm not sure how this will work in case of utf-*
-                let body_lines = request.body.split(|chr| { chr.as_char() == '\n' });
+                let body_lines = request.body.split(|chr| { (*chr as char) == '\n' });
                 let mut captures_borders: CapturesBorders = HashMap::default();
 
                 for (index, body_line) in body_lines.enumerate() {

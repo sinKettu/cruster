@@ -1,6 +1,6 @@
 use std::{str::FromStr, collections::HashMap};
 
-use crate::audit::{rule_contexts::traits::{WithChangeAction, WithWatchAction}, types::SingleCoordinates};
+use crate::audit::{contexts::traits::{WithChangeAction, WithWatchAction}, types::SingleCoordinates};
 
 use super::*;
 

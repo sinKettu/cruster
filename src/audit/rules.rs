@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use super::{rule_actions::{ChangeValuePlacement, RuleFindAction, RuleWatchAction}, AuditError, Rule, RuleType};
+use super::{actions::{ChangeValuePlacement, RuleFindAction, RuleWatchAction}, AuditError, Rule, RuleType};
 
 
 // TODO: Need also check for indexes bounds in check_up() methods
@@ -64,20 +64,20 @@ impl Rule {
         }
 
         // Validate .severity field and force lowercase
-        self.severity = self.severity.to_lowercase();
-        match self.severity.as_str() {
-            "info" => {},
-            "low" => {},
-            "medium" => {},
-            "high" => {},
-            _ => {
-                return Err(
-                    self.make_error(
-                        Some(format!("unknown severity '{}'", &self.severity))
-                    )
-                );
-            }
-        }
+        // self.severity = self.severity.to_lowercase();
+        // match self.severity.as_str() {
+        //     "info" => {},
+        //     "low" => {},
+        //     "medium" => {},
+        //     "high" => {},
+        //     _ => {
+        //         return Err(
+        //             self.make_error(
+        //                 Some(format!("unknown severity '{}'", &self.severity))
+        //             )
+        //         );
+        //     }
+        // }
 
         // Check variable values in Watch struct and fill .watch_ref
         if let Some(watch_actions) = self.rule.watch.as_mut() {

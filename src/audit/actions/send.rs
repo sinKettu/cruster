@@ -2,9 +2,8 @@ use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
 
 use bstr::ByteSlice;
 use http::{header::HeaderName, HeaderValue, HeaderMap};
-use nom::AsChar;
 
-use crate::{audit::{rule_contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}}, cruster_proxy::request_response::HyperRequestWrapper};
+use crate::{audit::{contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}}, cruster_proxy::request_response::HyperRequestWrapper};
 use crate::http_sender;
 
 use super::*;
@@ -91,7 +90,7 @@ impl RuleSendAction {
             let mut new_headers: HeaderMap<HeaderValue> = HeaderMap::with_capacity(headers_number);
             for (index, (k, v)) in request.headers.iter().enumerate() {
                 if index == ln - 1 {
-                    let splitted: Vec<&[u8]> = new_line.splitn(2, |c| { c.as_char() == ':' }).collect();
+                    let splitted: Vec<&[u8]> = new_line.splitn(2, |c| { (*c as char) == '\n' }).collect();
                     let Ok(hn) = HeaderName::from_bytes(splitted[0]) else {
                         let err_str = format!("Cannot apply {} change: issue with converting '{}' into header name", self.apply_cache.unwrap(), new_line.to_str_lossy());
                         return Err(AuditError(err_str))
@@ -119,7 +118,7 @@ impl RuleSendAction {
             return Ok(new_request)
         }
         else {
-            let splitted = request.body.split(|c| {c.as_char() == '\n'}).collect::<Vec<&[u8]>>();
+            let splitted = request.body.split(|c| { (*c as char) == '\n' }).collect::<Vec<&[u8]>>();
             let index = ln - headers_number - 1;
             if index >= splitted.len() {
                 let err_str = format!("Cannot apply {} change, because it's index is out of bounds of the request", self.apply_cache.unwrap());
@@ -194,7 +193,7 @@ impl RuleSendAction {
                 let offset = 1 + request.headers.len();
                 let request_line = request
                     .body
-                        .split(|chr| { chr.as_char() == '\n' })
+                        .split(|chr| { (*chr as char) == '\n' })
                         .skip(line_number - offset)
                         .take(1)
                         .collect::<Vec<&[u8]>>()[0];
