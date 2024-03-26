@@ -62,6 +62,7 @@ pub(crate) struct AuditConfig {
     pub(crate) passive: bool,
     pub(crate) active: bool,
     pub(crate) rules: Vec<String>,
+    pub(crate) tasks: Option<usize>,
     pub(crate) exclude: Option<AuditEntities>,
     pub(crate) include: Option<AuditEntities>,
 }
@@ -103,6 +104,7 @@ impl Default for AuditConfig {
             passive: false,
             active: false,
             rules: Vec::new(),
+            tasks: Some(1),
             exclude: None,
             include: None
         }
@@ -391,6 +393,16 @@ fn parse_cmd() -> clap::ArgMatches {
                             clap::Command::new("run")
                                 .alias("r")
                                 .about("Run audit using audit config")
+                        )
+                        .subcommand(
+                            clap::Command::new("test")
+                                .alias("d")
+                                .about("Test audit features")
+                                .arg(
+                                    clap::Arg::new("arg")
+                                        .value_name("ARG")
+                                        .help("Any test arg")
+                                )
                         )
                 )
         )
