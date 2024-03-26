@@ -1,21 +1,23 @@
-pub(crate) mod rule_actions;
+pub(crate) mod actions;
 pub(crate) mod load_rule;
 pub(crate) mod execution;
 pub(crate) mod rules;
-pub(crate) mod rule_contexts;
+pub(crate) mod contexts;
 pub(crate) mod types;
 pub(crate) mod result;
 
 use std::{collections::HashMap, fmt::{Debug, Display}, str::FromStr};
 use serde::{Serialize, Deserialize};
 
-use rule_actions::{
+use actions::{
     RuleChangeAction,
     RuleFindAction,
     RuleSendAction,
     RuleWatchAction,
     RuleGetAction
 };
+
+use self::rules::active::ActiveRule;
 
 pub(crate) struct AuditError(String);
 
@@ -38,12 +40,6 @@ impl Debug for AuditError {
     }
 }
 
-impl From<nom::error::Error<&str>> for AuditError {
-    fn from(value: nom::error::Error<&str>) -> Self {
-        AuditError(value.to_string())
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleMetadata {
     authors: Vec<String>,
@@ -61,33 +57,42 @@ pub(crate) struct RuleActions {
     get: Option<Vec<RuleGetAction>>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum RuleType {
-    Active,
+    Active(ActiveRule),
     Passive,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum RuleSeverity {
+    Info,
+    Low,
+    Medium,
+    High
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum RuleByProtocal {
+    Http(RuleType),
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub(crate) struct Rule {
     // These are "working" fields, to be used by users
     metadata: RuleMetadata,
-    r#type: RuleType,
-    protocol: String,
-    severity: String,
+    severity: RuleSeverity,
     id: String,
-    rule: RuleActions,
-    // These are "service" fields, to be used by cruster
-    watch_ref: Option<std::collections::HashMap<String, usize>>,
-    change_ref: Option<std::collections::HashMap<String, usize>>,
-    send_ref: Option<std::collections::HashMap<String, usize>>,
-    find_ref: Option<std::collections::HashMap<String, usize>>,
+    rule: RuleByProtocal,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleResult {
     rule_id: String,
-    severity: String,
+    pair_index: usize,
+    severity: RuleSeverity,
     findings: HashMap<String, Vec<String>>,
 }
 
