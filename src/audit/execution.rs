@@ -3,6 +3,8 @@ use std::sync::Arc;
 use crossbeam::channel::{unbounded as unbounded_channel, Receiver, Sender, TryRecvError};
 use tokio;
 
+use super::contexts::traits::PassiveRuleExecutionContext;
+use super::contexts::PassiveRuleContext;
 use super::{AuditError, Rule, RuleByProtocal, RuleFinalState, RuleType};
 use crate::audit::contexts::traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction};
 use crate::audit::contexts::ActiveRuleContext;
@@ -92,8 +94,32 @@ impl Rule {
 
                         return RuleFinalState::Finished(Some(ctxt.make_result(&self)));
                     },
-                    RuleType::Passive => {
-                        todo!()
+                    RuleType::Passive(actions) => {
+                        let mut ctxt: PassiveRuleContext = PassiveRuleContext::init(self, pair);
+                        
+                        // FIND
+                        for action in actions.find.iter() {
+                            if let Err(err) = action.exec(&mut ctxt) {
+                                let err_str = format!("Rule '{}' failed for pair {} on find action: {}", self.get_id(), pair.index, err);
+                                return RuleFinalState::Failed(err_str)
+                            }
+                        }
+
+                        if ! ctxt.found_anything() {
+                            return RuleFinalState::Finished(None);
+                        }
+
+                        // GET
+                        if let Some(get_actions) = actions.get.as_ref() {
+                            for action in get_actions {
+                                if let Err(err) = action.exec(&mut ctxt) {
+                                    let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err);
+                                    return RuleFinalState::Failed(err_str)
+                                }
+                            }    
+                        }
+
+                        return RuleFinalState::Finished(Some(ctxt.make_result(&self)));
                     }
                 }
             }

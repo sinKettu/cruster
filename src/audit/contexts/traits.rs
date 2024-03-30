@@ -42,6 +42,10 @@ pub(crate) trait WithGetAction<'pair_lt, 'rule_lt>: BasicContext<'pair_lt, 'rule
     fn add_get_result(&mut self, find_action_index: usize, res: Vec<u8>);
 }
 
-pub(crate) trait ActiveRuleExecutionContext<'pair_lt, 'rule_lt>: WithWatchAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt> + WithSendAction<'pair_lt, 'rule_lt> + WithFindAction<'pair_lt, 'rule_lt> {
+pub(crate) trait ActiveRuleExecutionContext<'pair_lt, 'rule_lt>: WithWatchAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt> + WithSendAction<'pair_lt, 'rule_lt> + WithFindAction<'pair_lt, 'rule_lt> + WithGetAction<'pair_lt, 'rule_lt> {
+    fn make_result(self, rule: &Rule) -> RuleResult;
+}
+
+pub(crate) trait PassiveRuleExecutionContext<'pair_lt, 'rule_lt>: WithSendAction<'pair_lt, 'rule_lt> + WithFindAction<'pair_lt, 'rule_lt> {
     fn make_result(self, rule: &Rule) -> RuleResult;
 }

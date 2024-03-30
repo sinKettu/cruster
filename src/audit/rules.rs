@@ -1,10 +1,11 @@
 pub(crate) mod active;
+pub(crate) mod passive;
 
 use std::{collections::HashMap, fmt::Display};
 
 use self::active::ActiveRule;
 
-use super::{actions::{ChangeValuePlacement, RuleFindAction, RuleWatchAction}, AuditError, Rule, RuleByProtocal, RuleType};
+use super::{actions::{ChangeValuePlacement, RuleFindAction}, AuditError, Rule, RuleByProtocal, RuleType};
 
 
 // TODO: Need also check for indexes bounds in check_up() methods
@@ -23,74 +24,18 @@ impl Rule {
     }
 
     pub(crate) fn check_up(&mut self) -> Result<(), AuditError> {
-        let actions = self.http_active_rule_mut()?;
-
-        // Check variable values in Watch struct and fill .watch_ref
-        let mut watch_ref = HashMap::with_capacity(actions.watch.len());
-        for (index, watch_action) in actions.watch.iter_mut().enumerate() {
-            if let Err(err) = watch_action.check_up() {
-                return Err(self.make_error(Some(err)));
-            }
-            
-            if let Some(watch_id) = watch_action.get_id() {
-                watch_ref.insert(watch_id, index);
-            }
-        }
-        actions.watch_ref = Some(watch_ref);
-        
-
-        // Check variable values and references in Change struct and fill .change_ref
-        let mut change_ref = HashMap::with_capacity(actions.change.len());
-        for (index, change_action) in actions.change.iter_mut().enumerate() {
-            if let Err(err) = change_action.check_up(actions.watch_ref.as_ref().unwrap()) {
-                return Err(self.make_error(Some(err)));
-            }
-
-            if let Some(change_id) = change_action.get_id() {
-                change_ref.insert(change_id, index);
-            }
-        }
-        actions.change_ref = Some(change_ref);
-
-
-        // Check variable values and references in SEND struct and fill .send_ref
-        let mut send_ref = HashMap::with_capacity(actions.send.len());
-        for (index, send_action) in actions.send.iter_mut().enumerate() {
-            if let Err(err) = send_action.check_up(actions.change_ref.as_ref()) {
-                return Err(self.make_error(Some(err)));
-            }
-
-            if let Some(send_id) = send_action.get_id() {
-                send_ref.insert(send_id, index);
-            }
-        }
-        actions.send_ref = Some(send_ref);
-
-
-        // Check the same for FIND
-        let mut find_ref = HashMap::with_capacity(actions.find.len());
-        let count = actions.find.len();
-        for (index, find_action) in actions.find.iter_mut().enumerate() {
-            if let Err(err) = find_action.check_up(actions.send_ref.as_ref(), count) {
-                return Err(self.make_error(Some(err)));
-            }
-
-            if let Some(find_id) = find_action.get_id() {
-                find_ref.insert(find_id, index);
-            }
-        }
-        actions.find_ref = Some(find_ref);
-        
-        // Check the same for GET
-        if let Some(get_actions) = actions.get.as_mut() {
-            for get_action in get_actions.iter_mut() {
-                if let Err(err) = get_action.check_up(actions.find_ref.as_ref(), actions.send_ref.as_ref()) {
-                    return Err(self.make_error(Some(err)));
+        match &mut self.rule {
+            RuleByProtocal::Http(rule_type) => {
+                match rule_type {
+                    RuleType::Active(actions) => {
+                        actions.check_up()
+                    },
+                    RuleType::Passive(actions) => {
+                        actions.check_up()
+                    }
                 }
             }
         }
-
-        Ok(())
     }
 
     pub(crate) fn http_active_rule(&self) -> Result<&ActiveRule, AuditError> {
@@ -100,7 +45,7 @@ impl Rule {
                     RuleType::Active(rule) => {
                         Ok(rule)
                     },
-                    RuleType::Passive => {
+                    RuleType::Passive(_) => {
                         let err_str = format!("trying to work with '{}' like active rule, but it's passive", self.get_id());
                         Err(AuditError(err_str))
                     }
@@ -117,7 +62,7 @@ impl Rule {
                     RuleType::Active(rule) => {
                         Ok(rule)
                     },
-                    RuleType::Passive => {
+                    RuleType::Passive(_) => {
                         let err_str = format!("trying to work with '{}' like active rule, but it's passive", id);
                         Err(AuditError(err_str))
                     }
@@ -146,28 +91,41 @@ impl Rule {
         return Ok(&change.values);
     }
 
-    pub fn get_send_actions_number(&self) -> Result<usize, AuditError> {
-        let rule = self.http_active_rule()?;
-        Ok(rule.send.len())
-    }
+    // pub fn get_send_actions_number(&self) -> Result<usize, AuditError> {
+    //     let rule = self.http_active_rule()?;
+    //     Ok(rule.send.len())
+    // }
 
-    pub fn get_watch_actions_number(&self) -> Result<usize, AuditError> {
-        let rule = self.http_active_rule()?;
-        Ok(rule.watch.len())
-    }
+    // pub fn get_watch_actions_number(&self) -> Result<usize, AuditError> {
+    //     let rule = self.http_active_rule()?;
+    //     Ok(rule.watch.len())
+    // }
     
     pub(crate) fn get_id(&self) -> &str {
         return &self.id;
     }
 
-    pub(crate) fn watch_actions(&self) -> Result<&Vec<RuleWatchAction>, AuditError> {
-        let rule = self.http_active_rule()?;
-        Ok(&rule.watch)
-    }
+    // pub(crate) fn watch_actions(&self) -> Result<&Vec<RuleWatchAction>, AuditError> {
+    //     let rule = self.http_active_rule()?;
+    //     Ok(&rule.watch)
+    // }
 
     pub(crate) fn get_find_actions(&self) -> Result<&Vec<RuleFindAction>, AuditError> {
-        let rule = self.http_active_rule()?;
-        Ok(&rule.find)
+        // let rule = self.http_active_rule()?;
+        let find_actions = match &self.rule {
+            RuleByProtocal::Http(rule_type) => {
+                match rule_type {
+                    RuleType::Active(actions) => {
+                        &actions.find
+                    },
+                    RuleType::Passive(actions) => {
+                        &actions.find
+                    }
+                }
+            }
+        };
+
+        Ok(find_actions)
     }
 
     pub(crate) fn get_find_action_str_id(&self, index: usize) -> Result<String, AuditError> {

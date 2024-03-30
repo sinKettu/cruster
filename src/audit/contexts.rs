@@ -1,4 +1,5 @@
 pub(crate) mod active;
+pub(crate) mod passive;
 pub(crate) mod traits;
 
 use std::collections::HashMap;
@@ -23,3 +24,11 @@ pub(crate) struct ActiveRuleContext<'pair_lt, 'rule_lt> {
     get_result: HashMap<usize, Vec<Vec<u8>>>,
 }
 
+pub(crate) struct PassiveRuleContext<'pair_lt> {
+    rule_id: String,
+    pair: &'pair_lt RequestResponsePair,
+
+    initial_send_result: Vec<SendActionResultsPerPatternEntry<'static>>,
+    find_results: Vec<bool>,
+    get_result: HashMap<usize, Vec<Vec<u8>>>,
+}
