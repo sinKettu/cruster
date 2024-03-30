@@ -1,6 +1,6 @@
 use http::HeaderMap;
 use regex::bytes::{Captures, Regex as ByteRegex};
-use crate::{audit::rule_actions::ExtractionMode, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}};
+use crate::{audit::actions::ExtractionMode, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}};
 
 
 fn get_capture(cap: Captures, line: &[u8], mode: &ExtractionMode) -> Vec<u8> {

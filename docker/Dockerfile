@@ -30,7 +30,6 @@ RUN cd cruster-src \
     && cp target/release/cruster /cruster
 
 
-
 FROM ubuntu:22.04
 
 RUN mkdir /opt/cruster \
