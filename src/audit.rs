@@ -17,7 +17,7 @@ use actions::{
     RuleGetAction
 };
 
-use self::rules::active::ActiveRule;
+use self::rules::{active::ActiveRule, passive::PassiveRule};
 
 pub(crate) struct AuditError(String);
 
@@ -61,7 +61,7 @@ pub(crate) struct RuleActions {
 #[serde(rename_all = "snake_case")]
 pub(crate) enum RuleType {
     Active(ActiveRule),
-    Passive,
+    Passive(PassiveRule),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
