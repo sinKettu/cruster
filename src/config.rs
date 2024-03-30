@@ -418,6 +418,7 @@ fn parse_cmd() -> clap::ArgMatches {
                                     clap::Arg::new("http-pair-index")
                                         .value_name("INDEX")
                                         .short('i')
+                                        .value_parser(clap::value_parser!(usize))
                                         .help("Index of exact http mair in current project to run rule against it")
                                 )
                         )
@@ -796,18 +797,18 @@ fn load_audit_config(conf_path: Option<&String>, workplace: &str) -> Result<Audi
 
 fn enable_debug(debug_file_path: &str) {
     let logfile = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}] {l} - {M} - {m}\n")))
-            .build(debug_file_path)
-            .unwrap();
+        .encoder(Box::new(PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}] {l} - {M} - {m}\n")))
+        .build(debug_file_path)
+        .unwrap();
 
-        let log_config = L4R_Config::builder()
-            .appender(Appender::builder().build("logfile", Box::new(logfile)))
-            .build(Root::builder()
-                    .appender("logfile")
-                    .build(LevelFilter::Debug)).unwrap();
+    let log_config = L4R_Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .build(Root::builder()
+            .appender("logfile")
+            .build(LevelFilter::Debug)).unwrap();
 
-        log4rs::init_config(log_config).unwrap();
-        debug!("Debugging enabled");
+    log4rs::init_config(log_config).unwrap();
+    debug!("Debugging enabled");
 }
 
 // For existing files and dirs

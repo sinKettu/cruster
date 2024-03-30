@@ -1,5 +1,7 @@
 use std::{str::FromStr, collections::HashMap};
 
+use log::debug;
+
 use crate::audit::{contexts::traits::{WithChangeAction, WithWatchAction}, types::SingleCoordinates};
 
 use super::*;
@@ -72,8 +74,10 @@ impl RuleChangeAction {
         let watch_results = ctxt.watch_results();
         let wid = self.watch_id_cache.as_ref().unwrap();
 
+        debug!("ChangeAction - watch_id '{}' resolved into index {}", &self.watch_id, wid.id);
+
         if wid.id >= watch_results.len() {
-            let err_str = format!("Rule has watch_id '{}' which is resolved into watch-list element with index {} that is greater than the list size - {}", &self.watch_id, wid.id, watch_results.len());
+            let err_str = format!("action has watch_id '{}' which is resolved into watch-list element with index {} that is greater than the list size - {}", &self.watch_id, wid.id, watch_results.len());
             return Err(AuditError(err_str));
         }
 
@@ -82,13 +86,17 @@ impl RuleChangeAction {
             None => { "0" }
         };
 
+        debug!("ChangeAction - will change capture group from WatchAction with name '{}'", group_name);
+
         let single_watch_result = &watch_results[wid.id];
 
         match single_watch_result.get(group_name) {
             Some(f) => {
+                debug!("ChangeAction - found wanted capture");
                 ctxt.add_change_result(Some(f.clone()));
             },
             None => {
+                debug!("ChangeAction - didn't find wanted capture");
                 ctxt.add_change_result(None);
             }
         }

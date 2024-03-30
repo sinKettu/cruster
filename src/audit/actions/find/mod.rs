@@ -4,6 +4,7 @@ mod operations;
 
 use std::{collections::HashMap, str::FromStr};
 
+use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::audit::contexts::traits::{WithFindAction, WithSendAction};
@@ -311,6 +312,8 @@ impl RuleFindAction {
                     return Err(AuditError(err_str))
                 }
             };
+
+            debug!("FindActions - executed operation '{} ({})', result: {:?}", &op.name, &op.operation, res);
 
             last_op = op.name.as_str();
             let _ = executed.insert(last_op, res);

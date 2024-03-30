@@ -2,6 +2,7 @@ use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
 
 use bstr::ByteSlice;
 use http::{header::HeaderName, HeaderValue, HeaderMap};
+use log::debug;
 
 use crate::{audit::{contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}}, cruster_proxy::request_response::HyperRequestWrapper};
 use crate::http_sender;
@@ -157,6 +158,7 @@ impl RuleSendAction {
 
         let coordinates = if coordinates.is_none() {
             ctxt.add_send_result(SendActionResultsPerPatternEntry::default());
+            debug!("SendAction - Nothing to change in initial request for this action");
             return Ok(());
         }
         else {
@@ -176,6 +178,9 @@ impl RuleSendAction {
                 let version_bytes = request.version.as_bytes();
                 let request_line = [method_bytes, b" ", path_bytes, b" ", version_bytes].concat();
 
+                debug!("SendAction - changing line: {}", request_line.to_str_lossy());
+                debug!("SendAction -                {: <2$}^{: <3$}^", "", "", start.to_owned(), (end.to_owned() - start.to_owned()).saturating_sub(2));
+
                 request_line
             }
             else if line_number.to_owned() >= 1 && line_number.to_owned() <= request.headers.len() {
@@ -187,6 +192,10 @@ impl RuleSendAction {
                         .collect::<Vec<(&HeaderName, &HeaderValue)>>()[0];
 
                 let request_line = [key.as_str().as_bytes(), b": ", value.as_bytes()].concat();
+
+                debug!("SendAction - changing line: {}", request_line.to_str_lossy());
+                debug!("SendAction -                {: <2$}^{: <3$}^", "", "", start.to_owned(), (end.to_owned() - start.to_owned()).saturating_sub(2));
+
                 request_line
             }
             else {
@@ -197,6 +206,9 @@ impl RuleSendAction {
                         .skip(line_number - offset)
                         .take(1)
                         .collect::<Vec<&[u8]>>()[0];
+
+                debug!("SendAction - changing line: {}", request_line.to_str_lossy());
+                debug!("SendAction -                {: <2$}^{: <3$}^", "", "", start.to_owned(), (end.to_owned() - start.to_owned()).saturating_sub(2));
 
                 request_line.to_vec()
             };
@@ -236,6 +248,9 @@ impl RuleSendAction {
                     }
                 };
 
+                debug!("SendAction - modified line: {}", new_line.as_slice().to_str_lossy());
+                debug!("SendAction -                {: <2$}^{: <3$}^", "", "", new_start, (new_end - new_start).saturating_sub(2));
+
                 let modified_request = self.modify_request(request, new_line, line_number.to_owned())?;
                 let repeat_number = if let Some(rn) = self.repeat.as_ref() { rn.to_owned() } else { 0 };
                 let timeout = if let Some(tout) = self.timeout_after.as_ref() { tout.to_owned() } else { 0 };
@@ -256,7 +271,7 @@ impl RuleSendAction {
                             response
                         },
                         Err(err) => {
-                            let err_str = format!("Action failed on sending request: {}", err);
+                            let err_str = format!("Action failed on sending request (payload={}): {}", payload, err);
                             return Err(AuditError(err_str));
                         }  
                     };

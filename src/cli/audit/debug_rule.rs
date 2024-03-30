@@ -1,8 +1,8 @@
-use std::sync::Arc;
-
 use clap::ArgMatches;
+use log::{debug, LevelFilter};
+use log4rs::{self, config::{Appender, Logger, Root}, encode::pattern::PatternEncoder};
 
-use crate::{audit::Rule, cli::CrusterCLIError, http_storage::RequestResponsePair};
+use crate::{audit::Rule, cli::CrusterCLIError};
 
 
 pub(crate) struct DebugRuleConfig {
@@ -38,6 +38,19 @@ pub(crate) async fn exec(conf: &DebugRuleConfig, http_data_path: &str) -> Result
     let rule = Rule::from_file(&conf.pth)?;
     let mut storage = crate::http_storage::HTTPStorage::default();
     storage.load(http_data_path)?;
+
+    let appender = log4rs::append::console::ConsoleAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{m}\n")))
+        .build();
+    let log_config = log4rs::Config::builder()
+        .appender(Appender::builder().build("console", Box::new(appender)))
+        .logger(Logger::builder().build("cruster", LevelFilter::Debug))
+        .build(Root::builder()
+            .appender("console")
+            .build(LevelFilter::Off)).unwrap();
+    log4rs::init_config(log_config).unwrap();
+
+    debug!("Rule id: {}", rule.get_id());
 
     if let Some(index) = conf.pair_index {
         if let Some(pair) = storage.get_by_id(index) {
