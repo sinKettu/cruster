@@ -396,12 +396,29 @@ fn parse_cmd() -> clap::ArgMatches {
                         )
                         .subcommand(
                             clap::Command::new("test")
-                                .alias("d")
+                                .alias("t")
                                 .about("Test audit features")
                                 .arg(
                                     clap::Arg::new("arg")
                                         .value_name("ARG")
                                         .help("Any test arg")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("debug-rule")
+                                .alias("d")
+                                .about("Debug audit rule")
+                                .arg(
+                                    clap::Arg::new("rule")
+                                        .value_name("RULE_PATH")
+                                        .required(true)
+                                        .help("Path to file with rule for debugging")
+                                )
+                                .arg(
+                                    clap::Arg::new("http-pair-index")
+                                        .value_name("INDEX")
+                                        .short('i')
+                                        .help("Index of exact http mair in current project to run rule against it")
                                 )
                         )
                 )

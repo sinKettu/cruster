@@ -16,7 +16,7 @@ impl Rule {
             }
         };
         
-        let rule: Rule = match yml::from_reader(rule_file) {
+        let mut rule: Rule = match yml::from_reader(rule_file) {
             Ok(rule) => {
                 rule
             },
@@ -25,6 +25,7 @@ impl Rule {
             }
         };
 
+        rule.check_up()?;
         Ok(rule)
     }
 }

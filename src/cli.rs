@@ -7,6 +7,8 @@ use clap::{self, ArgMatches};
 use crate::config;
 use std::process::exit;
 
+use self::audit::debug_rule::DebugRuleConfig;
+
 #[derive(Debug)]
 pub struct CrusterCLIError {
     error: String
@@ -117,12 +119,29 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config, audit_co
             }
         },
         Some(("audit", subcommands)) => {
+            let http_data_path = format!("{}/http.jsonl", &project);
             match subcommands.subcommand() {
                 Some(("run", _args)) => {
                     if let Err(err) = audit::run::exec(&audit_conf) {
                         let err_str: String = err.into();
                         eprintln!("Error occured  while audit::run executed: {}", err_str);
                         exit(8);
+                    }
+                },
+                Some(("test", _args)) => {
+                    let arg = _args.get_one::<String>("arg").unwrap();
+                    if let Err(err) = audit::test::exec(arg, &http_data_path, &audit_conf).await {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while audit::test executed: {}", err_str);
+                        exit(8);
+                    }
+                },
+                Some(("debug-rule", _args)) => {
+                    let conf = DebugRuleConfig::try_from(_args)?;
+                    if let Err(err) = audit::debug_rule::exec(&conf, &http_data_path).await {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while audit::debug_rule executed: {}", err_str);
+                        exit(9);
                     }
                 },
                 _ => {
