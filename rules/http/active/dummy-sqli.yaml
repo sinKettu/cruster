@@ -30,7 +30,7 @@ rule:
     - placement: after
       watch_id: body-watch.bv
       values:
-        - test\' OR \'1\'=\'1\'
+        - "test' OR '1'='1'"
   send:
     - id: check-sqli-in-query
       apply: 0

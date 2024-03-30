@@ -1,7 +1,7 @@
 active: true
 passive: false
 rules:
-  - rules/active
+  - rules/http
 include: null
 exclude:
   tags: []

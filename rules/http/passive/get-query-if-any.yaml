@@ -1,0 +1,38 @@
+# Config example will be here
+# Config example will be here
+metadata:
+  authors:
+    - sinKettu<avangard.jazz@gmail.com>
+  name: Dummy SQLI
+  references: []
+  tags:
+    - test
+    - sqli
+severity: high
+id: get-query-if-any
+rule:
+  http:
+    passive:
+      find:
+        - id: query-persist
+          exec:
+            - name: check-query
+              operation: re_match
+              args:
+                - type: string
+                  value: '^.*?[0-9a-z\-_]+=[0-9a-z\-_]+(&[0-9a-z\-_]+=[0-9a-z\-_]+)*'
+                - type: reference
+                  value: 0.request.path
+      get:
+        - from: 0
+          if_succeed: query-persist
+          pattern: '[0-9a-z\-_]=(?P<test>[0-9a-z\-_]+)(&|#|$| )'
+          extract:
+            request:
+              group: test
+        - from: 0
+          if_succeed: query-persist
+          pattern: 'qwe=(?P<test>[0-9a-z])'
+          extract:
+            request:
+              group: test
