@@ -175,6 +175,7 @@ pub(crate) enum MainToWorkerCmd {
 pub(crate) enum WorkerToMainMsg {
     Result(RuleFinalState),
     Error(AuditError),
+    Log(String),
     Stopped
 }
 
@@ -190,18 +191,29 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
 
         tokio::spawn(
             async move {
+                cloned_tx.send(WorkerToMainMsg::Log(format!("[{}] Worker spawned", _i))).unwrap();
                 loop {
                     match cloned_rx.try_recv() {
                         Ok(cmd) => {
                             match cmd {
                                 MainToWorkerCmd::Scan(data) => {
                                     let (rule, pair) = (data.0, data.1);
-                                    // println!("Thread {} received rule={} and pair={}", _i, rule.get_id(), pair.index);
+
+                                    let uri = if let Some(request) = pair.request.as_ref() {
+                                        request.uri.clone()
+                                    }
+                                    else {
+                                        "Request is missing".to_string()
+                                    };
+                                    cloned_tx.send(WorkerToMainMsg::Log(format!("[{}] Worker executing rule '{}' with pair {} - {}", _i, rule.get_id(), pair.index, uri))).unwrap();
+
                                     let state = rule.execute(&pair).await;
+                                    cloned_tx.send(WorkerToMainMsg::Log(format!("[{}] Worker finished executing rule", _i))).unwrap();
                                     cloned_tx.send(WorkerToMainMsg::Result(state)).unwrap();
                                 },
                                 MainToWorkerCmd::Stop => {
                                     cloned_tx.send(WorkerToMainMsg::Stopped).unwrap();
+                                    cloned_tx.send(WorkerToMainMsg::Log(format!("[{}] Worker finished", _i))).unwrap();
                                     return;
                                 },
                                 MainToWorkerCmd::Start => {
