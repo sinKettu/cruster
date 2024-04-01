@@ -119,10 +119,6 @@ pub(crate) async fn exec(audit_conf: &AuditConfig, http_data_path: &str) -> Resu
         rules.push(Arc::new(rule));
     }
 
-    for _ in 0..tasks {
-        tx.send(MainToWorkerCmd::Start)?;
-    }
-
     for rule in rules.iter() {
         for pair in pairs.iter() {
             tx.send(MainToWorkerCmd::Scan((rule.clone(), pair.clone())))?;
@@ -162,7 +158,11 @@ pub(crate) async fn exec(audit_conf: &AuditConfig, http_data_path: &str) -> Resu
                         return Err(err.into());
                     },
                     WorkerToMainMsg::Log(message) => {
-                        eprintln!("{}", message);
+                        if let Some(verbose) = audit_conf.verbose {
+                            if verbose {
+                                eprintln!("{}", message);
+                            }
+                        }
                     },
                     WorkerToMainMsg::Stopped => {
                         stopped_workers += 1;

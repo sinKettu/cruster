@@ -123,8 +123,6 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config, mut audi
             match subcommands.subcommand() {
                 Some(("run", _args)) => {
                     audit_conf = audit::run::modify_audit_config_with_cmd_args(audit_conf, _args)?;
-                    println!("{:#?}", audit_conf);
-                    println!("\n");
                     if let Err(err) = audit::run::exec(&audit_conf, &http_data_path).await {
                         let err_str: String = err.into();
                         eprintln!("Error occured  while audit::run executed: {}", err_str);

@@ -167,7 +167,6 @@ impl Rule {
 
 
 pub(crate) enum MainToWorkerCmd {
-    Start,
     Scan((Arc<Rule>, Arc<RequestResponsePair>)),
     Stop,
 }
@@ -215,9 +214,6 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
                                     cloned_tx.send(WorkerToMainMsg::Stopped).unwrap();
                                     cloned_tx.send(WorkerToMainMsg::Log(format!("[{}] Worker finished", _i))).unwrap();
                                     return;
-                                },
-                                MainToWorkerCmd::Start => {
-                                    // println!("Task {} started", _i);
                                 }
                             }
                         },
