@@ -65,6 +65,7 @@ pub(crate) struct AuditConfig {
     pub(crate) tasks: Option<usize>,
     pub(crate) exclude: Option<AuditEntities>,
     pub(crate) include: Option<AuditEntities>,
+    pub(crate) verbose: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -106,7 +107,8 @@ impl Default for AuditConfig {
             rules: Vec::new(),
             tasks: Some(1),
             exclude: None,
-            include: None
+            include: None,
+            verbose: None,
         }
     }
 }
@@ -393,6 +395,82 @@ fn parse_cmd() -> clap::ArgMatches {
                             clap::Command::new("run")
                                 .alias("r")
                                 .about("Run audit using audit config")
+                                .arg(
+                                    clap::Arg::new("audit-name")
+                                        .value_name("NAME")
+                                        .required(true)
+                                        .help("Name of the audit (used in files names)")
+                                )
+                                .arg(
+                                    clap::Arg::new("verbose")
+                                        .long("verbose")
+                                        .short('v')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Enable verbose output from audit workers")
+                                )
+                                .arg(
+                                    clap::Arg::new("add-path")
+                                        .value_name("PATH_TO_ADD")
+                                        .long("add-path")
+                                        .short('d')
+                                        .conflicts_with("rule-path")
+                                        .action(clap::ArgAction::Append)
+                                        .help("Paths containig rules to add for loading")
+                                )
+                                .arg(
+                                    clap::Arg::new("rule-path")
+                                        .value_name("RULE_PATH")
+                                        .long("rule-path")
+                                        .short('r')
+                                        .conflicts_with("add-path")
+                                        .help("Path containig rules to overwrite existing and load rules only from it")
+                                )
+                                .arg(
+                                    clap::Arg::new("tags")
+                                        .value_name("TAGS")
+                                        .long("tags")
+                                        .short('t')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Load only rules, whcih contain these tags")
+                                )
+                                .arg(
+                                    clap::Arg::new("exclude-tags")
+                                        .value_name("EXCLUDE-TAGS")
+                                        .long("exclude-tags")
+                                        .short('e')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Ignore rules while loading with these tags")
+                                )
+                                .arg(
+                                    clap::Arg::new("ids")
+                                        .value_name("IDs")
+                                        .long("ids")
+                                        .short('i')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Load only rules with these ids")
+                                )
+                                .arg(
+                                    clap::Arg::new("exclude-ids")
+                                        .value_name("EXCLUDE-IDs")
+                                        .long("exclude-ids")
+                                        .short('x')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Ignore rules with these ids")
+                                )
+                                .arg(
+                                    clap::Arg::new("active")
+                                        .long("active")
+                                        .short('a')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Enable active rules")
+                                )
+                                .arg(
+                                    clap::Arg::new("passive")
+                                        .long("passive")
+                                        .short('p')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Enable passive rules")
+                                )
                         )
                         .subcommand(
                             clap::Command::new("test")
