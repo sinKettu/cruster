@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use bstr::ByteSlice;
+use log::debug;
 use regex::bytes::Regex;
 
 use crate::audit::{contexts::traits::{WithFindAction, WithGetAction}, types::PayloadsTests};
@@ -68,6 +70,7 @@ impl RuleGetAction {
     {
         let find_id = self.if_succeed_cache.unwrap();
         if ! ctxt.find_action_secceeded(find_id) {
+            debug!("GetAction - find action with id {} did not succeeded, action finished", find_id);
             ctxt.add_empty_result(find_id);
             return Ok(())
         }
@@ -85,6 +88,7 @@ impl RuleGetAction {
                     ExtractionModeByPart::REQUEST(mode) => {
                         let possible_extracted_data = request.extract(&pattern, mode);
                         if let Some(extracted_data) = possible_extracted_data {
+                            debug!("GetAction - extracted data from request: {}", extracted_data.as_slice().to_str_lossy());
                             ctxt.add_get_result(find_id, extracted_data);
                             return Ok(());
                         }
@@ -93,6 +97,7 @@ impl RuleGetAction {
                         for response in responses {
                             let possible_extracted_data = response.extract(&pattern, mode);
                             if let Some(extracted_data) = possible_extracted_data {
+                                debug!("GetAction - extracted data from response: {}", extracted_data.as_slice().to_str_lossy());
                                 ctxt.add_get_result(find_id, extracted_data);
                                 return Ok(());
                             }
@@ -104,6 +109,7 @@ impl RuleGetAction {
             }
         }
 
+        debug!("GetAction - no data extracted");
         ctxt.add_empty_result(find_id);
         Ok(())
     }

@@ -2,7 +2,7 @@ mod args;
 mod methods;
 mod operations;
 
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use log::debug;
 use serde::{Deserialize, Serialize};

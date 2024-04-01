@@ -190,7 +190,6 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
 
         tokio::spawn(
             async move {
-                println!("Spawned worker {}", _i);
                 loop {
                     match cloned_rx.try_recv() {
                         Ok(cmd) => {
@@ -199,17 +198,14 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
                                     let (rule, pair) = (data.0, data.1);
                                     // println!("Thread {} received rule={} and pair={}", _i, rule.get_id(), pair.index);
                                     let state = rule.execute(&pair).await;
-                                    if let Err(err) = cloned_tx.send(WorkerToMainMsg::Result(state)) {
-                                        println!("Task {} Error: {}", _i, err);
-                                    }
+                                    cloned_tx.send(WorkerToMainMsg::Result(state)).unwrap();
                                 },
                                 MainToWorkerCmd::Stop => {
-                                    println!("Finished task {}", _i);
                                     cloned_tx.send(WorkerToMainMsg::Stopped).unwrap();
                                     return;
                                 },
                                 MainToWorkerCmd::Start => {
-                                    println!("Task {} started", _i);
+                                    // println!("Task {} started", _i);
                                 }
                             }
                         },
@@ -217,9 +213,7 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
                             if let TryRecvError::Empty = err { }
                             else {
                                 let audit_err = AuditError(err.to_string());
-                                if let Err(err) = cloned_tx.send(WorkerToMainMsg::Error(audit_err)) {
-                                    println!("Task error on receiving command: {}", err);
-                                }
+                                cloned_tx.send(WorkerToMainMsg::Error(audit_err)).unwrap();
                             }
                         }
                     };

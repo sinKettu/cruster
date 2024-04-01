@@ -2,7 +2,7 @@ use std::{str::FromStr, collections::HashMap};
 
 use log::debug;
 
-use crate::audit::{contexts::traits::{WithChangeAction, WithWatchAction}, types::SingleCoordinates};
+use crate::audit::contexts::traits::{WithChangeAction, WithWatchAction};
 
 use super::*;
 

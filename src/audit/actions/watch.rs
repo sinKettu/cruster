@@ -53,6 +53,8 @@ impl RuleWatchAction {
                 return cap_borders;
             };
 
+            debug!("{:#?}", cptrs);
+
             for (cname_index, cname) in byte_re.capture_names().enumerate() {
                 match cname {
                     Some(cname) => {
