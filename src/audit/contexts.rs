@@ -8,7 +8,7 @@ use crate::http_storage::RequestResponsePair;
 
 use super::types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates};
 
-pub(crate) struct ActiveRuleContext<'pair_lt, 'rule_lt> {
+pub(crate) struct ActiveRuleContext<'pair_lt> {
     rule_id: String,
     pair: &'pair_lt RequestResponsePair,
 
@@ -17,7 +17,7 @@ pub(crate) struct ActiveRuleContext<'pair_lt, 'rule_lt> {
     watch_succeeded_for_change: bool,
     change_results: Vec<Option<SingleCaptureGroupCoordinates>>,
 
-    send_results: Vec<SendActionResultsPerPatternEntry<'rule_lt>>,
+    send_results: Vec<SendActionResultsPerPatternEntry>,
 
     find_results: Vec<bool>,
 
@@ -28,7 +28,7 @@ pub(crate) struct PassiveRuleContext<'pair_lt> {
     rule_id: String,
     pair: &'pair_lt RequestResponsePair,
 
-    initial_send_result: Vec<SendActionResultsPerPatternEntry<'static>>,
+    initial_send_result: Vec<SendActionResultsPerPatternEntry>,
     find_results: Vec<bool>,
     get_result: HashMap<usize, Vec<Vec<u8>>>,
 }

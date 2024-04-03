@@ -1,19 +1,19 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use bstr::ByteSlice;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, PassiveRuleExecutionContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext, PassiveRuleContext};
 use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
-impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt, 'rule_lt> for PassiveRuleContext<'pair_lt>
+impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for PassiveRuleContext<'pair_lt>
 {
-    fn init(rule: &'rule_lt Rule, pair: &'pair_lt RequestResponsePair) -> Self {
+    fn init(rule: &Rule, pair: &'pair_lt RequestResponsePair) -> Self {
         // set initial pair as send action result with index 0
-        let initial_send_result: Vec<SendActionResultsPerPatternEntry<'static>> = vec![
+        let initial_send_result: Vec<SendActionResultsPerPatternEntry> = vec![
             vec![
                 HashMap::from([
                     (
-                        "__VERY_INITIAL_PAIR__",
+                        Arc::new("__VERY_INITIAL_PAIR__".to_string()),
                         SingleSendActionResult {
                             request_sent: pair.request.as_ref().unwrap().clone(),
                             positions_changed: SingleCoordinates {
@@ -59,8 +59,8 @@ impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt, 'rule_lt> for PassiveRuleContext
 }
 
 // There are actually no send actions in passive rule, but this trait must be implemented
-impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt, 'rule_lt> for PassiveRuleContext<'pair_lt> {
-    fn add_send_result(&mut self, res: crate::audit::types::SendActionResultsPerPatternEntry<'rule_lt>) {
+impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for PassiveRuleContext<'pair_lt> {
+    fn add_send_result(&mut self, res: crate::audit::types::SendActionResultsPerPatternEntry) {
         unreachable!("method .add_send_result() must not be used with passive context, something goes wrong")
     }
 
@@ -70,7 +70,7 @@ impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt, 'rule_lt> for PassiveRuleConte
 }
 
 
-impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt, 'rule_lt> for PassiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for PassiveRuleContext<'pair_lt> {
     fn add_find_result(&mut self, res: bool) {
         self.find_results.push(res);
     }
@@ -84,7 +84,7 @@ impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt, 'rule_lt> for PassiveRuleConte
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt, 'rule_lt> for PassiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for PassiveRuleContext<'pair_lt> {
     fn find_action_secceeded(&self, id: usize) -> bool {
         if id >= self.find_results.len() {
             false
@@ -94,7 +94,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt, 'rule_lt> for PassiveRuleContex
         }
     }
 
-    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry<'static>, AuditError> {
+    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry, AuditError> {
         if id != 0 {
             return Err(AuditError("index of request/response in passive may only be 0".to_string()));
         }
@@ -120,7 +120,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt, 'rule_lt> for PassiveRuleContex
     }
 }
 
-impl<'pair_lt, 'rule_lt> PassiveRuleExecutionContext<'pair_lt, 'rule_lt> for PassiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> PassiveRuleExecutionContext<'pair_lt> for PassiveRuleContext<'pair_lt> {
     fn make_result(self, rule: &Rule) -> RuleResult {
         let mut findings = HashMap::with_capacity(self.find_results.len());
         for (index, find_result) in self.find_results.iter().enumerate() {

@@ -4,6 +4,8 @@ pub(super) mod send;
 pub(super) mod watch;
 pub(super) mod get;
 
+use std::sync::Arc;
+
 use serde::{Serialize, Deserialize};
 
 use super::AuditError;
@@ -45,7 +47,7 @@ pub(crate) struct RuleChangeAction {
     // This field will store more convinient representation of placement after first check
     pub(super) placement_cache: Option<ChangeValuePlacement>,
 
-    pub(super) values: Vec<String>,
+    pub(super) values: Vec<Arc<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

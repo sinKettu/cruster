@@ -148,9 +148,9 @@ impl RuleSendAction {
         }
     }
 
-    pub(crate) async fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T, placement: ChangeValuePlacement, payloads: &'rule_lt Vec<String>) -> Result<(), AuditError>
+    pub(crate) async fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T, placement: ChangeValuePlacement, payloads: &'rule_lt Vec<Arc<String>>) -> Result<(), AuditError>
     where
-        T: WithSendAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt> 
+        T: WithSendAction<'pair_lt> + WithChangeAction<'pair_lt> 
     {
         let change_to_apply = self.apply_cache.unwrap();
         let coordinates = &ctxt.change_results()[change_to_apply];
@@ -283,7 +283,7 @@ impl RuleSendAction {
                     }
                 }
 
-                second_level_results.insert(payload.as_str(), third_level_results);
+                second_level_results.insert(payload.clone(), third_level_results);
             }
 
             results.push(second_level_results);

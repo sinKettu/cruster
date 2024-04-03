@@ -1,7 +1,7 @@
 pub(crate) mod active;
 pub(crate) mod passive;
 
-use std::{collections::HashMap, fmt::Display};
+use std::{fmt::Display, sync::Arc};
 
 use self::active::ActiveRule;
 
@@ -81,7 +81,7 @@ impl Rule {
         return Ok(change.placement_cache.as_ref().unwrap().clone());
     }
 
-    pub(crate) fn get_payloads_by_index(&self, index: usize) -> Result<&Vec<String>, AuditError> {
+    pub(crate) fn get_payloads_by_index(&self, index: usize) -> Result<&Vec<Arc<String>>, AuditError> {
         let rule = self.http_active_rule()?;
         let Some(change) = rule.change.get(index) else {
             let err_str = format!("Tried to access change action with index {} in rule '{}', but it contains only {} change actions", index, self.id.as_str(), rule.change.len());

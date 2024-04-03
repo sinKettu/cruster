@@ -66,7 +66,7 @@ impl RuleGetAction {
 
     pub(crate) fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T) -> Result<(), AuditError>
     where
-        T: WithFindAction<'pair_lt, 'rule_lt> + WithGetAction<'pair_lt, 'rule_lt>
+        T: WithFindAction<'pair_lt> + WithGetAction<'pair_lt>
     {
         let find_id = self.if_succeed_cache.unwrap();
         if ! ctxt.find_action_secceeded(find_id) {
@@ -78,7 +78,7 @@ impl RuleGetAction {
         // Checks are done before
         let pattern = Regex::new(&self.pattern).unwrap();
 
-        let send_data: &Vec<PayloadsTests<'rule_lt>> = ctxt.get_pair_by_id(find_id)?;
+        let send_data: &Vec<PayloadsTests> = ctxt.get_pair_by_id(find_id)?;
         for accordance in send_data {
             for (_, send_result) in accordance {
                 let request = &send_result.request_sent;

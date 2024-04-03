@@ -1,19 +1,19 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use bstr::ByteSlice;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
 use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
-impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt>
+impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext<'pair_lt>
 {
-    fn init(rule: &'rule_lt Rule, pair: &'pair_lt RequestResponsePair) -> Self {
+    fn init(rule: &Rule, pair: &'pair_lt RequestResponsePair) -> Self {
         // set initial pair as send action result with index 0
-        let initial_send_results: Vec<SendActionResultsPerPatternEntry<'rule_lt>> = vec![
+        let initial_send_results: Vec<SendActionResultsPerPatternEntry> = vec![
             vec![
                 HashMap::from([
                     (
-                        "__VERY_INITIAL_PAIR__",
+                        Arc::new("__VERY_INITIAL_PAIR__".to_string()),
                         SingleSendActionResult {
                             request_sent: pair.request.as_ref().unwrap().clone(),
                             positions_changed: SingleCoordinates {
@@ -61,7 +61,7 @@ impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt, 'rule_lt> for ActiveRuleContext<
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithWatchAction<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt> {
+impl<'pair_lt, 'rule_lt> WithWatchAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
     fn add_watch_result(&mut self, res: CapturesBorders) {
         self.watch_results.push(res);
     }
@@ -71,7 +71,7 @@ impl<'pair_lt, 'rule_lt> WithWatchAction<'pair_lt, 'rule_lt> for ActiveRuleConte
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithChangeAction<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt> {
+impl<'pair_lt, 'rule_lt> WithChangeAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
     fn add_change_result(&mut self, res: Option<SingleCaptureGroupCoordinates>) {
         if res.is_some() {
             self.watch_succeeded_for_change = true;
@@ -89,8 +89,8 @@ impl<'pair_lt, 'rule_lt> WithChangeAction<'pair_lt, 'rule_lt> for ActiveRuleCont
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt> {
-    fn add_send_result(&mut self, res: crate::audit::types::SendActionResultsPerPatternEntry<'rule_lt>) {
+impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
+    fn add_send_result(&mut self, res: crate::audit::types::SendActionResultsPerPatternEntry) {
         self.send_results.push(res);
     }
 
@@ -99,7 +99,7 @@ impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt, 'rule_lt> for ActiveRuleContex
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt> {
+impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
     fn add_find_result(&mut self, res: bool) {
         self.find_results.push(res);
     }
@@ -113,7 +113,7 @@ impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt, 'rule_lt> for ActiveRuleContex
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt> {
+impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
     fn find_action_secceeded(&self, id: usize) -> bool {
         if id >= self.find_results.len() {
             false
@@ -123,7 +123,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt, 'rule_lt> for ActiveRuleContext
         }
     }
 
-    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry<'rule_lt>, AuditError> {
+    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry, AuditError> {
         if id >= self.send_results.len() {
             return Err(AuditError("Index of Send results is out of bounds".to_string()));
         }
@@ -149,7 +149,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt, 'rule_lt> for ActiveRuleContext
     }
 }
 
-impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt, 'rule_lt> for ActiveRuleContext<'pair_lt, 'rule_lt> {
+impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleContext<'pair_lt> {
     fn make_result(self, rule: &Rule) -> crate::audit::RuleResult {
         
         let mut findings = HashMap::with_capacity(self.find_results.len());

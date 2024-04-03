@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
@@ -24,8 +24,8 @@ pub(crate) type CapturesBorders = HashMap<String, Vec<SingleCoordinates>>;
 pub(crate) type SingleCaptureGroupCoordinates = Vec<SingleCoordinates>;
 
 // index of SSAR in this vector is index of payload in watch action
-pub(crate) type PayloadsTests<'rule_lifetime> = HashMap<&'rule_lifetime str, SingleSendActionResult>;
+pub(crate) type PayloadsTests = HashMap<Arc<String>, SingleSendActionResult>;
 //pub(crate) type PayloadsTests = Vec<SingleSendActionResult>;
 
 // index of payloads tests set in this vector is index of single change action result (coordinates) in context
-pub(crate) type SendActionResultsPerPatternEntry<'rule_lifetime> = Vec<PayloadsTests<'rule_lifetime>>;
+pub(crate) type SendActionResultsPerPatternEntry = Vec<PayloadsTests>;

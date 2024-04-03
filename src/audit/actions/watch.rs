@@ -28,7 +28,7 @@ impl RuleWatchAction {
         self.id.clone()
     }
 
-    pub(crate) fn exec<'pair_lt, 'rule_lt, T: WithWatchAction<'pair_lt, 'rule_lt>>(&self, ctxt: &mut T) -> Result<(), AuditError> {
+    pub(crate) fn exec<'pair_lt, 'rule_lt, T: WithWatchAction<'pair_lt>>(&self, ctxt: &mut T) -> Result<(), AuditError> {
         let Some(request) = ctxt.initial_request() else {
             let err_str = format!("HTTP pair with id {} has empty request", ctxt.pair_id());
             return Err(AuditError(err_str));

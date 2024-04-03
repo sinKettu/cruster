@@ -277,7 +277,7 @@ impl RuleFindAction {
 
     pub(crate) fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T) -> Result<(), AuditError> 
     where
-        T: WithFindAction<'pair_lt, 'rule_lt> + WithSendAction<'pair_lt, 'rule_lt>
+        T: WithFindAction<'pair_lt,> + WithSendAction<'pair_lt>
     {
         let mut executed: HashMap<&str, ExecutableExpressionArgsValues> = HashMap::with_capacity(self.exec.len());
         let mut last_op: &str = "";

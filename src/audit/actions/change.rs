@@ -69,7 +69,7 @@ impl RuleChangeAction {
 
     pub(crate) fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T) -> Result<(), AuditError>
     where
-        T: WithWatchAction<'pair_lt, 'rule_lt> + WithChangeAction<'pair_lt, 'rule_lt>
+        T: WithWatchAction<'pair_lt> + WithChangeAction<'pair_lt>
     {
         let watch_results = ctxt.watch_results();
         let wid = self.watch_id_cache.as_ref().unwrap();
