@@ -165,7 +165,7 @@ impl Operations for ExecutableExpressionArgsValues {
                 for i in 0..arg2.len() {
                     let iter_arg2 = &arg2[i];
 
-                    let res = self.greater_or_equal(arg);
+                    let res = self.greater_or_equal(iter_arg2);
                     collected.push(res);
                 }
 
