@@ -1,10 +1,10 @@
-use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
+use std::{collections::HashMap, rc::Rc, str::FromStr, thread::sleep, time::Duration};
 
 use bstr::ByteSlice;
 use http::{header::HeaderName, HeaderValue, HeaderMap};
 use log::debug;
 
-use crate::{audit::{contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult}}, cruster_proxy::request_response::HyperRequestWrapper};
+use crate::{audit::{contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}}, cruster_proxy::request_response::HyperRequestWrapper};
 use crate::http_sender;
 
 use super::*;
@@ -157,7 +157,7 @@ impl RuleSendAction {
         let request = ctxt.initial_request().unwrap();
 
         let coordinates = if coordinates.is_none() {
-            ctxt.add_send_result(SendActionResultsPerPatternEntry::default());
+            ctxt.add_send_result(Vec::default());
             debug!("SendAction - Nothing to change in initial request for this action");
             return Ok(());
         }
@@ -165,10 +165,7 @@ impl RuleSendAction {
             coordinates.as_ref().unwrap()
         };
 
-        // First level - one per pattern entry
-        // Second level - one per payload value
-        // third level - one per every repeat
-        let mut results = SendActionResultsPerPatternEntry::with_capacity(coordinates.len());
+        let mut results_: Vec<SingleSendResultEntry> = Vec::with_capacity(if let Some(rp) = self.repeat { payloads.len() * rp } else { payloads.len() });
 
         for SingleCoordinates { line: line_number, start, end } in coordinates {
             let workline = if line_number.to_owned() == 0 {
@@ -213,7 +210,6 @@ impl RuleSendAction {
                 request_line.to_vec()
             };
 
-            let mut second_level_results: PayloadsTests = PayloadsTests::with_capacity(payloads.len());
             for payload in payloads {
                 let (new_line, new_start, new_end) = match placement {
                     ChangeValuePlacement::AFTER => {
@@ -252,21 +248,13 @@ impl RuleSendAction {
                 debug!("SendAction -                {: <2$}^{: <3$}^", "", "", new_start, (new_end - new_start).saturating_sub(2));
 
                 let modified_request = self.modify_request(request, new_line, line_number.to_owned())?;
+                let modified_request = Arc::new(modified_request);
+
                 let repeat_number = if let Some(rn) = self.repeat.as_ref() { rn.to_owned() } else { 0 };
                 let timeout = if let Some(tout) = self.timeout_after.as_ref() { tout.to_owned() } else { 0 };
 
-                let mut third_level_results: SingleSendActionResult = SingleSendActionResult {
-                    request_sent: modified_request,
-                    positions_changed: SingleCoordinates {
-                        line: line_number.to_owned(),
-                        start: new_start,
-                        end: new_end
-                    },
-                    responses_received: Vec::with_capacity(repeat_number + 1)
-                };
-
                 for _ in 0..(repeat_number + 1) {
-                    let response = match http_sender::send_request_from_wrapper(&third_level_results.request_sent, 0).await {
+                    let response = match http_sender::send_request_from_wrapper(&modified_request, 0).await {
                         Ok((response, _)) => {
                             response
                         },
@@ -276,20 +264,22 @@ impl RuleSendAction {
                         }  
                     };
 
-                    third_level_results.responses_received.push(response);
+                    let result_entry = SingleSendResultEntry {
+                        request: modified_request.clone(),
+                        payload: payload.clone(),
+                        response
+                    };
+
+                    results_.push(result_entry);
 
                     if repeat_number > 0 && timeout > 0 {
                         sleep(Duration::from_millis(timeout as u64));
                     }
                 }
-
-                second_level_results.insert(payload.clone(), third_level_results);
             }
-
-            results.push(second_level_results);
         }
 
-        ctxt.add_send_result(results);
+        ctxt.add_send_result(results_);
 
         Ok(())
     }

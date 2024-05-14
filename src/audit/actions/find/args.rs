@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use bstr::ByteSlice;
 use serde::{Deserialize, Serialize};
 
-use crate::{audit::types::SendActionResultsPerPatternEntry, http_storage::RequestResponsePair};
+use crate::{audit::types::{SendActionResultsPerPatternEntry, SingleSendResultEntry}, http_storage::RequestResponsePair};
 
 use super::AuditError;
 
@@ -114,7 +114,7 @@ impl ExecutableExpressionArgsValues {
 }
 
 impl Reference {
-    pub(super) fn deref(&self, pair: &RequestResponsePair, send_results: &Vec<SendActionResultsPerPatternEntry>) -> Result<ExecutableExpressionArgsValues, AuditError> {
+    pub(super) fn deref(&self, pair: &RequestResponsePair, send_results: &Vec<Vec<SingleSendResultEntry>>) -> Result<ExecutableExpressionArgsValues, AuditError> {
         // Get initial request/response
         let dereferenced = if self.id == 0 {
             match &self.message_part {
@@ -168,89 +168,86 @@ impl Reference {
 
             let mut values: Vec<ExecutableExpressionArgsValues> = Vec::default();
             let send_result = &send_results[id];
-            for result_per_entry in send_result {
-                for single_send_result in result_per_entry.values().into_iter() {
-                    match self.pair_part {
-                        PairPart::REQUEST => {
-                            let value = match &self.message_part {
-                                MessagePart::METHOD => {
-                                    ExecutableExpressionArgsValues::String(single_send_result.request_sent.method.clone())
-                                },
-                                MessagePart::HEADER(hname) => {
-                                    let hmap = &single_send_result.request_sent.headers;
-                
-                                    let values = hmap.get_all(hname)
-                                        .iter()
-                                        .map(|val| {
-                                            val.as_bytes().to_str_lossy()
-                                        })
-                                        .collect::<Vec<Cow<str>>>()
-                                        .join("; ");
-                
-                                    let res = format!("{}: {}", hname, values);
-                
-                                    ExecutableExpressionArgsValues::String(res)
-                                },
-                                MessagePart::PATH => {
-                                    ExecutableExpressionArgsValues::String(pair.request.as_ref().unwrap().get_request_path())
-                                },
-                                MessagePart::VERSION => {
-                                    let version = single_send_result.request_sent.version.clone();
-                                    ExecutableExpressionArgsValues::String(version)
-                                },
-                                MessagePart::BODY => {
-                                    let body = single_send_result.request_sent.body.to_str_lossy().to_string();
-                                    ExecutableExpressionArgsValues::String(body)
-                                },
-                                MessagePart::STATUS => {
-                                    unreachable!()
-                                }
-                            };
-    
-                            values.push(value);
-                        },
-                        PairPart::RESPONSE => {
-                            for response in single_send_result.responses_received.iter() {
-                                let value = match &self.message_part {
-                                    MessagePart::METHOD => {
-                                        unreachable!()
-                                    },
-                                    MessagePart::HEADER(hname) => {
-                                        let hmap = &response.headers;
-                    
-                                        let values = hmap.get_all(hname)
-                                            .iter()
-                                            .map(|val| {
-                                                val.as_bytes().to_str_lossy()
-                                            })
-                                            .collect::<Vec<Cow<str>>>()
-                                            .join("; ");
-                    
-                                        let res = format!("{}: {}", hname, values);
-                    
-                                        ExecutableExpressionArgsValues::String(res)
-                                    },
-                                    MessagePart::PATH => {
-                                        unreachable!()
-                                    },
-                                    MessagePart::VERSION => {
-                                        let version = response.version.clone();
-                                        ExecutableExpressionArgsValues::String(version)
-                                    },
-                                    MessagePart::BODY => {
-                                        let body = response.body.to_str_lossy().to_string();
-                                        ExecutableExpressionArgsValues::String(body)
-                                    },
-                                    MessagePart::STATUS => {
-                                        ExecutableExpressionArgsValues::String(pair.response.as_ref().unwrap().status.clone())
-                                    }
-                                };
-    
-                                values.push(value);
+            for entry in send_result {
+                match self.pair_part {
+                    PairPart::REQUEST => {
+                        let value = match &self.message_part {
+                            MessagePart::METHOD => {
+                                ExecutableExpressionArgsValues::String(entry.request.method.clone())
+                            },
+                            MessagePart::HEADER(hname) => {
+                                let hmap = &entry.request.headers;
+            
+                                let values = hmap.get_all(hname)
+                                    .iter()
+                                    .map(|val| {
+                                        val.as_bytes().to_str_lossy()
+                                    })
+                                    .collect::<Vec<Cow<str>>>()
+                                    .join("; ");
+            
+                                let res = format!("{}: {}", hname, values);
+            
+                                ExecutableExpressionArgsValues::String(res)
+                            },
+                            MessagePart::PATH => {
+                                ExecutableExpressionArgsValues::String(entry.request.get_request_path())
+                            },
+                            MessagePart::VERSION => {
+                                let version = entry.request.version.clone();
+                                ExecutableExpressionArgsValues::String(version)
+                            },
+                            MessagePart::BODY => {
+                                let body = entry.request.body.to_str_lossy().to_string();
+                                ExecutableExpressionArgsValues::String(body)
+                            },
+                            MessagePart::STATUS => {
+                                unreachable!()
                             }
-                        }
-                    };
-                }
+                        };
+
+                        values.push(value);
+                    },
+                    PairPart::RESPONSE => {
+                        let response = &entry.response;
+                        let value = match &self.message_part {
+                            MessagePart::METHOD => {
+                                unreachable!()
+                            },
+                            MessagePart::HEADER(hname) => {
+                                let hmap = &response.headers;
+            
+                                let values = hmap.get_all(hname)
+                                    .iter()
+                                    .map(|val| {
+                                        val.as_bytes().to_str_lossy()
+                                    })
+                                    .collect::<Vec<Cow<str>>>()
+                                    .join("; ");
+            
+                                let res = format!("{}: {}", hname, values);
+            
+                                ExecutableExpressionArgsValues::String(res)
+                            },
+                            MessagePart::PATH => {
+                                unreachable!()
+                            },
+                            MessagePart::VERSION => {
+                                let version = response.version.clone();
+                                ExecutableExpressionArgsValues::String(version)
+                            },
+                            MessagePart::BODY => {
+                                let body = response.body.to_str_lossy().to_string();
+                                ExecutableExpressionArgsValues::String(body)
+                            },
+                            MessagePart::STATUS => {
+                                ExecutableExpressionArgsValues::String(pair.response.as_ref().unwrap().status.clone())
+                            }
+                        };
+
+                        values.push(value);
+                    }
+                };
             }
 
             ExecutableExpressionArgsValues::Several(values)

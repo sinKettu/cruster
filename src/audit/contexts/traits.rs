@@ -1,12 +1,14 @@
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
+use std::sync::Arc;
+
+use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
 
 
 pub(crate) trait BasicContext<'pair_lt> {
-    fn init(rule: &Rule, pair: &'pair_lt RequestResponsePair) -> Self;
+    fn init(rule: &Rule, pair: Arc<RequestResponsePair>) -> Self;
     
     fn initial_pair(&self) -> &RequestResponsePair;
-    fn initial_request(&self) -> Option<&'pair_lt HyperRequestWrapper>;
-    fn initial_response(&self) -> Option<&'pair_lt HyperResponseWrapper>;
+    fn initial_request(&self) -> Option<&HyperRequestWrapper>;
+    fn initial_response(&self) -> Option<&HyperResponseWrapper>;
     
     fn pair_id(&self) -> usize;
     fn rule_id(&self) -> &str;
@@ -25,8 +27,8 @@ pub(crate) trait WithChangeAction<'pair_lt>: BasicContext<'pair_lt> {
 }
 
 pub(crate) trait WithSendAction<'pair_lt>: BasicContext<'pair_lt> {
-    fn add_send_result(&mut self, res: SendActionResultsPerPatternEntry);
-    fn send_results(&self) -> &Vec<SendActionResultsPerPatternEntry>;
+    fn add_send_result(&mut self, res: Vec<SingleSendResultEntry>);
+    fn send_results(&self) -> &Vec<Vec<SingleSendResultEntry>>;
 }
 
 pub(crate) trait WithFindAction<'pair_lt>: BasicContext<'pair_lt> {
@@ -36,7 +38,7 @@ pub(crate) trait WithFindAction<'pair_lt>: BasicContext<'pair_lt> {
 }
 
 pub(crate) trait WithGetAction<'pair_lt>: BasicContext<'pair_lt> {
-    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry, AuditError>;
+    fn get_pair_by_id(&self, id: usize) -> Result<&Vec<SingleSendResultEntry>, AuditError>;
     fn find_action_secceeded(&self, id: usize) -> bool;
     fn add_empty_result(&mut self, find_action_index: usize);
     fn add_get_result(&mut self, find_action_index: usize, res: Vec<u8>);

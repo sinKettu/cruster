@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use clap::ArgMatches;
 use log::{debug, LevelFilter};
 use log4rs::{self, config::{Appender, Logger, Root}, encode::pattern::PatternEncoder};
@@ -54,7 +56,7 @@ pub(crate) async fn exec(conf: &DebugRuleConfig, http_data_path: &str) -> Result
 
     if let Some(index) = conf.pair_index {
         if let Some(pair) = storage.get_by_id(index) {
-            let execution_state = rule.execute(pair).await;
+            let execution_state = rule.execute(Arc::new(pair.clone())).await;
             println!("{:#?}", execution_state);
         }
         else {
@@ -63,7 +65,7 @@ pub(crate) async fn exec(conf: &DebugRuleConfig, http_data_path: &str) -> Result
     }
     else {
         for pair in storage.into_iter() {
-            let execution_state = rule.execute(pair).await;
+            let execution_state = rule.execute(Arc::new(pair.clone())).await;
             println!("{:#?}", execution_state);
         }
     }

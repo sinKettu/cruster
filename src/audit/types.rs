@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
 
@@ -29,3 +29,9 @@ pub(crate) type PayloadsTests = HashMap<Arc<String>, SingleSendActionResult>;
 
 // index of payloads tests set in this vector is index of single change action result (coordinates) in context
 pub(crate) type SendActionResultsPerPatternEntry = Vec<PayloadsTests>;
+
+pub(crate) struct SingleSendResultEntry {
+    pub(crate) request: Arc<HyperRequestWrapper>,
+    pub(crate) payload: Arc<String>,
+    pub(crate) response: HyperResponseWrapper
+}

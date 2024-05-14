@@ -13,14 +13,14 @@ use crate::http_storage::RequestResponsePair;
 
 
 impl Rule {
-    pub(crate) async fn execute<'pair_lt, 'rule_lt>(&'rule_lt self, pair: &'pair_lt RequestResponsePair) -> RuleFinalState {
+    pub(crate) async fn execute<'pair_lt, 'rule_lt>(&'rule_lt self, pair: Arc<RequestResponsePair>) -> RuleFinalState {
         match &self.rule {
             RuleByProtocal::Http(rule_type) => {
                 debug!("Rule protocol is HTTP");
                 match rule_type {
                     RuleType::Active(actions) => {
                         debug!("Rule type is active");
-                        let mut ctxt: ActiveRuleContext = ActiveRuleContext::init(self, pair);
+                        let mut ctxt: ActiveRuleContext = ActiveRuleContext::init(self, pair.clone());
 
                         // WATCH
                         debug!("Watch actions: {}", actions.watch.len());
@@ -123,7 +123,7 @@ impl Rule {
                     },
                     RuleType::Passive(actions) => {
                         debug!("Rule type is passive");
-                        let mut ctxt: PassiveRuleContext = PassiveRuleContext::init(self, pair);
+                        let mut ctxt: PassiveRuleContext = PassiveRuleContext::init(self, pair.clone());
                         
                         // FIND
                         debug!("Find actions: {}", actions.find.len());
@@ -206,7 +206,7 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
                                     };
                                     cloned_tx.send(WorkerToMainMsg::Log(format!("[{}] Worker executing rule '{}' with pair {} - {}", _i, rule.get_id(), pair.index, uri))).unwrap();
 
-                                    let state = rule.execute(&pair).await;
+                                    let state: RuleFinalState = rule.execute(pair).await;
                                     cloned_tx.send(WorkerToMainMsg::Log(format!("[{}] Worker finished executing rule", _i))).unwrap();
                                     cloned_tx.send(WorkerToMainMsg::Result(state)).unwrap();
                                 },

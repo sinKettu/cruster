@@ -78,34 +78,28 @@ impl RuleGetAction {
         // Checks are done before
         let pattern = Regex::new(&self.pattern).unwrap();
 
-        let send_data: &Vec<PayloadsTests> = ctxt.get_pair_by_id(find_id)?;
+        let send_data = ctxt.get_pair_by_id(find_id)?;
         for accordance in send_data {
-            for (_, send_result) in accordance {
-                let request = &send_result.request_sent;
-                let responses = &send_result.responses_received;
+            let request = &accordance.request;
+            let response = &accordance.response;
 
-                match &self.extract {
-                    ExtractionModeByPart::REQUEST(mode) => {
-                        let possible_extracted_data = request.extract(&pattern, mode);
-                        if let Some(extracted_data) = possible_extracted_data {
-                            debug!("GetAction - extracted data from request: {}", extracted_data.as_slice().to_str_lossy());
-                            ctxt.add_get_result(find_id, extracted_data);
-                            return Ok(());
-                        }
-                    },
-                    ExtractionModeByPart::RESPONSE(mode) => {
-                        for response in responses {
-                            let possible_extracted_data = response.extract(&pattern, mode);
-                            if let Some(extracted_data) = possible_extracted_data {
-                                debug!("GetAction - extracted data from response: {}", extracted_data.as_slice().to_str_lossy());
-                                ctxt.add_get_result(find_id, extracted_data);
-                                return Ok(());
-                            }
-                        }
+            match &self.extract {
+                ExtractionModeByPart::REQUEST(mode) => {
+                    let possible_extracted_data = request.extract(&pattern, mode);
+                    if let Some(extracted_data) = possible_extracted_data {
+                        debug!("GetAction - extracted data from request: {}", extracted_data.as_slice().to_str_lossy());
+                        ctxt.add_get_result(find_id, extracted_data);
+                        return Ok(());
+                    }
+                },
+                ExtractionModeByPart::RESPONSE(mode) => {
+                    let possible_extracted_data = response.extract(&pattern, mode);
+                    if let Some(extracted_data) = possible_extracted_data {
+                        debug!("GetAction - extracted data from response: {}", extracted_data.as_slice().to_str_lossy());
+                        ctxt.add_get_result(find_id, extracted_data);
+                        return Ok(());
                     }
                 }
-
-
             }
         }
 

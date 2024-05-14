@@ -1,30 +1,21 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use bstr::ByteSlice;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
+use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
-impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext<'pair_lt>
+impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext
 {
-    fn init(rule: &Rule, pair: &'pair_lt RequestResponsePair) -> Self {
+    fn init(rule: &Rule, pair: Arc<RequestResponsePair>) -> Self {
         // set initial pair as send action result with index 0
-        let initial_send_results: Vec<SendActionResultsPerPatternEntry> = vec![
+        let initial_send_results = vec![
             vec![
-                HashMap::from([
-                    (
-                        Arc::new("__VERY_INITIAL_PAIR__".to_string()),
-                        SingleSendActionResult {
-                            request_sent: pair.request.as_ref().unwrap().clone(),
-                            positions_changed: SingleCoordinates {
-                                line: 0,
-                                start: 0,
-                                end: 0
-                            },
-                            responses_received: vec![pair.response.as_ref().unwrap().clone()]
-                        }
-                    )
-                ])
+                SingleSendResultEntry {
+                    request: Arc::new(pair.request.clone().unwrap()),
+                    payload: Arc::new("__INITIAL_PAIR__".to_string()),
+                    response: pair.response.clone().unwrap()
+                }
             ]
         ];
 
@@ -40,15 +31,15 @@ impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext<'pair_lt>
         }
     }
 
-    fn initial_pair(&self) -> &'pair_lt RequestResponsePair {
-        self.pair
+    fn initial_pair(&self) -> &RequestResponsePair {
+        &self.pair
     }
 
-    fn initial_request(&self) -> Option<&'pair_lt crate::cruster_proxy::request_response::HyperRequestWrapper> {
+    fn initial_request(&self) -> Option<&crate::cruster_proxy::request_response::HyperRequestWrapper> {
         self.pair.request.as_ref()
     }
 
-    fn initial_response(&self) -> Option<&'pair_lt crate::cruster_proxy::request_response::HyperResponseWrapper> {
+    fn initial_response(&self) -> Option<&crate::cruster_proxy::request_response::HyperResponseWrapper> {
         self.pair.response.as_ref()
     }
 
@@ -61,7 +52,7 @@ impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext<'pair_lt>
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithWatchAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> WithWatchAction<'pair_lt> for ActiveRuleContext {
     fn add_watch_result(&mut self, res: CapturesBorders) {
         self.watch_results.push(res);
     }
@@ -71,7 +62,7 @@ impl<'pair_lt, 'rule_lt> WithWatchAction<'pair_lt> for ActiveRuleContext<'pair_l
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithChangeAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> WithChangeAction<'pair_lt> for ActiveRuleContext {
     fn add_change_result(&mut self, res: Option<SingleCaptureGroupCoordinates>) {
         if res.is_some() {
             self.watch_succeeded_for_change = true;
@@ -89,17 +80,17 @@ impl<'pair_lt, 'rule_lt> WithChangeAction<'pair_lt> for ActiveRuleContext<'pair_
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
-    fn add_send_result(&mut self, res: crate::audit::types::SendActionResultsPerPatternEntry) {
+impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for ActiveRuleContext {
+    fn add_send_result(&mut self, res: Vec<SingleSendResultEntry>) {
         self.send_results.push(res);
     }
 
-    fn send_results(&self) -> &Vec<crate::audit::types::SendActionResultsPerPatternEntry> {
+    fn send_results(&self) -> &Vec<Vec<SingleSendResultEntry>> {
         &self.send_results
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for ActiveRuleContext {
     fn add_find_result(&mut self, res: bool) {
         self.find_results.push(res);
     }
@@ -113,7 +104,7 @@ impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for ActiveRuleContext<'pair_lt
     }
 }
 
-impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for ActiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for ActiveRuleContext {
     fn find_action_secceeded(&self, id: usize) -> bool {
         if id >= self.find_results.len() {
             false
@@ -123,7 +114,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for ActiveRuleContext<'pair_lt>
         }
     }
 
-    fn get_pair_by_id(&self, id: usize) -> Result<&SendActionResultsPerPatternEntry, AuditError> {
+    fn get_pair_by_id(&self, id: usize) -> Result<&Vec<SingleSendResultEntry>, AuditError> {
         if id >= self.send_results.len() {
             return Err(AuditError("Index of Send results is out of bounds".to_string()));
         }
@@ -149,7 +140,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for ActiveRuleContext<'pair_lt>
     }
 }
 
-impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleContext<'pair_lt> {
+impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleContext {
     fn make_result(self, rule: &Rule) -> crate::audit::RuleResult {
         
         let mut findings = HashMap::with_capacity(self.find_results.len());
