@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use crate::audit::types::OpArgWithRef;
+
 use super::args::{ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues};
 use regex;
 
@@ -65,6 +69,63 @@ impl Operations for ExecutableExpressionArgsValues {
 
                 ExecutableExpressionArgsValues::Several(collected)
             },
+            (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
+                let arg1 = &arg1_with_ref.arg;
+                let arg2 = &arg2_with_ref.arg;
+
+                let result = arg1.equal(arg2);
+
+                if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg2_with_ref.refer.to_owned(),
+                                one_arg: arg2_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+                else {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg1_with_ref.refer.to_owned(),
+                                one_arg: arg1_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+            },
+            (_, Self::WithSendResReference(arg2_with_ref)) => {
+                let arg2 = &arg2_with_ref.arg;
+                let result = self.equal(arg2);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg2_with_ref.refer.to_owned(),
+                            one_arg: arg2_with_ref.one_arg
+                        }
+                    )
+                )
+            },
+            (Self::WithSendResReference(arg1_with_ref), _) => {
+                let arg1 = &arg1_with_ref.arg;
+                let result = self.equal(arg1);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg1_with_ref.refer.to_owned(),
+                            one_arg: arg1_with_ref.one_arg
+                        }
+                    )
+                )
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -117,6 +178,63 @@ impl Operations for ExecutableExpressionArgsValues {
                 }
 
                 ExecutableExpressionArgsValues::Several(collected)
+            },
+            (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
+                let arg1 = &arg1_with_ref.arg;
+                let arg2 = &arg2_with_ref.arg;
+
+                let result = arg1.greater(arg2);
+
+                if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg2_with_ref.refer.to_owned(),
+                                one_arg: arg2_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+                else {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg1_with_ref.refer.to_owned(),
+                                one_arg: arg1_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+            },
+            (_, Self::WithSendResReference(arg2_with_ref)) => {
+                let arg2 = &arg2_with_ref.arg;
+                let result = self.greater(arg2);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg2_with_ref.refer.to_owned(),
+                            one_arg: arg2_with_ref.one_arg
+                        }
+                    )
+                )
+            },
+            (Self::WithSendResReference(arg1_with_ref), _) => {
+                let arg1 = &arg1_with_ref.arg;
+                let result = self.greater(arg1);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg1_with_ref.refer.to_owned(),
+                            one_arg: arg1_with_ref.one_arg
+                        }
+                    )
+                )
             },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
@@ -171,6 +289,63 @@ impl Operations for ExecutableExpressionArgsValues {
 
                 ExecutableExpressionArgsValues::Several(collected)
             },
+            (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
+                let arg1 = &arg1_with_ref.arg;
+                let arg2 = &arg2_with_ref.arg;
+
+                let result = arg1.greater_or_equal(arg2);
+
+                if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg2_with_ref.refer.to_owned(),
+                                one_arg: arg2_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+                else {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg1_with_ref.refer.to_owned(),
+                                one_arg: arg1_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+            },
+            (_, Self::WithSendResReference(arg2_with_ref)) => {
+                let arg2 = &arg2_with_ref.arg;
+                let result = self.greater_or_equal(arg2);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg2_with_ref.refer.to_owned(),
+                            one_arg: arg2_with_ref.one_arg
+                        }
+                    )
+                )
+            },
+            (Self::WithSendResReference(arg1_with_ref), _) => {
+                let arg1 = &arg1_with_ref.arg;
+                let result = self.greater_or_equal(arg1);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg1_with_ref.refer.to_owned(),
+                            one_arg: arg1_with_ref.one_arg
+                        }
+                    )
+                )
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -223,6 +398,63 @@ impl Operations for ExecutableExpressionArgsValues {
                 }
 
                 ExecutableExpressionArgsValues::Several(collected)
+            },
+            (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
+                let arg1 = &arg1_with_ref.arg;
+                let arg2 = &arg2_with_ref.arg;
+
+                let result = arg1.less(arg2);
+
+                if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg2_with_ref.refer.to_owned(),
+                                one_arg: arg2_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+                else {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg1_with_ref.refer.to_owned(),
+                                one_arg: arg1_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+            },
+            (_, Self::WithSendResReference(arg2_with_ref)) => {
+                let arg2 = &arg2_with_ref.arg;
+                let result = self.less(arg2);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg2_with_ref.refer.to_owned(),
+                            one_arg: arg2_with_ref.one_arg
+                        }
+                    )
+                )
+            },
+            (Self::WithSendResReference(arg1_with_ref), _) => {
+                let arg1 = &arg1_with_ref.arg;
+                let result = self.less(arg1);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg1_with_ref.refer.to_owned(),
+                            one_arg: arg1_with_ref.one_arg
+                        }
+                    )
+                )
             },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
@@ -277,6 +509,63 @@ impl Operations for ExecutableExpressionArgsValues {
 
                 ExecutableExpressionArgsValues::Several(collected)
             },
+            (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
+                let arg1 = &arg1_with_ref.arg;
+                let arg2 = &arg2_with_ref.arg;
+
+                let result = arg1.less_or_equal(arg2);
+
+                if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg2_with_ref.refer.to_owned(),
+                                one_arg: arg2_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+                else {
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: result,
+                                refer: arg1_with_ref.refer.to_owned(),
+                                one_arg: arg1_with_ref.one_arg
+                            }
+                        )
+                    )
+                }
+            },
+            (_, Self::WithSendResReference(arg2_with_ref)) => {
+                let arg2 = &arg2_with_ref.arg;
+                let result = self.less_or_equal(arg2);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg2_with_ref.refer.to_owned(),
+                            one_arg: arg2_with_ref.one_arg
+                        }
+                    )
+                )
+            },
+            (Self::WithSendResReference(arg1_with_ref), _) => {
+                let arg1 = &arg1_with_ref.arg;
+                let result = self.less_or_equal(arg1);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg1_with_ref.refer.to_owned(),
+                            one_arg: arg1_with_ref.one_arg
+                        }
+                    )
+                )
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -303,6 +592,20 @@ impl Operations for ExecutableExpressionArgsValues {
                 }
 
                 ExecutableExpressionArgsValues::Several(collected)
+            },
+            Self::WithSendResReference(arg_with_ref) => {
+                let arg1 = &arg_with_ref.arg;
+                let result = arg1.len();
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg_with_ref.refer.to_owned(), // TODO: fix it, bad way
+                            one_arg: arg_with_ref.one_arg
+                        }
+                    )
+                )
             }
             _ => {
                 unreachable!("In len operations found the following case that shoud not exist: {:?}", self)
@@ -335,6 +638,20 @@ impl Operations for ExecutableExpressionArgsValues {
 
                 ExecutableExpressionArgsValues::Several(collected)
             },
+            (_, Self::WithSendResReference(arg2_with_ref)) => {
+                let arg2 = &arg2_with_ref.arg;
+                let result = self.re_match(arg2);
+
+                ExecutableExpressionArgsValues::WithSendResReference(
+                    Arc::new(
+                        OpArgWithRef {
+                            arg: result,
+                            refer: arg2_with_ref.refer.to_owned(), // TODO: fix it, bad way
+                            one_arg: arg2_with_ref.one_arg
+                        }
+                    )
+                )
+            }
             _ => {
                 unreachable!("In re_match operation found the following case that shoud not exist: {:?}, {:?}", self, arg)
             }

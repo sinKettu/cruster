@@ -19,7 +19,7 @@ pub(crate) struct ActiveRuleContext {
 
     send_results: Vec<Vec<SingleSendResultEntry>>,
 
-    find_results: Vec<bool>,
+    find_results: Vec<(bool, Option<SingleSendResultEntry>)>,
 
     get_result: HashMap<usize, Vec<Vec<u8>>>,
 }
@@ -29,6 +29,6 @@ pub(crate) struct PassiveRuleContext {
     pair: Arc<RequestResponsePair>,
 
     initial_send_result: Vec<Vec<SingleSendResultEntry>>,
-    find_results: Vec<bool>,
+    find_results: Vec<(bool, Option<SingleSendResultEntry>)>,
     get_result: HashMap<usize, Vec<Vec<u8>>>,
 }

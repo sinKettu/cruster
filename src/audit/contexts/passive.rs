@@ -62,16 +62,16 @@ impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for PassiveRuleContext {
 
 
 impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for PassiveRuleContext {
-    fn add_find_result(&mut self, res: bool) {
+    fn add_find_result(&mut self, res: (bool, Option<SingleSendResultEntry>)) {
         self.find_results.push(res);
     }
 
-    fn find_results(&self) -> &Vec<bool> {
+    fn find_results(&self) -> &Vec<(bool, Option<SingleSendResultEntry>)> {
         &self.find_results
     }
 
     fn found_anything(&self) -> bool {
-        self.find_results.iter().any(|result| { *result })
+        self.find_results.iter().any(|result| { result.0 })
     }
 }
 
@@ -81,7 +81,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for PassiveRuleContext {
             false
         }
         else {
-            self.find_results[id]
+            self.find_results[id].0
         }
     }
 
@@ -115,7 +115,7 @@ impl<'pair_lt, 'rule_lt> PassiveRuleExecutionContext<'pair_lt> for PassiveRuleCo
     fn make_result(self, rule: &Rule) -> RuleResult {
         let mut findings = HashMap::with_capacity(self.find_results.len());
         for (index, find_result) in self.find_results.iter().enumerate() {
-            if *find_result {
+            if find_result.0 {
                 let find_id = rule.get_find_action_str_id(index).unwrap();
                 let extracted_data = if let Some(one_get_result) = self.get_result.get(&index) {
                     one_get_result

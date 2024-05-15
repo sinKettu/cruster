@@ -1,4 +1,4 @@
-mod args;
+pub(crate) mod args;
 mod methods;
 mod operations;
 
@@ -145,14 +145,14 @@ impl RuleFindAction {
                         let id = parts[0];
                         let int_id = match id.parse::<usize>() {
                             Ok(i) => {
-                                i
+                                i + 1
                             },
                             Err(_) => {
                                 match possible_send_ref {
                                     Some(send_ref) => {
                                         match send_ref.get(id) {
                                             Some(index) => {
-                                                index.to_owned()
+                                                index.to_owned() + 1
                                             },
                                             None => {
                                                 let err_str = format!("Could not parse Refrence ({} arg) in {}: could not resolve str id - {}", index, &operation.name, id);
@@ -313,7 +313,7 @@ impl RuleFindAction {
                 }
             };
 
-            debug!("FindActions - executed operation '{} ({})', result: {:?}", &op.name, &op.operation, res);
+            debug!("FindActions - executed operation '{} ({})', result: {:?}", &op.name, &op.operation, res); // think one more, it logs body
 
             last_op = op.name.as_str();
             let _ = executed.insert(last_op, res);
@@ -328,11 +328,32 @@ impl RuleFindAction {
 
         match last_result {
             ExecutableExpressionArgsValues::Boolean(b) => {
-                ctxt.add_find_result(b.to_owned());
+                ctxt.add_find_result((b.to_owned(), None));
             },
             ExecutableExpressionArgsValues::Several(s) => {
-                ctxt.add_find_result(s.iter().any(|i| { i.boolean() }));
+                ctxt.add_find_result((s.iter().any(|i| { i.boolean() }), None));
             },
+            ExecutableExpressionArgsValues::WithSendResReference(refer) => {
+                match &refer.arg {
+                    ExecutableExpressionArgsValues::Boolean(b) => {
+                        ctxt.add_find_result((b.to_owned(), None));
+                    },
+                    ExecutableExpressionArgsValues::Several(s) => {
+                        for (index, val) in s.iter().enumerate() {
+                            if val.boolean() {
+                                let result_reference = &refer.refer[index];
+                                let send_res_entry = &ctxt.send_results()[result_reference.send_action_id][result_reference.index];
+
+                                ctxt.add_find_result((true, Some(send_res_entry.clone())))
+                            }
+                        }
+                    },
+                    _ => {
+                        let err_str = format!("Last operation ({}) in find action has type {:?} incapsulated in ExecutableExpressionArgsValues::WithSendResReference, but it should be BOOLEAN", last_op, last_result.get_type());
+                        return Err(AuditError(err_str));
+                    }
+                }
+            }
             _ => {
                 let err_str = format!("Last operation ({}) in find action has type {:?}, but it should be BOOLEAN", last_op, last_result.get_type());
                 return Err(AuditError(err_str));

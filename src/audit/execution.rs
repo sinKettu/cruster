@@ -119,6 +119,8 @@ impl Rule {
                             debug!("No Get actions in this rule");
                         }
 
+                        // debug!("Context:\n\n{:?}", &ctxt.find_results());
+
                         return RuleFinalState::Finished(Some(ctxt.make_result(&self)));
                     },
                     RuleType::Passive(actions) => {
@@ -156,6 +158,8 @@ impl Rule {
                         else {
                             debug!("No Get actions in this rule");
                         }
+
+                        // debug!("Context:\n\n{:?}", &ctxt.find_results());
 
                         return RuleFinalState::Finished(Some(ctxt.make_result(&self)));
                     }

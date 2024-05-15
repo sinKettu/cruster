@@ -32,8 +32,8 @@ pub(crate) trait WithSendAction<'pair_lt>: BasicContext<'pair_lt> {
 }
 
 pub(crate) trait WithFindAction<'pair_lt>: BasicContext<'pair_lt> {
-    fn add_find_result(&mut self, res: bool);
-    fn find_results(&self) -> &Vec<bool>;
+    fn add_find_result(&mut self, res: (bool, Option<SingleSendResultEntry>));
+    fn find_results(&self) -> &Vec<(bool, Option<SingleSendResultEntry>)>;
     fn found_anything(&self) -> bool;
 }
 

@@ -1,6 +1,10 @@
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
+use serde::{Deserialize, Serialize};
+
 use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
+
+use super::actions;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SingleCoordinates {
@@ -30,8 +34,22 @@ pub(crate) type PayloadsTests = HashMap<Arc<String>, SingleSendActionResult>;
 // index of payloads tests set in this vector is index of single change action result (coordinates) in context
 pub(crate) type SendActionResultsPerPatternEntry = Vec<PayloadsTests>;
 
+#[derive(Clone, Debug)]
 pub(crate) struct SingleSendResultEntry {
     pub(crate) request: Arc<HyperRequestWrapper>,
     pub(crate) payload: Arc<String>,
     pub(crate) response: HyperResponseWrapper
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct SendResultEntryRef {
+    pub(crate) send_action_id: usize,
+    pub(crate) index: usize
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct OpArgWithRef {
+    pub(crate) arg: actions::find::args::ExecutableExpressionArgsValues,
+    pub(crate) refer: Vec<SendResultEntryRef>,
+    pub(crate) one_arg: bool
 }

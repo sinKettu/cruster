@@ -1,9 +1,9 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, rc::Rc, sync::Arc};
 
 use bstr::ByteSlice;
 use serde::{Deserialize, Serialize};
 
-use crate::{audit::types::{SendActionResultsPerPatternEntry, SingleSendResultEntry}, http_storage::RequestResponsePair};
+use crate::{audit::types::{OpArgWithRef, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleSendResultEntry}, http_storage::RequestResponsePair};
 
 use super::AuditError;
 
@@ -44,9 +44,9 @@ pub(crate) enum ExecutableExpressionArgsValues {
     Integer(i64),
     Boolean(bool),
     Reference(Reference),
-    // (Operation Name, Operation Returning Type)
-    Variable((String, ExecutableExpressionArgsTypes)),
-    Several(Vec<ExecutableExpressionArgsValues>)
+    Variable((String, ExecutableExpressionArgsTypes)), // (Operation Name, Operation Returning Type)
+    Several(Vec<ExecutableExpressionArgsValues>),
+    WithSendResReference(Arc<OpArgWithRef>)
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -75,7 +75,8 @@ impl ExecutableExpressionArgsValues {
                     // Developer manually ensure that all items in array has the same type
                     array[0].get_type()
                 }
-            }
+            },
+            ExecutableExpressionArgsValues::WithSendResReference(arg) => arg.arg.get_type()
         }
     }
 
@@ -116,10 +117,18 @@ impl ExecutableExpressionArgsValues {
 impl Reference {
     pub(super) fn deref(&self, pair: &RequestResponsePair, send_results: &Vec<Vec<SingleSendResultEntry>>) -> Result<ExecutableExpressionArgsValues, AuditError> {
         // Get initial request/response
-        let dereferenced = if self.id == 0 {
+        let dereferenced: ExecutableExpressionArgsValues = if self.id == 0 {
             match &self.message_part {
                 MessagePart::METHOD => {
-                    ExecutableExpressionArgsValues::String(pair.request.as_ref().unwrap().method.clone())
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: ExecutableExpressionArgsValues::String(pair.request.as_ref().unwrap().method.clone()),
+                                refer: vec![ SendResultEntryRef { send_action_id: 0, index: 0 } ],
+                                one_arg: true
+                            }
+                        )
+                    )
                 },
                 MessagePart::HEADER(hname) => {
                     let hmap = match self.pair_part {
@@ -137,10 +146,26 @@ impl Reference {
 
                     let res = format!("{}: {}", hname, values);
 
-                    ExecutableExpressionArgsValues::String(res)
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: ExecutableExpressionArgsValues::String(res),
+                                refer: vec![ SendResultEntryRef { send_action_id: 0, index: 0 } ],
+                                one_arg: true
+                            }
+                        )
+                    )             
                 },
                 MessagePart::PATH => {
-                    ExecutableExpressionArgsValues::String(pair.request.as_ref().unwrap().get_request_path())
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: ExecutableExpressionArgsValues::String(pair.request.as_ref().unwrap().get_request_path()),
+                                refer: vec![ SendResultEntryRef { send_action_id: 0, index: 0 } ],
+                                one_arg: true
+                            }
+                        )
+                    )
                 },
                 MessagePart::VERSION => {
                     let version = match self.pair_part {
@@ -148,7 +173,15 @@ impl Reference {
                         PairPart::RESPONSE => { pair.response.as_ref().unwrap().version.clone() }
                     };
 
-                    ExecutableExpressionArgsValues::String(version)
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: ExecutableExpressionArgsValues::String(version),
+                                refer: vec![ SendResultEntryRef { send_action_id: 0, index: 0 } ],
+                                one_arg: true
+                            }
+                        )
+                    )
                 },
                 MessagePart::BODY => {
                     let body = match self.pair_part {
@@ -156,10 +189,26 @@ impl Reference {
                         PairPart::RESPONSE => { pair.response.as_ref().unwrap().body.to_str_lossy().to_string() }
                     };
 
-                    ExecutableExpressionArgsValues::String(body)
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: ExecutableExpressionArgsValues::String(body),
+                                refer: vec![ SendResultEntryRef { send_action_id: 0, index: 0 } ],
+                                one_arg: true
+                            }
+                        )
+                    )
                 },
                 MessagePart::STATUS => {
-                    ExecutableExpressionArgsValues::String(pair.response.as_ref().unwrap().status.clone())
+                    ExecutableExpressionArgsValues::WithSendResReference(
+                        Arc::new(
+                            OpArgWithRef {
+                                arg: ExecutableExpressionArgsValues::String(pair.response.as_ref().unwrap().status.clone()),
+                                refer: vec![ SendResultEntryRef { send_action_id: 0, index: 0 } ],
+                                one_arg: true
+                            }
+                        )
+                    )
                 }
             }
         }
@@ -168,7 +217,9 @@ impl Reference {
 
             let mut values: Vec<ExecutableExpressionArgsValues> = Vec::default();
             let send_result = &send_results[id];
-            for entry in send_result {
+            let mut references: Vec<SendResultEntryRef> = Vec::with_capacity(send_result.len());
+
+            for (entry_index, entry) in send_result.iter().enumerate() {
                 match self.pair_part {
                     PairPart::REQUEST => {
                         let value = match &self.message_part {
@@ -206,6 +257,12 @@ impl Reference {
                             }
                         };
 
+                        let reference = SendResultEntryRef {
+                            send_action_id: id + 1,
+                            index: entry_index
+                        };
+
+                        references.push(reference);
                         values.push(value);
                     },
                     PairPart::RESPONSE => {
@@ -245,12 +302,26 @@ impl Reference {
                             }
                         };
 
+                        let reference = SendResultEntryRef {
+                            send_action_id: id + 1,
+                            index: entry_index
+                        };
+
+                        references.push(reference);
                         values.push(value);
                     }
                 };
             }
 
-            ExecutableExpressionArgsValues::Several(values)
+            ExecutableExpressionArgsValues::WithSendResReference(
+                Arc::new(
+                    OpArgWithRef {
+                        arg: ExecutableExpressionArgsValues::Several(values),
+                        refer: references,
+                        one_arg: false
+                    }
+                )
+            )
         };
 
 
