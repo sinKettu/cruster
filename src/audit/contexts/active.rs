@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc, sync::Arc};
 use bstr::ByteSlice;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
+use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SerializableSendResultEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext
 {
@@ -91,11 +91,11 @@ impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for ActiveRuleContext {
 }
 
 impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for ActiveRuleContext {
-    fn add_find_result(&mut self, res: (bool, Option<SingleSendResultEntry>)) {
+    fn add_find_result(&mut self, res: (bool, Option<usize>)) {
         self.find_results.push(res);
     }
 
-    fn find_results(&self) -> &Vec<(bool, Option<SingleSendResultEntry>)> {
+    fn find_results(&self) -> &Vec<(bool, Option<usize>)> {
         &self.find_results
     }
 
@@ -143,7 +143,7 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for ActiveRuleContext {
 impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleContext {
     fn make_result(self, rule: &Rule) -> crate::audit::RuleResult {
         
-        let mut findings = HashMap::with_capacity(self.find_results.len());
+        let mut findings: HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)> = HashMap::with_capacity(self.find_results.len());
         for (index, find_result) in self.find_results.iter().enumerate() {
             if find_result.0 {
                 let find_id = rule.get_find_action_str_id(index).unwrap();
@@ -156,8 +156,34 @@ impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleCont
                 else {
                     Vec::default()
                 };
+
+                let mut serializable_entries = vec![];
+                if let Some(send_index) = find_result.1 {
+                    if send_index == 0 {
+                        continue
+                    }
+
+                    let send_results = self.send_results();
+                    let active_rule = rule.http_active_rule().unwrap();
+                    let required_send_results = active_rule.find[index].get_required_send_results();
+
+                    for res_index in required_send_results {
+                        let send_res_entry = &send_results[*res_index][send_index];
+                        let request = send_res_entry.request.to_string();
+                        let payload = send_res_entry.payload.as_str().to_string();
+                        let response = send_res_entry.response.to_string();
+
+                        let serializable_res_entry = SerializableSendResultEntry {
+                            request,
+                            payload,
+                            response
+                        };
+
+                        serializable_entries.push(serializable_res_entry);
+                    }
+                }
                 
-                findings.insert(find_id, extracted_data);
+                findings.insert(find_id, (extracted_data, serializable_entries));
             }
         }
 
@@ -165,7 +191,9 @@ impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleCont
             rule_id: rule.id.clone(),
             pair_index: self.pair_id(),
             severity: rule.severity.clone(),
-            findings
+            findings,
+            initial_request: self.initial_request().unwrap().clone().to_string(),
+            initial_response: self.initial_response().unwrap().clone().to_string()
         }
     }
 }

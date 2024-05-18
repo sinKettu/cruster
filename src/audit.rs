@@ -17,7 +17,7 @@ use actions::{
     RuleGetAction
 };
 
-use self::rules::{active::ActiveRule, passive::PassiveRule};
+use self::{rules::{active::ActiveRule, passive::PassiveRule}, types::{SerializableSendResultEntry, SingleSendResultEntry}};
 
 pub(crate) struct AuditError(String);
 
@@ -93,7 +93,9 @@ pub(crate) struct RuleResult {
     rule_id: String,
     pair_index: usize,
     severity: RuleSeverity,
-    findings: HashMap<String, Vec<String>>,
+    findings: HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)>,
+    initial_request: String,
+    initial_response: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

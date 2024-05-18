@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
+use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
 
 
 pub(crate) trait BasicContext<'pair_lt> {
@@ -32,8 +32,8 @@ pub(crate) trait WithSendAction<'pair_lt>: BasicContext<'pair_lt> {
 }
 
 pub(crate) trait WithFindAction<'pair_lt>: BasicContext<'pair_lt> {
-    fn add_find_result(&mut self, res: (bool, Option<SingleSendResultEntry>));
-    fn find_results(&self) -> &Vec<(bool, Option<SingleSendResultEntry>)>;
+    fn add_find_result(&mut self, res: (bool, Option<usize>));
+    fn find_results(&self) -> &Vec<(bool, Option<usize>)>;
     fn found_anything(&self) -> bool;
 }
 

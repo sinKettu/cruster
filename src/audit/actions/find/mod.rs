@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
-use crate::audit::contexts::traits::{WithFindAction, WithSendAction};
+use crate::audit::{contexts::traits::{WithFindAction, WithSendAction}, types::SendResultEntryRef};
 
 use self::{args::{ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues}, methods::ExecutableExpressionMethod};
 
@@ -38,6 +38,10 @@ impl ExecutableExpression {
 
 
 impl RuleFindAction {
+    pub(crate) fn get_required_send_results(&self) -> &[usize] {
+        self.required_send_actions.as_ref().unwrap()
+    }
+
     pub(crate) fn check_up(&mut self, possible_send_ref: Option<&HashMap<String, usize>>, send_actions_count: usize) -> Result<(), AuditError> {
         // let lowercase_look_for = self.look_for.to_lowercase();
         // match lowercase_look_for.as_str() {
@@ -57,6 +61,8 @@ impl RuleFindAction {
         // }
 
         let mut existing_operations: HashMap<&str, ExecutableExpressionArgsTypes> = HashMap::with_capacity(self.exec.len());
+        let mut required_send_actions = Vec::with_capacity(4);
+
         for operation in self.exec.iter_mut() {
             let operation_name = operation.operation.to_lowercase().replace("_", "");
             let method = match operation_name.as_str() {
@@ -148,21 +154,26 @@ impl RuleFindAction {
                                 i + 1
                             },
                             Err(_) => {
-                                match possible_send_ref {
-                                    Some(send_ref) => {
-                                        match send_ref.get(id) {
-                                            Some(index) => {
-                                                index.to_owned() + 1
-                                            },
-                                            None => {
-                                                let err_str = format!("Could not parse Refrence ({} arg) in {}: could not resolve str id - {}", index, &operation.name, id);
-                                                return Err(AuditError(err_str));
+                                if id == "initial" {
+                                    0
+                                }
+                                else {
+                                    match possible_send_ref {
+                                        Some(send_ref) => {
+                                            match send_ref.get(id) {
+                                                Some(index) => {
+                                                    index.to_owned() + 1
+                                                },
+                                                None => {
+                                                    let err_str = format!("Could not parse Refrence ({} arg) in {}: could not resolve str id - {}", index, &operation.name, id);
+                                                    return Err(AuditError(err_str));
+                                                }
                                             }
+                                        },
+                                        None => {
+                                            let err_str = format!("Could not parse Refrence ({} arg) in {}: could not resolve str id - {}, no mappings for resolving", index, &operation.name, id);
+                                            return Err(AuditError(err_str));
                                         }
-                                    },
-                                    None => {
-                                        let err_str = format!("Could not parse Refrence ({} arg) in {}: could not resolve str id - {}, no mappings for resolving", index, &operation.name, id);
-                                        return Err(AuditError(err_str));
                                     }
                                 }
                             }
@@ -172,6 +183,8 @@ impl RuleFindAction {
                             let err_str = format!("Refrence ({} arg) in {} resolved to index {}, but there are only {} send actions", index, &operation.name, int_id, send_actions_count);
                             return Err(AuditError(err_str));
                         }
+
+                        required_send_actions.push(int_id);
 
                         let pair_part = match parts[1] {
                             "request" => args::PairPart::REQUEST,
@@ -268,6 +281,7 @@ impl RuleFindAction {
             operation.operation_cache = Some(method);
         }
 
+        self.required_send_actions = Some(required_send_actions);
         Ok(())
     }
 
@@ -339,13 +353,17 @@ impl RuleFindAction {
                         ctxt.add_find_result((b.to_owned(), None));
                     },
                     ExecutableExpressionArgsValues::Several(s) => {
+                        let mut found = false;
                         for (index, val) in s.iter().enumerate() {
                             if val.boolean() {
-                                let result_reference = &refer.refer[index];
-                                let send_res_entry = &ctxt.send_results()[result_reference.send_action_id][result_reference.index];
-
-                                ctxt.add_find_result((true, Some(send_res_entry.clone())))
+                                ctxt.add_find_result((true, Some(index)));
+                                found = true;
+                                break; // Instead of breaking we can find all occurancies - TODO
                             }
+                        }
+
+                        if ! found {
+                            ctxt.add_find_result((false, None));
                         }
                     },
                     _ => {

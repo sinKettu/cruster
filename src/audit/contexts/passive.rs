@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc, sync::Arc};
 use bstr::ByteSlice;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, PassiveRuleExecutionContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext, PassiveRuleContext};
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
+use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for PassiveRuleContext
 {
@@ -62,11 +62,11 @@ impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for PassiveRuleContext {
 
 
 impl<'pair_lt, 'rule_lt> WithFindAction<'pair_lt> for PassiveRuleContext {
-    fn add_find_result(&mut self, res: (bool, Option<SingleSendResultEntry>)) {
+    fn add_find_result(&mut self, res: (bool, Option<usize>)) {
         self.find_results.push(res);
     }
 
-    fn find_results(&self) -> &Vec<(bool, Option<SingleSendResultEntry>)> {
+    fn find_results(&self) -> &Vec<(bool, Option<usize>)> {
         &self.find_results
     }
 
@@ -127,7 +127,7 @@ impl<'pair_lt, 'rule_lt> PassiveRuleExecutionContext<'pair_lt> for PassiveRuleCo
                     Vec::default()
                 };
                 
-                findings.insert(find_id, extracted_data);
+                findings.insert(find_id, (extracted_data, vec![]));
             }
         }
 
@@ -135,7 +135,9 @@ impl<'pair_lt, 'rule_lt> PassiveRuleExecutionContext<'pair_lt> for PassiveRuleCo
             rule_id: rule.id.clone(),
             pair_index: self.pair_id(),
             severity: rule.severity.clone(),
-            findings
+            findings,
+            initial_request: self.initial_request().unwrap().clone().to_string(),
+            initial_response: self.initial_response().unwrap().clone().to_string()
         }
     }
 }

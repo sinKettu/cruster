@@ -58,7 +58,9 @@ pub(crate) struct RuleFindAction {
     // // This field stores more convinient representation of look_for after first check
     // look_for_cache: Option<find::LookFor>,
 
-    exec: Vec<find::ExecutableExpression>
+    exec: Vec<find::ExecutableExpression>,
+
+    required_send_actions: Option<Vec<usize>>,
 }
 
 

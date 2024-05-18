@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::http_storage::RequestResponsePair;
 
-use super::types::{CapturesBorders, SendActionResultsPerPatternEntry, SingleCaptureGroupCoordinates, SingleSendResultEntry};
+use super::types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleCaptureGroupCoordinates, SingleSendResultEntry};
 
 pub(crate) struct ActiveRuleContext {
     rule_id: String,
@@ -19,7 +19,7 @@ pub(crate) struct ActiveRuleContext {
 
     send_results: Vec<Vec<SingleSendResultEntry>>,
 
-    find_results: Vec<(bool, Option<SingleSendResultEntry>)>,
+    find_results: Vec<(bool, Option<usize>)>,
 
     get_result: HashMap<usize, Vec<Vec<u8>>>,
 }
@@ -29,6 +29,6 @@ pub(crate) struct PassiveRuleContext {
     pair: Arc<RequestResponsePair>,
 
     initial_send_result: Vec<Vec<SingleSendResultEntry>>,
-    find_results: Vec<(bool, Option<SingleSendResultEntry>)>,
+    find_results: Vec<(bool, Option<usize>)>,
     get_result: HashMap<usize, Vec<Vec<u8>>>,
 }

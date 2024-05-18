@@ -28,7 +28,7 @@ impl Display for RuleResult {
             }
 
             let mut first_extracted_item = true;
-            for extracted_item in extracted.iter() {
+            for extracted_item in extracted.0.iter() {
                 if first_extracted_item {
                     first_extracted_item = false;
                 }

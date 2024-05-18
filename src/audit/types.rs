@@ -42,6 +42,13 @@ pub(crate) struct SingleSendResultEntry {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct SerializableSendResultEntry {
+    pub(crate) request: String,
+    pub(crate) payload: String,
+    pub(crate) response: String
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct SendResultEntryRef {
     pub(crate) send_action_id: usize,
     pub(crate) index: usize
