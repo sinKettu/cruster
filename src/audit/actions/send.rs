@@ -7,6 +7,8 @@ use log::debug;
 use crate::{audit::{contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}}, cruster_proxy::request_response::HyperRequestWrapper};
 use crate::http_sender;
 
+use self::change::{ChangeAdd, ChangeModify};
+
 use super::*;
 
 impl RuleSendAction {
@@ -148,10 +150,13 @@ impl RuleSendAction {
         }
     }
 
-    pub(crate) async fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T, placement: ChangeValuePlacement, payloads: &'rule_lt Vec<Arc<String>>) -> Result<(), AuditError>
+    async fn with_modify_change<'pair_lt, T>(&self, ctxt: &mut T, modify: &ChangeModify) -> Result<(), AuditError>
     where
         T: WithSendAction<'pair_lt> + WithChangeAction<'pair_lt> 
     {
+        let placement = modify.get_placement();
+        let payloads = modify.get_payloads();
+
         let change_to_apply = self.apply_cache.unwrap();
         let coordinates = &ctxt.change_results()[change_to_apply];
         let request = ctxt.initial_request().unwrap();
@@ -282,5 +287,68 @@ impl RuleSendAction {
         ctxt.add_send_result(results_);
 
         Ok(())
+    }
+
+    async fn with_add_change<'pair_lt, T>(&self, ctxt: &mut T, add_list: &Vec<ChangeAdd>) -> Result<(), AuditError> 
+    where
+        T: WithSendAction<'pair_lt> + WithChangeAction<'pair_lt> 
+    {
+        let mut request = ctxt.initial_request().unwrap().clone();
+        let mut results_: Vec<SingleSendResultEntry> = Vec::default();
+
+        for add in add_list {
+            match add {
+                ChangeAdd::HEADER(header) => {
+                    let (key, value) = header.http_header()?;
+                    request.headers.insert(key, value);
+                }
+            }
+        }
+
+        let request = Arc::new(request);
+        let repeat_number = if let Some(rn) = self.repeat.as_ref() { rn.to_owned() } else { 0 };
+        let timeout = if let Some(tout) = self.timeout_after.as_ref() { tout.to_owned() } else { 0 };
+
+        for _ in 0..(repeat_number + 1) {
+            let response = match http_sender::send_request_from_wrapper(&request, 0).await {
+                Ok((response, _)) => {
+                    response
+                },
+                Err(err) => {
+                    let err_str = format!("Action failed on sending request: {}", err);
+                    return Err(AuditError(err_str));
+                }  
+            };
+
+            let result_entry = SingleSendResultEntry {
+                request: request.clone(),
+                payload: Arc::new(String::from("__ADD_INNER_ACTION__")),
+                response
+            };
+
+            results_.push(result_entry);
+
+            if repeat_number > 0 && timeout > 0 {
+                sleep(Duration::from_millis(timeout as u64));
+            }
+        }
+
+        ctxt.add_send_result(results_);
+
+        Ok(())
+    }
+
+    pub(crate) async fn exec<'pair_lt, 'rule_lt, T>(&self, ctxt: &mut T, change: &InnerChangeAction) -> Result<(), AuditError>
+    where
+        T: WithSendAction<'pair_lt> + WithChangeAction<'pair_lt> 
+    {
+        match change {
+            InnerChangeAction::MODIFY(modify) => {
+                self.with_modify_change(ctxt, modify).await
+            },
+            InnerChangeAction::ADD(add) => {
+                self.with_add_change(ctxt, add).await
+            }
+        }
     }
 }

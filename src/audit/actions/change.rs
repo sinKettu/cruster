@@ -1,12 +1,97 @@
-use std::{str::FromStr, collections::HashMap};
+use std::{collections::HashMap, str::FromStr};
 
+use http::{header::HeaderName, HeaderMap, HeaderValue};
 use log::debug;
+use base64;
 
-use crate::audit::contexts::traits::{WithChangeAction, WithWatchAction};
+use crate::{audit::contexts::traits::{WithChangeAction, WithWatchAction}, http_storage::serializable::Header};
 
 use super::*;
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub(crate) struct ChangeModify {
+    placement: ChangeValuePlacement,
+    values: Vec<Arc<String>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum ChangeAdd {
+    HEADER(Header)
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum InnerChangeAction {
+    MODIFY(ChangeModify),
+    ADD(Vec<ChangeAdd>),
+}
+
+impl ChangeModify {
+    pub(crate) fn get_placement(&self) -> &ChangeValuePlacement {
+        &self.placement
+    }
+
+    pub(crate) fn get_payloads(&self) -> &Vec<Arc<String>> {
+        &self.values
+    }
+}
+
+impl Header {
+    pub(crate) fn http_header(&self) -> Result<(HeaderName, HeaderValue), AuditError> {
+        let name = HeaderName::from_str(&self.key)?;
+        let value = match self.encoding.as_str() {
+            "utf-8" => {
+                match HeaderValue::from_bytes(self.value.as_bytes()) {
+                    Ok(value) => {
+                        value
+                    },
+                    Err(err) => {
+                        return Err(AuditError(err.to_string()));
+                    }
+                }
+            },
+            "base64" => {
+                let data = base64::decode(&self.value)?;
+                HeaderValue::from_bytes(&data)?
+            },
+            _ => {
+                unreachable!("Found unknown header encoding '{}', but it should be checked!", &self.encoding);
+            }
+        };
+
+        return Ok((name, value));
+    }
+}
+
 impl RuleChangeAction {
+    pub(crate) fn get_inner_action(&self) -> &InnerChangeAction {
+        &self.subj
+    }
+
+    pub(crate) fn get_placement(&self) -> Result<ChangeValuePlacement, AuditError> {
+        match &self.subj {
+            InnerChangeAction::ADD(_) => {
+                return Err(AuditError::from("Cannot get value placement in change action, because it has different inner action type"));
+            },
+            InnerChangeAction::MODIFY(m) => {
+                Ok(m.placement.clone())
+            }
+        }
+    }
+
+    pub(crate) fn get_payloads(&self) -> Result<&Vec<Arc<String>>, AuditError> {
+        match &self.subj {
+            InnerChangeAction::ADD(_) => {
+                return Err(AuditError::from("Cannot get payloads (values) in change action, because it has different inner action type"));
+            },
+            InnerChangeAction::MODIFY(m) => {
+                Ok(&m.values)
+            }
+        }
+    }
+
     pub(crate) fn check_up(&mut self, watch_id_ref: &HashMap<String, usize>) -> Result<(), AuditError> {
         let splitted_watch_id: Vec<&str> = self.watch_id.split(".").collect();
         if splitted_watch_id.len() > 2 {
@@ -45,18 +130,10 @@ impl RuleChangeAction {
 
         self.watch_id_cache = Some(parsed_watch_id);
 
-        match self.placement.to_lowercase().as_str() {
-            "before" => {
-                self.placement_cache = Some(ChangeValuePlacement::BEFORE)
-            },
-            "after" => {
-                self.placement_cache = Some(ChangeValuePlacement::AFTER)
-            },
-            "replace" => {
-                self.placement_cache = Some(ChangeValuePlacement::REPLACE)
-            },
-            _ => {
-                return Err(AuditError(format!("Wrong placement parameter, must be before/after/replace: {}", &self.placement)));
+        if let InnerChangeAction::ADD(add_actions) = &self.subj {
+            for add_action in add_actions {
+                let ChangeAdd::HEADER(h) = add_action;
+                let _ = h.http_header()?;
             }
         }
 

@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 use serde::{Serialize, Deserialize};
 
+use self::change::InnerChangeAction;
+
 use super::AuditError;
 
 
@@ -29,6 +31,7 @@ impl WatchId {
 
 // Found value can be mutated in three ways: payload may be placed before, after or instead of the value
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum ChangeValuePlacement {
     BEFORE,
     AFTER,
@@ -38,16 +41,10 @@ pub(crate) enum ChangeValuePlacement {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleChangeAction {
     id: Option<String>,
-
     watch_id: String,
-    // This field will store more convinient representation of watch_id after first check
-    watch_id_cache: Option<WatchId>,
+    subj: InnerChangeAction,
 
-    pub(super) placement: String,
-    // This field will store more convinient representation of placement after first check
-    pub(super) placement_cache: Option<ChangeValuePlacement>,
-
-    pub(super) values: Vec<Arc<String>>,
+    watch_id_cache: Option<WatchId>, // This field will store more convinient representation of watch_id after first check
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

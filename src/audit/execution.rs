@@ -7,6 +7,7 @@ use tokio;
 use super::contexts::traits::PassiveRuleExecutionContext;
 use super::contexts::PassiveRuleContext;
 use super::{AuditError, Rule, RuleByProtocal, RuleFinalState, RuleType};
+use crate::audit::actions::change::{ChangeAdd, InnerChangeAction};
 use crate::audit::contexts::traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction};
 use crate::audit::contexts::ActiveRuleContext;
 use crate::http_storage::RequestResponsePair;
@@ -27,7 +28,7 @@ impl Rule {
                         for action in actions.watch.iter() {
                             debug!("Executing watch action: {:?}", action);
                             if let Err(err) = action.exec(&mut ctxt) {
-                                let err_str = format!("Rule '{}' failed for pair {} on watch action: {}", self.get_id(), pair.index, err);
+                                let err_str = format!("Rule '{}' failed for pair {} on watch action: {}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
                             }
                             debug!("");
@@ -39,7 +40,7 @@ impl Rule {
                         for action in actions.change.iter() {
                             debug!("Executing change action: {:?}", action);
                             if let Err(err) = action.exec(&mut ctxt) {
-                                let err_str = format!("Rule '{}' failed for pair {} on change action: {}", self.get_id(), pair.index, err);
+                                let err_str = format!("Rule '{}' failed for pair {} on change action: {}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
                             }
                             debug!("");
@@ -58,30 +59,19 @@ impl Rule {
                             debug!("Executing send action: {:?}", action);
                             let apply_id = action.get_apply_id();
 
-                            let placement = match self.get_change_placement_by_index(apply_id)  {
-                                Ok(placement) => {
-                                    placement
+                            let inner_action = match self.get_change_inner_action_by_index(apply_id) {
+                                Ok(inner_action) => {
+                                    inner_action
                                 },
                                 Err(err) => {
-                                    let err_str = format!("Rule '{}' failed for pair {} on send action: {}", self.get_id(), pair.index, err);
+                                    let err_str = format!("with rule {} cannot execute send action with apply_id {}: {}", self.get_id(), apply_id, err.to_string());
                                     return RuleFinalState::Failed(err_str);
                                 }
                             };
-
-                            let payloads = match self.get_payloads_by_index(apply_id) {
-                                Ok(payloads) => {
-                                    payloads
-                                },
-                                Err(err) => {
-                                    let err_str = format!("Rule '{}' failed for pair {} on send action: {}", self.get_id(), pair.index, err);
-                                    return RuleFinalState::Failed(err_str);
-                                }
-                            };
-
-                            debug!("SendAction - will apply change action with index {}, payloads ({}) will be placed in the following way: {:?}", apply_id, payloads.len(), placement);
-
-                            if let Err(err) = action.exec(&mut ctxt, placement, payloads).await {
-                                let err_str = format!("Rule '{}' failed for pair {} on send action: {}", self.get_id(), pair.index, err);
+                            
+                            debug!("SendAction - will apply change action with index {}", apply_id);
+                            if let Err(err) = action.exec(&mut ctxt, inner_action).await {
+                                let err_str = format!("Rule '{}' failed for pair {} on send action: {}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
                             }
                             debug!("");
@@ -92,7 +82,7 @@ impl Rule {
                         for action in actions.find.iter() {
                             debug!("Executing find action: {:?}", action);
                             if let Err(err) = action.exec(&mut ctxt) {
-                                let err_str = format!("Rule '{}' failed for pair {} on find action: {}", self.get_id(), pair.index, err);
+                                let err_str = format!("Rule '{}' failed for pair {} on find action: {}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
                             }
                             debug!("");
@@ -109,7 +99,7 @@ impl Rule {
                             for action in get_actions {
                                 debug!("Executing get action: {:?}", action);
                                 if let Err(err) = action.exec(&mut ctxt) {
-                                    let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err);
+                                    let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err.to_string());
                                     return RuleFinalState::Failed(err_str)
                                 }
                                 debug!("");
@@ -132,7 +122,7 @@ impl Rule {
                         for action in actions.find.iter() {
                             debug!("Executing find action: {:?}", action);
                             if let Err(err) = action.exec(&mut ctxt) {
-                                let err_str = format!("Rule '{}' failed for pair {} on find action: {}", self.get_id(), pair.index, err);
+                                let err_str = format!("Rule '{}' failed for pair {} on find action: {}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
                             }
                             debug!("");
@@ -149,7 +139,7 @@ impl Rule {
                             for action in get_actions {
                                 debug!("Executing get action: {:?}", action);
                                 if let Err(err) = action.exec(&mut ctxt) {
-                                    let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err);
+                                    let err_str = format!("Rule '{}' failed for pair {} on get action: {}", self.get_id(), pair.index, err.to_string());
                                     return RuleFinalState::Failed(err_str)
                                 }
                                 debug!("");

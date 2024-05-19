@@ -5,7 +5,7 @@ use std::{fmt::Display, sync::Arc};
 
 use self::active::ActiveRule;
 
-use super::{actions::{ChangeValuePlacement, RuleFindAction}, AuditError, Rule, RuleByProtocal, RuleType};
+use super::{actions::{change::InnerChangeAction, ChangeValuePlacement, RuleChangeAction, RuleFindAction}, AuditError, Rule, RuleByProtocal, RuleType};
 
 
 // TODO: Need also check for indexes bounds in check_up() methods
@@ -71,24 +71,29 @@ impl Rule {
         }
     }
 
-    pub(crate) fn get_change_placement_by_index(&self, index: usize) -> Result<ChangeValuePlacement, AuditError> {
+    fn get_change_action_by_index(&self, index: usize) -> Result<&RuleChangeAction, AuditError> {
         let rule = self.http_active_rule()?;
         let Some(change) = rule.change.get(index) else {
             let err_str = format!("Tried to access change action with index {} in rule '{}', but it contains only {} change actions", index, self.id.as_str(), rule.change.len());
             return Err(AuditError(err_str));
         };
 
-        return Ok(change.placement_cache.as_ref().unwrap().clone());
+        return Ok(change);
+    }
+
+    pub(crate) fn get_change_inner_action_by_index(&self, index: usize) -> Result<&InnerChangeAction, AuditError> {
+        let change_action = self.get_change_action_by_index(index)?;
+        Ok(change_action.get_inner_action())
+    }
+
+    pub(crate) fn get_change_placement_by_index(&self, index: usize) -> Result<ChangeValuePlacement, AuditError> {
+        let change = self.get_change_action_by_index(index)?;
+        change.get_placement()
     }
 
     pub(crate) fn get_payloads_by_index(&self, index: usize) -> Result<&Vec<Arc<String>>, AuditError> {
-        let rule = self.http_active_rule()?;
-        let Some(change) = rule.change.get(index) else {
-            let err_str = format!("Tried to access change action with index {} in rule '{}', but it contains only {} change actions", index, self.id.as_str(), rule.change.len());
-            return Err(AuditError(err_str));
-        };
-
-        return Ok(&change.values);
+        let change = self.get_change_action_by_index(index)?;
+        change.get_payloads()
     }
 
     // pub fn get_send_actions_number(&self) -> Result<usize, AuditError> {

@@ -4,7 +4,7 @@ mod audit;
 
 use clap::{self, ArgMatches};
 
-use crate::config;
+use crate::{audit::AuditError, config};
 use std::process::exit;
 
 use self::audit::debug_rule::DebugRuleConfig;
@@ -17,6 +17,12 @@ pub struct CrusterCLIError {
 impl<T> From<T> for CrusterCLIError where T: ToString {
     fn from(e: T) -> Self {
         Self { error: e.to_string() }
+    }
+}
+
+impl From<AuditError> for CrusterCLIError {
+    fn from(value: AuditError) -> Self {
+        Self { error: value.to_string() }
     }
 }
 

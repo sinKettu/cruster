@@ -28,15 +28,27 @@ impl FromStr for AuditError {
     }
 }
 
-impl Display for AuditError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_str())
-    }
-}
+// impl Display for AuditError {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "{}", self.0.as_str())
+//     }
+// }
 
 impl Debug for AuditError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "AuditError {{ String({}) }}", &self.0)
+    }
+}
+
+impl<T> From<T> for AuditError where T: Display {
+    fn from(value: T) -> Self {
+        AuditError(format!("{}", value))
+    }
+}
+
+impl AuditError {
+    pub(crate) fn to_string(&self) -> String {
+        self.0.clone()
     }
 }
 

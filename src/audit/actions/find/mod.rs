@@ -274,7 +274,7 @@ impl RuleFindAction {
             }
 
             if let Err(err) = method.check_args(&operation.args) {
-                let err_str = format!("Error in operation '{}': {}", &operation.name, err);
+                let err_str = format!("Error in operation '{}': {}", &operation.name, err.to_string());
                 return Err(AuditError(err_str));
             }
 
@@ -322,7 +322,7 @@ impl RuleFindAction {
                     value
                 },
                 Err(err) => {
-                    let err_str = format!("Error on operation '{}': {}", op.name.as_str(), err);
+                    let err_str = format!("Error on operation '{}': {}", op.name.as_str(), err.to_string());
                     return Err(AuditError(err_str))
                 }
             };

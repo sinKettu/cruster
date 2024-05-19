@@ -21,11 +21,11 @@ use crate::{
     scope
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Header {
-    key: String,
-    encoding: String,
-    value: String
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub(crate) struct Header {
+    pub(crate) key: String,
+    pub(crate) encoding: String,
+    pub(crate) value: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
