@@ -42,7 +42,7 @@ pub(crate) enum ChangeValuePlacement {
 pub(crate) struct RuleChangeAction {
     id: Option<String>,
     watch_id: String,
-    subj: InnerChangeAction,
+    r#type: InnerChangeAction,
 
     watch_id_cache: Option<WatchId>, // This field will store more convinient representation of watch_id after first check
 }

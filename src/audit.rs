@@ -5,6 +5,7 @@ pub(crate) mod rules;
 pub(crate) mod contexts;
 pub(crate) mod types;
 pub(crate) mod result;
+pub(crate) 
 
 use std::{collections::HashMap, fmt::{Debug, Display}, str::FromStr};
 use serde::{Serialize, Deserialize};
@@ -43,6 +44,12 @@ impl Debug for AuditError {
 impl<T> From<T> for AuditError where T: Display {
     fn from(value: T) -> Self {
         AuditError(format!("{}", value))
+    }
+}
+
+impl Into<String> for AuditError {
+    fn into(self) -> String {
+        self.0
     }
 }
 

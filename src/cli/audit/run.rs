@@ -4,10 +4,14 @@ use clap::ArgMatches;
 use crossbeam::channel::TryRecvError;
 
 use crate::{
-    audit::{execution::{spawn_threads, MainToWorkerCmd, WorkerToMainMsg}, load_rule::compose_files_list_by_config, result::syntax_string, Rule, RuleFinalState}, cli::CrusterCLIError, config::{AuditConfig, AuditEntities}, http_storage::RequestResponsePair
+    audit::{execution::{spawn_threads, MainToWorkerCmd, WorkerToMainMsg}, load_rule::compose_files_list_by_config, result::{syntax_string, WriteResult}, Rule, RuleFinalState}, cli::CrusterCLIError, config::{AuditConfig, AuditEntities, Config}, http_storage::RequestResponsePair
 };
 
 pub(crate) fn modify_audit_config_with_cmd_args(mut config: AuditConfig, args: &ArgMatches) -> Result<AuditConfig, CrusterCLIError> {
+    if let Some(audit_name) = args.get_one::<String>("audit-name") {
+        config.name = Some(audit_name.clone());
+    }
+
     if args.get_flag("active") {
         config.active = true;
     }
@@ -93,7 +97,7 @@ pub(crate) fn modify_audit_config_with_cmd_args(mut config: AuditConfig, args: &
     Ok(config)
 }
 
-pub(crate) async fn exec(audit_conf: &AuditConfig, http_data_path: &str) -> Result<(), CrusterCLIError> {
+pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_path: &str) -> Result<(), CrusterCLIError> {
     let tasks = match &audit_conf.tasks {
         Some(number) => {
             *number
@@ -107,11 +111,22 @@ pub(crate) async fn exec(audit_conf: &AuditConfig, http_data_path: &str) -> Resu
     storage.load(http_data_path)?;
     println!("{}\n", syntax_string());
 
-    let (tx, rx) = spawn_threads(tasks).await;
-
-    let rule_files = compose_files_list_by_config(&audit_conf)?;
+    let rule_files = compose_files_list_by_config(&audit_conf)?; // TODO: fix this func
     let mut rules: Vec<Arc<Rule>> = Vec::with_capacity(rule_files.len());
     let pairs: Vec<Arc<RequestResponsePair>> = storage.into();
+
+    let audit_name = match &audit_conf.name {
+        Some(name) => {
+            name
+        },
+        None => {
+            return Err(CrusterCLIError::from("Current audit does not have any name, so cannot be launched"));
+        }
+    };
+
+    let audit_file = config.get_audit_results_file(audit_name);
+
+    let (tx, rx) = spawn_threads(tasks).await;
 
     for file_name in rule_files.iter() {
         let mut rule = Rule::from_file(&file_name)?;
@@ -146,6 +161,9 @@ pub(crate) async fn exec(audit_conf: &AuditConfig, http_data_path: &str) -> Resu
                                 match possible_result {
                                     Some(res) => {
                                         println!("{}", res);
+                                        if let Err(err) = res.write_result(&audit_file) {
+                                            eprintln!("could not save last audit result: {}", err.to_string());
+                                        }
                                     },
                                     None => {
 

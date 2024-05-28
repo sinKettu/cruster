@@ -67,11 +67,11 @@ impl Header {
 
 impl RuleChangeAction {
     pub(crate) fn get_inner_action(&self) -> &InnerChangeAction {
-        &self.subj
+        &self.r#type
     }
 
     pub(crate) fn get_placement(&self) -> Result<ChangeValuePlacement, AuditError> {
-        match &self.subj {
+        match &self.r#type {
             InnerChangeAction::ADD(_) => {
                 return Err(AuditError::from("Cannot get value placement in change action, because it has different inner action type"));
             },
@@ -82,7 +82,7 @@ impl RuleChangeAction {
     }
 
     pub(crate) fn get_payloads(&self) -> Result<&Vec<Arc<String>>, AuditError> {
-        match &self.subj {
+        match &self.r#type {
             InnerChangeAction::ADD(_) => {
                 return Err(AuditError::from("Cannot get payloads (values) in change action, because it has different inner action type"));
             },
@@ -130,7 +130,7 @@ impl RuleChangeAction {
 
         self.watch_id_cache = Some(parsed_watch_id);
 
-        if let InnerChangeAction::ADD(add_actions) = &self.subj {
+        if let InnerChangeAction::ADD(add_actions) = &self.r#type {
             for add_action in add_actions {
                 let ChangeAdd::HEADER(h) = add_action;
                 let _ = h.http_header()?;

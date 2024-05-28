@@ -66,6 +66,7 @@ pub(crate) struct AuditConfig {
     pub(crate) exclude: Option<AuditEntities>,
     pub(crate) include: Option<AuditEntities>,
     pub(crate) verbose: Option<bool>,
+    pub(crate) name: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -109,6 +110,7 @@ impl Default for AuditConfig {
             exclude: None,
             include: None,
             verbose: None,
+            name: None,
         }
     }
 }
@@ -145,6 +147,10 @@ impl Config {
 
         yml::to_writer(&config_file, self)?;
         Ok(())
+    }
+
+    pub(crate) fn get_audit_results_file(&self, name: &str) -> String {
+        format!("{}/audit_{}.jsonl", self.project.as_ref().unwrap(), name)
     }
 }
 

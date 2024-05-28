@@ -1,6 +1,8 @@
+pub(crate) mod write;
+
 use std::fmt::Display;
 
-use super::{RuleResult, RuleSeverity};
+use super::{AuditError, RuleResult, RuleSeverity};
 
 use colored::Colorize;
 
@@ -48,4 +50,8 @@ impl Display for RuleResult {
 
 pub fn syntax_string() -> String {
     format!("[{}] {} - {}: {} ({}, {}) / {} () / ...", "severity".cyan(), "pair_index", "rule_id".green(), "finding_name_1".bright_blue(), "extracted1".bold(), "extracted2".bold(), "finding_name_2".bright_blue())
+}
+
+pub(crate) trait WriteResult {
+    fn write_result(&self, filename: &str) -> Result<(), AuditError>;
 }
