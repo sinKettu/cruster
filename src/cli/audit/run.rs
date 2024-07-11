@@ -160,6 +160,7 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
                             RuleFinalState::Finished(possible_result) => {
                                 match possible_result {
                                     Some(res) => {
+                                        // TODO: dont know why, but findings are empty last time
                                         println!("{}", res);
                                         if let Err(err) = res.write_result(&audit_file) {
                                             eprintln!("could not save last audit result: {}", err.to_string());

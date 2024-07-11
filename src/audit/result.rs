@@ -20,14 +20,14 @@ impl Display for RuleResult {
         let mut first_finding = true;
 
         for (found, extracted) in self.findings.iter() {
-            write!(f, "{} (", found.bright_blue())?;
-
             if first_finding {
                 first_finding = false;
             }
             else {
                 write!(f, " / ")?;
             }
+
+            write!(f, "{} (", found.bright_blue())?;            
 
             let mut first_extracted_item = true;
             for extracted_item in extracted.0.iter() {

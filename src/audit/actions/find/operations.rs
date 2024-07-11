@@ -371,7 +371,7 @@ impl Operations for ExecutableExpressionArgsValues {
                     let iter_arg1 = &arg1[i];
                     let iter_arg2 = &arg2[i];
 
-                    let res = iter_arg1.greater_or_equal(iter_arg2);
+                    let res = iter_arg1.less(iter_arg2);
                     collected.push(res);
                 }
 
@@ -382,7 +382,7 @@ impl Operations for ExecutableExpressionArgsValues {
                 for i in 0..arg1.len() {
                     let iter_arg1 = &arg1[i];
 
-                    let res = iter_arg1.greater_or_equal(arg);
+                    let res = iter_arg1.less(arg);
                     collected.push(res);
                 }
 
@@ -393,7 +393,7 @@ impl Operations for ExecutableExpressionArgsValues {
                 for i in 0..arg2.len() {
                     let iter_arg2 = &arg2[i];
 
-                    let res = self.greater_or_equal(iter_arg2);
+                    let res = self.less(iter_arg2);
                     collected.push(res);
                 }
 
@@ -582,7 +582,7 @@ impl Operations for ExecutableExpressionArgsValues {
                 ExecutableExpressionArgsValues::Integer(s.len() as i64)
             },
             Self::Several(arg1) => {
-                println!("{:?}", arg1);
+                // println!("{:?}", arg1);
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
                 for i in 0..arg1.len() {
                     let iter_arg2 = &arg1[i];

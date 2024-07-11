@@ -250,7 +250,7 @@ impl RuleSendAction {
                 };
 
                 debug!("SendAction - modified line: {}", new_line.as_slice().to_str_lossy());
-                debug!("SendAction -                {: <2$}^{: <3$}^", "", "", new_start, (new_end - new_start).saturating_sub(2));
+                debug!("SendAction -                {: <2$}^{: <3$}^", "", "", new_start, (new_end - new_start).saturating_sub(1));
 
                 let modified_request = self.modify_request(request, new_line, line_number.to_owned())?;
                 let modified_request = Arc::new(modified_request);

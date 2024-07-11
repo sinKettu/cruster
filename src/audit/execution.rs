@@ -13,6 +13,15 @@ use crate::audit::contexts::ActiveRuleContext;
 use crate::http_storage::RequestResponsePair;
 
 
+fn print_dbg_banner(label: &str) {
+    debug!("\n");
+    debug!("----------------------------------------");
+    debug!("              {}", label);
+    debug!("----------------------------------------");
+    debug!("\n");
+}
+
+
 impl Rule {
     pub(crate) async fn execute<'pair_lt, 'rule_lt>(&'rule_lt self, pair: Arc<RequestResponsePair>) -> RuleFinalState {
         match &self.rule {
@@ -24,7 +33,8 @@ impl Rule {
                         let mut ctxt: ActiveRuleContext = ActiveRuleContext::init(self, pair.clone());
 
                         // WATCH
-                        debug!("Watch actions: {}", actions.watch.len());
+                        print_dbg_banner("WATCH");
+                        debug!("Watch actions: {}\n", actions.watch.len());
                         for action in actions.watch.iter() {
                             debug!("Executing watch action: {:?}", action);
                             if let Err(err) = action.exec(&mut ctxt) {
@@ -36,7 +46,8 @@ impl Rule {
                         debug!("Watch actions finished");
 
                         // CHANGE
-                        debug!("Change actions: {}", actions.change.len());
+                        print_dbg_banner("CHANGE");
+                        debug!("Change actions: {}\n", actions.change.len());
                         for action in actions.change.iter() {
                             debug!("Executing change action: {:?}", action);
                             if let Err(err) = action.exec(&mut ctxt) {
@@ -54,7 +65,8 @@ impl Rule {
                         }
 
                         // SEND
-                        debug!("Send actions: {}", actions.send.len());
+                        print_dbg_banner("SEND");
+                        debug!("Send actions: {}\n", actions.send.len());
                         for action in actions.send.iter() {
                             debug!("Executing send action: {:?}", action);
                             let apply_id = action.get_apply_id();
@@ -78,9 +90,10 @@ impl Rule {
                         }
 
                         // FIND
-                        debug!("Find actions: {}", actions.find.len());
+                        print_dbg_banner("FIND");
+                        debug!("Find actions: {}\n", actions.find.len());
                         for action in actions.find.iter() {
-                            debug!("Executing find action: {:?}", action);
+                            debug!("Executing find action: {:#?}\n", action);
                             if let Err(err) = action.exec(&mut ctxt) {
                                 let err_str = format!("Rule '{}' failed for pair {} on find action: {}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
@@ -94,8 +107,9 @@ impl Rule {
                         }
 
                         // GET
+                        print_dbg_banner("GET");
                         if let Some(get_actions) = actions.get.as_ref() {
-                            debug!("Get actions: {}", get_actions.len());
+                            debug!("Get actions: {}\n", get_actions.len());
                             for action in get_actions {
                                 debug!("Executing get action: {:?}", action);
                                 if let Err(err) = action.exec(&mut ctxt) {

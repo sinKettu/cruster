@@ -101,8 +101,8 @@ impl RuleFindAction {
                 "lessorequal" => {
                     methods::ExecutableExpressionMethod::LessOrEqual
                 },
-                "<=>" => {
-                    methods::ExecutableExpressionMethod::GreaterOrEqual
+                "<=" => {
+                    methods::ExecutableExpressionMethod::LessOrEqual
                 },
 
                 "rematch" => {
