@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fs::File, sync::Arc};
 
 use clap::ArgMatches;
 use crossbeam::channel::TryRecvError;
@@ -125,6 +125,9 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
     };
 
     let audit_file = config.get_audit_results_file(audit_name);
+    if let Err(err) = File::create(&audit_file) {
+        return Err(CrusterCLIError::from(format!("Cannot open file to write result: {}", err)));
+    }
 
     let (tx, rx) = spawn_threads(tasks).await;
 
