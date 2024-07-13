@@ -2,6 +2,7 @@ mod http;
 mod repeater;
 mod audit;
 
+use audit::print::AuditPrintConfig;
 use clap::{self, ArgMatches};
 
 use crate::{audit::AuditError, config};
@@ -149,6 +150,15 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config, mut audi
                         let err_str: String = err.into();
                         eprintln!("Error occured while audit::debug_rule executed: {}", err_str);
                         exit(9);
+                    }
+                },
+                Some(("print", _args)) => {
+                    let conf = AuditPrintConfig::try_from(_args)?;
+                    let audit_results = config.get_audit_results_file(&conf.audit_name);
+                    if let Err(err) = audit::print::exec(conf, audit_results).await {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while audit::print executed: {}", err_str);
+                        exit(10);
                     }
                 },
                 _ => {
