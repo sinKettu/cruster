@@ -48,6 +48,66 @@ impl Display for RuleResult {
     }
 }
 
+impl RuleResult {
+    pub(crate) fn get_id(&self) -> usize {
+        self.id.to_owned()
+    }
+
+    pub(crate) fn set_id(&mut self, new_id: usize) {
+        self.id = new_id
+    }
+
+    pub(crate) fn get_severity(&self) -> &str {
+        return match self.severity {
+            RuleSeverity::High => "high",
+            RuleSeverity::Medium => "medium",
+            RuleSeverity::Low => "low",
+            RuleSeverity::Info => "info",
+        }
+    }
+
+    pub(crate) fn get_rule_id(&self) -> &str {
+        return &self.rule_id;
+    }
+
+    pub(crate) fn get_all_findings_as_str(&self) -> String {
+        let mut result = String::default();
+        let mut first_finding = true;
+
+        for (finding_name, (extracted, _)) in self.findings.iter() {
+            if first_finding {
+                first_finding = false;
+            }
+            else {
+                result.push_str(" / ");
+            }
+
+            result.push_str(finding_name);
+            result.push_str("(");
+
+            let mut first_extracted = true;
+            for extracted_item in extracted {
+                if first_extracted {
+                    first_extracted = false;
+                }
+                else {
+                    result.push_str(",");
+                }
+
+                result.push_str(extracted_item);
+            }
+            result.push_str(")");
+        }
+
+        result
+    }
+
+    pub(crate) fn get_initial_request_first_line(&self) -> &str {
+        let splitted: Vec<&str> = self.initial_request.splitn(2, "\n").collect();
+        return splitted[0];
+    }
+}
+
 pub fn syntax_string() -> String {
     format!("[{}] {} - {}: {} ({}, {}) / {} () / ...", "severity".cyan(), "pair_index", "rule_id".green(), "finding_name_1".bright_blue(), "extracted1".bold(), "extracted2".bold(), "finding_name_2".bright_blue())
 }

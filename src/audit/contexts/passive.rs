@@ -132,6 +132,7 @@ impl<'pair_lt, 'rule_lt> PassiveRuleExecutionContext<'pair_lt> for PassiveRuleCo
         }
 
         RuleResult {
+            id: 0,
             rule_id: rule.id.clone(),
             pair_index: self.pair_id(),
             severity: rule.severity.clone(),

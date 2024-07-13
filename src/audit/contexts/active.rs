@@ -186,6 +186,7 @@ impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleCont
         }
 
         RuleResult {
+            id: 0,
             rule_id: rule.id.clone(),
             pair_index: self.pair_id(),
             severity: rule.severity.clone(),

@@ -1,6 +1,8 @@
+use std::{fs::{self, File}, io::{BufRead, BufReader}};
+
 use clap::ArgMatches;
 
-use crate::cli::CrusterCLIError;
+use crate::{audit::RuleResult, cli::CrusterCLIError};
 
 pub(crate) struct AuditPrintConfig {
     pub(crate) audit_name: String,
@@ -41,8 +43,37 @@ impl TryFrom<&ArgMatches> for AuditPrintConfig {
 }
 
 pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Result<(), CrusterCLIError> {
-    
+    let fin = fs::OpenOptions::new().read(true).open(&results)?;
+    let reader = BufReader::new(fin);
 
+    if print_conf.all {
+        for possible_line in reader.lines() {
+            match possible_line {
+                Ok(line) => {
+                    let finding = serde_json::from_str::<RuleResult>(&line)?;
+                    let all_findings = finding.get_all_findings_as_str();
+                    let all_findings_cutted = if all_findings.len() > 69 {
+                        &all_findings[..69]
+                    }
+                    else {
+                        &all_findings
+                    };
+
+                    println!(
+                        "{:>4}  {:<8} {:<30}  {:<70}  {:<}",
+                        finding.get_id(),
+                        finding.get_severity(),
+                        finding.get_rule_id(),
+                        all_findings_cutted,
+                        finding.get_initial_request_first_line()
+                    );
+                },
+                Err(err) => {
+                    return Err(CrusterCLIError::from(err));
+                }
+            }
+        }
+    }
 
     Ok(())
 }

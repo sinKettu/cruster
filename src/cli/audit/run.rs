@@ -148,6 +148,7 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
     }
 
     let mut stopped_workers = 0;
+    let mut finding_index = 0;
     while stopped_workers != tasks {
         match rx.try_recv() {
             Ok(msg) => {
@@ -163,8 +164,12 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
                             RuleFinalState::Finished(possible_result) => {
                                 match possible_result {
                                     Some(res) => {
-                                        // TODO: dont know why, but findings are empty last time
+                                        let mut res = res;
+                                        res.set_id(finding_index);
+                                        finding_index += 1;
+                                        
                                         println!("{}", res);
+                                        
                                         if let Err(err) = res.write_result(&audit_file) {
                                             eprintln!("could not save last audit result: {}", err.to_string());
                                         }

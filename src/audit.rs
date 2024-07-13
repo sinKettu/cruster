@@ -109,6 +109,7 @@ pub(crate) struct Rule {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleResult {
+    id: usize,
     rule_id: String,
     pair_index: usize,
     severity: RuleSeverity,
