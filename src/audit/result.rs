@@ -1,8 +1,8 @@
 pub(crate) mod write;
 
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
-use super::{AuditError, RuleResult, RuleSeverity};
+use super::{types::SerializableSendResultEntry, AuditError, RuleResult, RuleSeverity};
 
 use colored::Colorize;
 
@@ -105,6 +105,10 @@ impl RuleResult {
     pub(crate) fn get_initial_request_first_line(&self) -> &str {
         let splitted: Vec<&str> = self.initial_request.splitn(2, "\n").collect();
         return splitted[0];
+    }
+
+    pub(crate) fn get_findings(&self) -> &HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)> {
+        return &self.findings;
     }
 }
 

@@ -74,6 +74,39 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
             }
         }
     }
+    else {
+        let mut found = false;
+        for possible_line in reader.lines() {
+            match possible_line {
+                Ok(line) => {
+                    let finding = serde_json::from_str::<RuleResult>(&line)?;
+                    
+                    if finding.get_id() != print_conf.index {
+                        continue;
+                    }
+
+                    found = true;
+
+                    println!("{:<10}  {:<}", "Rule ID:", finding.get_rule_id());
+                    println!("{:<10}  {:<}", "Severity:", finding.get_severity());
+
+                    let actual_findings = finding.get_findings();
+                    println!("\nFindings:");
+                    for (finding_name, (extracted, _send_results)) in actual_findings.iter() {
+                        let joined_extracted_items = extracted.join(", ");
+                        println!("\t{:<10}:  {:<}", finding_name, joined_extracted_items);
+                    }
+                },
+                Err(err) => {
+                    return Err(CrusterCLIError::from(err));
+                }
+            }
+        }
+
+        if !found {
+            println!("Cannot get finding with index {} in results of audit '{}'", print_conf.index, &print_conf.audit_name);
+        }
+    }
 
     Ok(())
 }
