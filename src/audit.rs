@@ -111,6 +111,8 @@ pub(crate) struct Rule {
 pub(crate) struct RuleResult {
     id: usize,
     rule_id: String,
+    protocol: String,
+    r#type: String,
     pair_index: usize,
     severity: RuleSeverity,
     findings: HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)>,

@@ -66,6 +66,14 @@ impl RuleResult {
         }
     }
 
+    pub(crate) fn get_protocol(&self) -> &str {
+        return &self.protocol
+    }
+
+    pub(crate) fn get_type(&self) -> &str {
+        return &self.r#type
+    }
+
     pub(crate) fn get_rule_id(&self) -> &str {
         return &self.rule_id;
     }
