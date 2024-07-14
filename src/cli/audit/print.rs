@@ -92,9 +92,42 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
 
                     let actual_findings = finding.get_findings();
                     println!("\nFindings:");
-                    for (finding_name, (extracted, _send_results)) in actual_findings.iter() {
+                    for (finding_name, (extracted, send_results)) in actual_findings.iter() {
                         let joined_extracted_items = extracted.join(", ");
-                        println!("\t{:<10}:  {:<}", finding_name, joined_extracted_items);
+
+                        println!("\t{:<10}:  {:<}", "Name", finding_name);
+                        println!("\t{:<10}:  {:<}", "Extracted", joined_extracted_items);
+                        println!("");
+
+                        for send_result in send_results {
+                            println!("\tRequest (payload='{}'):\n", &send_result.payload);
+                            
+                            let splitted_request: Vec<&str> = send_result.request.split("\n").collect();
+                            for request_line in splitted_request {
+                                if request_line == "\r" && print_conf.wout_body {
+                                    println!("\t\t >");
+                                    break;
+                                }
+
+                                println!("\t\t > {}", request_line);
+                            }
+
+                            println!("");
+
+                            println!("\tResponse (payload='{}'):\n", &send_result.payload);
+
+                            let splitted_response: Vec<&str> = send_result.response.split("\n").collect();
+                            for response_line in splitted_response {
+                                if response_line == "\r" && print_conf.wout_body {
+                                    println!("\t\t <");
+                                    break;
+                                }
+
+                                println!("\t\t < {}", response_line);
+                            }
+                        }
+                    
+                        println!("");
                     }
                 },
                 Err(err) => {

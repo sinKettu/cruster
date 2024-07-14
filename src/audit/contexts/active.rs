@@ -159,25 +159,27 @@ impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleCont
 
                 let mut serializable_entries = vec![];
                 if let Some(send_index) = find_result.1 {
-                    if send_index != 0 {
-                        let send_results = self.send_results();
-                        let active_rule = rule.http_active_rule().unwrap();
-                        let required_send_results = active_rule.find[index].get_required_send_results();
+                    let send_results = self.send_results();
+                    let active_rule = rule.http_active_rule().unwrap();
+                    let required_send_results = active_rule.find[index].get_required_send_results();
 
-                        for res_index in required_send_results {
-                            let send_res_entry = &send_results[*res_index][send_index];
-                            let request = send_res_entry.request.to_string();
-                            let payload = send_res_entry.payload.as_str().to_string();
-                            let response = send_res_entry.response.to_string();
+                    for res_index in required_send_results {
+                        if *res_index == 0 {
+                            continue;
+                        }
 
-                            let serializable_res_entry = SerializableSendResultEntry {
-                                request,
-                                payload,
-                                response
-                            };
+                        let send_res_entry = &send_results[*res_index][send_index];
+                        let request = send_res_entry.request.to_string();
+                        let payload = send_res_entry.payload.as_str().to_string();
+                        let response = send_res_entry.response.to_string();
 
-                            serializable_entries.push(serializable_res_entry);
-                        }    
+                        let serializable_res_entry = SerializableSendResultEntry {
+                            request,
+                            payload,
+                            response
+                        };
+
+                        serializable_entries.push(serializable_res_entry);
                     }
                 }
                 

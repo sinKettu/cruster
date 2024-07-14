@@ -354,8 +354,10 @@ impl RuleFindAction {
                     },
                     ExecutableExpressionArgsValues::Several(s) => {
                         let mut found = false;
+                        // It takes wrong index and i should understand why
                         for (index, val) in s.iter().enumerate() {
                             if val.boolean() {
+                                // ctxt.add_find_result((true, Some(refer.refer[0].send_action_id)));
                                 ctxt.add_find_result((true, Some(index)));
                                 found = true;
                                 break; // Instead of breaking we can find all occurancies - TODO
