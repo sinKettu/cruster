@@ -11,6 +11,9 @@ pub(crate) struct AuditPrintConfig {
     pub(crate) wout_body: bool,
     pub(crate) no_data: bool,
     pub(crate) init_data: bool,
+    pub(crate) sort: bool,
+    pub(crate) sort_severity: bool,
+    pub(crate) sort_ruleid: bool,
 }
 
 impl TryFrom<&ArgMatches> for AuditPrintConfig {
@@ -26,7 +29,10 @@ impl TryFrom<&ArgMatches> for AuditPrintConfig {
                     index: 0,
                     wout_body: false,
                     no_data: false,
-                    init_data: false
+                    init_data: false,
+                    sort: false,
+                    sort_ruleid: false,
+                    sort_severity: false
                 }
             )
         }
@@ -35,6 +41,9 @@ impl TryFrom<&ArgMatches> for AuditPrintConfig {
             let wout_body = value.get_flag("without-body");
             let init_data = value.get_flag("initial-data");
             let no_data = value.get_flag("no-data");
+            let sort_severity = value.get_flag("sort-severity");
+            let sort_ruleid = value.get_flag("sort-ruleid");
+            let sort = sort_severity || sort_ruleid;
 
             return Ok(
                 AuditPrintConfig {
@@ -44,6 +53,8 @@ impl TryFrom<&ArgMatches> for AuditPrintConfig {
                     wout_body,
                     no_data,
                     init_data,
+                    sort,sort_severity,
+                    sort_ruleid,
                 }
             )
         }
@@ -130,8 +141,7 @@ fn print_single_result(print_conf: &AuditPrintConfig, line: String) -> Result<bo
     Ok(true)
 }
 
-fn print_all(line: String) -> Result<(), CrusterCLIError> {
-    let finding = serde_json::from_str::<RuleResult>(&line)?;
+fn print_finding_briefly(finding: &RuleResult) {
     let all_findings = finding.get_all_findings_as_str();
     let all_findings_cutted = if all_findings.len() > 69 {
         &all_findings[..69]
@@ -148,7 +158,43 @@ fn print_all(line: String) -> Result<(), CrusterCLIError> {
         all_findings_cutted,
         finding.get_initial_request_first_line()
     );
+}
 
+fn print_all(print_conf: &AuditPrintConfig, reader: BufReader<fs::File>) -> Result<(), CrusterCLIError> {
+    let mut lines: Vec<RuleResult> = vec![];
+    for possible_line in reader.lines() {
+        match possible_line {
+            Ok(line) => {
+                let finding = serde_json::from_str::<RuleResult>(&line)?;
+
+                if print_conf.sort {
+                    lines.push(finding);
+                    continue;
+                }
+                else {
+                    print_finding_briefly(&finding);
+                }
+            },
+            Err(err) => {
+                return Err(CrusterCLIError::from(err));
+            }
+        }
+    }
+
+    if !lines.is_empty() {
+        if print_conf.sort_ruleid {
+            lines.sort_by(|a, b| { a.get_rule_id().cmp(b.get_rule_id()) });
+        }
+        
+        if print_conf.sort_severity {
+            lines.sort_by(|a, b| { a.get_num_severity().cmp(&b.get_num_severity()) });
+        }
+
+        for line in lines.iter() {
+            print_finding_briefly(line);
+        }
+    }
+    
     Ok(())
 }
 
@@ -157,16 +203,7 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
     let reader = BufReader::new(fin);
 
     if print_conf.all {
-        for possible_line in reader.lines() {
-            match possible_line {
-                Ok(line) => {
-                    print_all(line)?;
-                },
-                Err(err) => {
-                    return Err(CrusterCLIError::from(err));
-                }
-            }
-        }
+        print_all(&print_conf, reader)?;
     }
     else {
         for possible_line in reader.lines() {

@@ -66,6 +66,16 @@ impl RuleResult {
         }
     }
 
+    // for sorting
+    pub(crate) fn get_num_severity(&self) -> u8 {
+        return match self.severity {
+            RuleSeverity::High => 4,
+            RuleSeverity::Medium => 3,
+            RuleSeverity::Low => 2,
+            RuleSeverity::Info => 1,
+        }
+    }
+
     pub(crate) fn get_protocol(&self) -> &str {
         return &self.protocol
     }
