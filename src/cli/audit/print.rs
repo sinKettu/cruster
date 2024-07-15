@@ -91,6 +91,7 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
                     println!("{:<10}  {:<}", "Severity:", finding.get_severity());
                     println!("{:<10}  {:<}", "Protocol:", finding.get_protocol());
                     println!("{:<10}  {:<}", "Type:", finding.get_type());
+                    println!("{:<10}  {:<}", "About:", finding.get_about());
 
                     let actual_findings = finding.get_findings();
                     println!("\nFindings:");

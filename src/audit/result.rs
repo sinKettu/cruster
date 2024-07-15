@@ -78,6 +78,10 @@ impl RuleResult {
         return &self.rule_id;
     }
 
+    pub(crate) fn get_about(&self) -> &str {
+        return &self.about
+    }
+
     pub(crate) fn get_all_findings_as_str(&self) -> String {
         let mut result = String::default();
         let mut first_finding = true;

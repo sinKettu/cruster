@@ -190,6 +190,7 @@ impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleCont
         RuleResult {
             id: 0,
             rule_id: rule.id.clone(),
+            about: rule.metadata.about.to_string(),
             protocol: "http".to_string(),
             r#type: "active".to_string(),
             pair_index: self.pair_id(),

@@ -61,6 +61,7 @@ impl AuditError {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleMetadata {
+    about: String,
     authors: Vec<String>,
     name: String,
     references: Vec<String>,
@@ -111,6 +112,7 @@ pub(crate) struct Rule {
 pub(crate) struct RuleResult {
     id: usize,
     rule_id: String,
+    about: String,
     protocol: String,
     r#type: String,
     pair_index: usize,
