@@ -1,4 +1,4 @@
-use std::{fs::{self, File}, io::{BufRead, BufReader}};
+use std::{fmt::Display, fs::{self, File}, io::{BufRead, BufReader}};
 
 use clap::ArgMatches;
 
@@ -9,6 +9,8 @@ pub(crate) struct AuditPrintConfig {
     pub(crate) all: bool,
     pub(crate) index: usize,
     pub(crate) wout_body: bool,
+    pub(crate) no_data: bool,
+    pub(crate) init_data: bool,
 }
 
 impl TryFrom<&ArgMatches> for AuditPrintConfig {
@@ -22,24 +24,46 @@ impl TryFrom<&ArgMatches> for AuditPrintConfig {
                     audit_name,
                     all: true,
                     index: 0,
-                    wout_body: false
+                    wout_body: false,
+                    no_data: false,
+                    init_data: false
                 }
             )
         }
         else {
             let index = value.get_one::<usize>("index").unwrap().to_owned();
             let wout_body = value.get_flag("without-body");
+            let init_data = value.get_flag("initial-data");
+            let no_data = value.get_flag("no-data");
 
             return Ok(
                 AuditPrintConfig {
                     audit_name,
                     all: false,
                     index,
-                    wout_body
+                    wout_body,
+                    no_data,
+                    init_data,
                 }
             )
         }
     }
+}
+
+fn print_http_message<T: Display>(shift: &str, label: T, data: &str, wout_body: bool) {
+    println!("{}{}\n", shift, label);
+                                
+    let splitted_request: Vec<&str> = data.split("\n").collect();
+    for line in splitted_request {
+        if line == "\r" && wout_body {
+            println!("{}\t >", shift);
+            break;
+        }
+
+        println!("{}\t > {}", shift, line);
+    }
+
+    println!("");
 }
 
 pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Result<(), CrusterCLIError> {
@@ -102,35 +126,43 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
                         println!("\t{:<10}:  {:<}", "Extracted", joined_extracted_items);
                         println!("");
 
-                        for send_result in send_results {
-                            println!("\tRequest (payload='{}'):\n", &send_result.payload);
-                            
-                            let splitted_request: Vec<&str> = send_result.request.split("\n").collect();
-                            for request_line in splitted_request {
-                                if request_line == "\r" && print_conf.wout_body {
-                                    println!("\t\t >");
-                                    break;
-                                }
+                        if !print_conf.no_data {
+                            for send_result in send_results {
 
-                                println!("\t\t > {}", request_line);
+                                print_http_message(
+                                    "\t",
+                                    format!("Request (payload='{}'):", &send_result.payload),
+                                    &send_result.request,
+                                    print_conf.wout_body
+                                );
+
+                                print_http_message(
+                                    "\t",
+                                    format!("Response (payload='{}'):", &send_result.payload),
+                                    &send_result.response,
+                                    print_conf.wout_body
+                                );
+
                             }
 
-                            println!("");
+                            if print_conf.init_data {
+                                
+                                print_http_message(
+                                    "",
+                                    "Initial request:",
+                                    finding.get_initial_request(),
+                                    print_conf.wout_body
+                                );
 
-                            println!("\tResponse (payload='{}'):\n", &send_result.payload);
+                                print_http_message(
+                                    "",
+                                    "Initial response:",
+                                    finding.get_initial_response(),
+                                    print_conf.wout_body
+                                );
 
-                            let splitted_response: Vec<&str> = send_result.response.split("\n").collect();
-                            for response_line in splitted_response {
-                                if response_line == "\r" && print_conf.wout_body {
-                                    println!("\t\t <");
-                                    break;
-                                }
-
-                                println!("\t\t < {}", response_line);
                             }
-                        }
-                    
-                        println!("");
+                        }      
                     }
                 },
                 Err(err) => {

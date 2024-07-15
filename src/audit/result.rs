@@ -122,6 +122,14 @@ impl RuleResult {
     pub(crate) fn get_findings(&self) -> &HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)> {
         return &self.findings;
     }
+
+    pub(crate) fn get_initial_request(&self) -> &str {
+        return &self.initial_request
+    }
+
+    pub(crate) fn get_initial_response(&self) -> &str {
+        return &self.initial_response
+    }
 }
 
 pub fn syntax_string() -> String {
