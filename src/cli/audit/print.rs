@@ -1,4 +1,4 @@
-use std::{fmt::Display, fs::{self, File}, io::{BufRead, BufReader}};
+use std::{fmt::Display, fs, io::{BufRead, BufReader}};
 
 use clap::ArgMatches;
 
@@ -66,6 +66,92 @@ fn print_http_message<T: Display>(shift: &str, label: T, data: &str, wout_body: 
     println!("");
 }
 
+fn print_single_result(print_conf: &AuditPrintConfig, line: String) -> Result<bool, CrusterCLIError> {
+    let finding = serde_json::from_str::<RuleResult>(&line)?;
+                    
+    if finding.get_id() != print_conf.index {
+        return Ok(false);
+    }
+
+    println!("{:<10}  {:<}", "Rule ID:", finding.get_rule_id());
+    println!("{:<10}  {:<}", "Severity:", finding.get_severity());
+    println!("{:<10}  {:<}", "Protocol:", finding.get_protocol());
+    println!("{:<10}  {:<}", "Type:", finding.get_type());
+    println!("{:<10}  {:<}", "About:", finding.get_about());
+
+    let actual_findings = finding.get_findings();
+    println!("\nFindings:");
+    for (finding_name, (extracted, send_results)) in actual_findings.iter() {
+        let joined_extracted_items = extracted.join(", ");
+
+        println!("\t{:<10}:  {:<}", "Name", finding_name);
+        println!("\t{:<10}:  {:<}", "Extracted", joined_extracted_items);
+        println!("");
+
+        if !print_conf.no_data {
+            for send_result in send_results {
+
+                print_http_message(
+                    "\t",
+                    format!("Request (payload='{}'):", &send_result.payload),
+                    &send_result.request,
+                    print_conf.wout_body
+                );
+
+                print_http_message(
+                    "\t",
+                    format!("Response (payload='{}'):", &send_result.payload),
+                    &send_result.response,
+                    print_conf.wout_body
+                );
+
+            }
+
+            if print_conf.init_data {
+                
+                print_http_message(
+                    "",
+                    "Initial request:",
+                    finding.get_initial_request(),
+                    print_conf.wout_body
+                );
+
+                print_http_message(
+                    "",
+                    "Initial response:",
+                    finding.get_initial_response(),
+                    print_conf.wout_body
+                );
+
+            }
+        }      
+    }
+
+    Ok(true)
+}
+
+fn print_all(line: String) -> Result<(), CrusterCLIError> {
+    let finding = serde_json::from_str::<RuleResult>(&line)?;
+    let all_findings = finding.get_all_findings_as_str();
+    let all_findings_cutted = if all_findings.len() > 69 {
+        &all_findings[..69]
+    }
+    else {
+        &all_findings
+    };
+
+    println!(
+        "{:>4}  {:<8} {:<30}  {:<70}  {:<}",
+        finding.get_id(),
+        finding.get_severity(),
+        finding.get_rule_id(),
+        all_findings_cutted,
+        finding.get_initial_request_first_line()
+    );
+
+    Ok(())
+}
+
 pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Result<(), CrusterCLIError> {
     let fin = fs::OpenOptions::new().read(true).open(&results)?;
     let reader = BufReader::new(fin);
@@ -74,23 +160,7 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
         for possible_line in reader.lines() {
             match possible_line {
                 Ok(line) => {
-                    let finding = serde_json::from_str::<RuleResult>(&line)?;
-                    let all_findings = finding.get_all_findings_as_str();
-                    let all_findings_cutted = if all_findings.len() > 69 {
-                        &all_findings[..69]
-                    }
-                    else {
-                        &all_findings
-                    };
-
-                    println!(
-                        "{:>4}  {:<8} {:<30}  {:<70}  {:<}",
-                        finding.get_id(),
-                        finding.get_severity(),
-                        finding.get_rule_id(),
-                        all_findings_cutted,
-                        finding.get_initial_request_first_line()
-                    );
+                    print_all(line)?;
                 },
                 Err(err) => {
                     return Err(CrusterCLIError::from(err));
@@ -99,70 +169,11 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
         }
     }
     else {
-        let mut found = false;
         for possible_line in reader.lines() {
             match possible_line {
                 Ok(line) => {
-                    let finding = serde_json::from_str::<RuleResult>(&line)?;
-                    
-                    if finding.get_id() != print_conf.index {
-                        continue;
-                    }
-
-                    found = true;
-
-                    println!("{:<10}  {:<}", "Rule ID:", finding.get_rule_id());
-                    println!("{:<10}  {:<}", "Severity:", finding.get_severity());
-                    println!("{:<10}  {:<}", "Protocol:", finding.get_protocol());
-                    println!("{:<10}  {:<}", "Type:", finding.get_type());
-                    println!("{:<10}  {:<}", "About:", finding.get_about());
-
-                    let actual_findings = finding.get_findings();
-                    println!("\nFindings:");
-                    for (finding_name, (extracted, send_results)) in actual_findings.iter() {
-                        let joined_extracted_items = extracted.join(", ");
-
-                        println!("\t{:<10}:  {:<}", "Name", finding_name);
-                        println!("\t{:<10}:  {:<}", "Extracted", joined_extracted_items);
-                        println!("");
-
-                        if !print_conf.no_data {
-                            for send_result in send_results {
-
-                                print_http_message(
-                                    "\t",
-                                    format!("Request (payload='{}'):", &send_result.payload),
-                                    &send_result.request,
-                                    print_conf.wout_body
-                                );
-
-                                print_http_message(
-                                    "\t",
-                                    format!("Response (payload='{}'):", &send_result.payload),
-                                    &send_result.response,
-                                    print_conf.wout_body
-                                );
-
-                            }
-
-                            if print_conf.init_data {
-                                
-                                print_http_message(
-                                    "",
-                                    "Initial request:",
-                                    finding.get_initial_request(),
-                                    print_conf.wout_body
-                                );
-
-                                print_http_message(
-                                    "",
-                                    "Initial response:",
-                                    finding.get_initial_response(),
-                                    print_conf.wout_body
-                                );
-
-                            }
-                        }      
+                    if print_single_result(&print_conf, line)? {
+                        return Ok(());
                     }
                 },
                 Err(err) => {
@@ -171,9 +182,7 @@ pub(crate) async fn exec(print_conf: AuditPrintConfig, results: String) -> Resul
             }
         }
 
-        if !found {
-            println!("Cannot get finding with index {} in results of audit '{}'", print_conf.index, &print_conf.audit_name);
-        }
+        println!("Cannot get finding with index {} in results of audit '{}'", print_conf.index, &print_conf.audit_name);
     }
 
     Ok(())
