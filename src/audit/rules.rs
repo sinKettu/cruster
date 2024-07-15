@@ -1,27 +1,25 @@
 pub(crate) mod active;
 pub(crate) mod passive;
 
-use std::{fmt::Display, sync::Arc};
-
 use self::active::ActiveRule;
 
-use super::{actions::{change::InnerChangeAction, ChangeValuePlacement, RuleChangeAction, RuleFindAction}, AuditError, Rule, RuleByProtocal, RuleType};
+use super::{actions::{change::InnerChangeAction, RuleChangeAction, RuleFindAction}, AuditError, Rule, RuleByProtocal, RuleType};
 
 
 // TODO: Need also check for indexes bounds in check_up() methods
 impl Rule {
-    fn make_error<T: Display>(&self, possible_details: Option<T>) -> AuditError {
-        if let Some(details) = possible_details {
-            AuditError(
-                format!("Rule {} has the problem. {}", self.id.as_str(), details)
-            )
-        }
-        else {
-            AuditError(
-                format!("Rule {} has an undefined error!", self.id.as_str())
-            )
-        }
-    }
+    // fn make_error<T: Display>(&self, possible_details: Option<T>) -> AuditError {
+    //     if let Some(details) = possible_details {
+    //         AuditError(
+    //             format!("Rule {} has the problem. {}", self.id.as_str(), details)
+    //         )
+    //     }
+    //     else {
+    //         AuditError(
+    //             format!("Rule {} has an undefined error!", self.id.as_str())
+    //         )
+    //     }
+    // }
 
     pub(crate) fn check_up(&mut self) -> Result<(), AuditError> {
         match &mut self.rule {
@@ -54,22 +52,22 @@ impl Rule {
         }
     }
 
-    pub(crate) fn http_active_rule_mut(&mut self) -> Result<&mut ActiveRule, AuditError> {
-        let id = self.get_id().to_string();
-        match &mut self.rule {
-            RuleByProtocal::Http(rule_type) => {
-                match rule_type {
-                    RuleType::Active(rule) => {
-                        Ok(rule)
-                    },
-                    RuleType::Passive(_) => {
-                        let err_str = format!("trying to work with '{}' like active rule, but it's passive", id);
-                        Err(AuditError(err_str))
-                    }
-                }
-            }
-        }
-    }
+    // pub(crate) fn http_active_rule_mut(&mut self) -> Result<&mut ActiveRule, AuditError> {
+    //     let id = self.get_id().to_string();
+    //     match &mut self.rule {
+    //         RuleByProtocal::Http(rule_type) => {
+    //             match rule_type {
+    //                 RuleType::Active(rule) => {
+    //                     Ok(rule)
+    //                 },
+    //                 RuleType::Passive(_) => {
+    //                     let err_str = format!("trying to work with '{}' like active rule, but it's passive", id);
+    //                     Err(AuditError(err_str))
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     fn get_change_action_by_index(&self, index: usize) -> Result<&RuleChangeAction, AuditError> {
         let rule = self.http_active_rule()?;
@@ -86,15 +84,15 @@ impl Rule {
         Ok(change_action.get_inner_action())
     }
 
-    pub(crate) fn get_change_placement_by_index(&self, index: usize) -> Result<ChangeValuePlacement, AuditError> {
-        let change = self.get_change_action_by_index(index)?;
-        change.get_placement()
-    }
+    // pub(crate) fn get_change_placement_by_index(&self, index: usize) -> Result<ChangeValuePlacement, AuditError> {
+    //     let change = self.get_change_action_by_index(index)?;
+    //     change.get_placement()
+    // }
 
-    pub(crate) fn get_payloads_by_index(&self, index: usize) -> Result<&Vec<Arc<String>>, AuditError> {
-        let change = self.get_change_action_by_index(index)?;
-        change.get_payloads()
-    }
+    // pub(crate) fn get_payloads_by_index(&self, index: usize) -> Result<&Vec<Arc<String>>, AuditError> {
+    //     let change = self.get_change_action_by_index(index)?;
+    //     change.get_payloads()
+    // }
 
     // pub fn get_send_actions_number(&self) -> Result<usize, AuditError> {
     //     let rule = self.http_active_rule()?;

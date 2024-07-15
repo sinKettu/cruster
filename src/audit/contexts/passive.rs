@@ -1,9 +1,9 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use bstr::ByteSlice;
 
-use super::{traits::{ActiveRuleExecutionContext, BasicContext, PassiveRuleExecutionContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext, PassiveRuleContext};
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
+use super::{traits::{BasicContext, PassiveRuleExecutionContext, WithFindAction, WithGetAction, WithSendAction}, PassiveRuleContext};
+use crate::{audit::{types::SingleSendResultEntry, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for PassiveRuleContext
 {
@@ -51,7 +51,7 @@ impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for PassiveRuleContext
 
 // There are actually no send actions in passive rule, but this trait must be implemented
 impl<'pair_lt, 'rule_lt> WithSendAction<'pair_lt> for PassiveRuleContext {
-    fn add_send_result(&mut self, res: Vec<SingleSendResultEntry>) {
+    fn add_send_result(&mut self, _res: Vec<SingleSendResultEntry>) {
         unreachable!("method .add_send_result() must not be used with passive context, something goes wrong")
     }
 

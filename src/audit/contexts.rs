@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::http_storage::RequestResponsePair;
 
-use super::types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleCaptureGroupCoordinates, SingleSendResultEntry};
+use super::types::{CapturesBorders, SingleCaptureGroupCoordinates, SingleSendResultEntry};
 
 pub(crate) struct ActiveRuleContext {
     rule_id: String,

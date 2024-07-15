@@ -1,10 +1,10 @@
-use std::{collections::HashMap, rc::Rc, str::FromStr, thread::sleep, time::Duration};
+use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
 
 use bstr::ByteSlice;
 use http::{header::HeaderName, HeaderValue, HeaderMap};
 use log::debug;
 
-use crate::{audit::{contexts::traits::{WithChangeAction, WithSendAction}, types::{PayloadsTests, SendActionResultsPerPatternEntry, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}}, cruster_proxy::request_response::HyperRequestWrapper};
+use crate::{audit::{contexts::traits::{WithChangeAction, WithSendAction}, types::{SingleCoordinates, SingleSendResultEntry}}, cruster_proxy::request_response::HyperRequestWrapper};
 use crate::http_sender;
 
 use self::change::{ChangeAdd, ChangeModify};

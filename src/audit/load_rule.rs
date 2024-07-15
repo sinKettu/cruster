@@ -1,5 +1,3 @@
-use std::fs::File;
-
 use super::AuditError;
 use super::Rule;
 use crate::config::AuditConfig;

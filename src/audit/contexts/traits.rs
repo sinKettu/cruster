@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
+use crate::{audit::{types::{CapturesBorders, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
 
 
 pub(crate) trait BasicContext<'pair_lt> {

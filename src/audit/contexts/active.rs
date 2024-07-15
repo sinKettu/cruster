@@ -1,9 +1,9 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use bstr::ByteSlice;
 
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
-use crate::{audit::{actions::WatchId, types::{CapturesBorders, SendActionResultsPerPatternEntry, SendResultEntryRef, SerializableSendResultEntry, SingleCaptureGroupCoordinates, SingleCoordinates, SingleSendActionResult, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
+use crate::{audit::{types::{CapturesBorders, SerializableSendResultEntry, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext
 {

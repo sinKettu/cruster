@@ -1,9 +1,9 @@
-use std::{borrow::Cow, rc::Rc, sync::Arc};
+use std::{borrow::Cow, sync::Arc};
 
 use bstr::ByteSlice;
 use serde::{Deserialize, Serialize};
 
-use crate::{audit::types::{OpArgWithRef, SendActionResultsPerPatternEntry, SendResultEntryRef, SingleSendResultEntry}, http_storage::RequestResponsePair};
+use crate::{audit::types::{OpArgWithRef, SendResultEntryRef, SingleSendResultEntry}, http_storage::RequestResponsePair};
 
 use super::AuditError;
 

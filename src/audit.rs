@@ -18,7 +18,7 @@ use actions::{
     RuleGetAction
 };
 
-use self::{rules::{active::ActiveRule, passive::PassiveRule}, types::{SerializableSendResultEntry, SingleSendResultEntry}};
+use self::{rules::{active::ActiveRule, passive::PassiveRule}, types::SerializableSendResultEntry};
 
 pub(crate) struct AuditError(String);
 

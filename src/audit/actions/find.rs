@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
-use crate::audit::{contexts::traits::{WithFindAction, WithSendAction}, types::SendResultEntryRef};
+use crate::audit::contexts::traits::{WithFindAction, WithSendAction};
 
 use self::{args::{ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues}, methods::ExecutableExpressionMethod};
 

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use http::{header::HeaderName, HeaderMap, HeaderValue};
+use http::{header::HeaderName, HeaderValue};
 use log::debug;
 use base64;
 
@@ -70,27 +70,27 @@ impl RuleChangeAction {
         &self.r#type
     }
 
-    pub(crate) fn get_placement(&self) -> Result<ChangeValuePlacement, AuditError> {
-        match &self.r#type {
-            InnerChangeAction::ADD(_) => {
-                return Err(AuditError::from("Cannot get value placement in change action, because it has different inner action type"));
-            },
-            InnerChangeAction::MODIFY(m) => {
-                Ok(m.placement.clone())
-            }
-        }
-    }
+    // pub(crate) fn get_placement(&self) -> Result<ChangeValuePlacement, AuditError> {
+    //     match &self.r#type {
+    //         InnerChangeAction::ADD(_) => {
+    //             return Err(AuditError::from("Cannot get value placement in change action, because it has different inner action type"));
+    //         },
+    //         InnerChangeAction::MODIFY(m) => {
+    //             Ok(m.placement.clone())
+    //         }
+    //     }
+    // }
 
-    pub(crate) fn get_payloads(&self) -> Result<&Vec<Arc<String>>, AuditError> {
-        match &self.r#type {
-            InnerChangeAction::ADD(_) => {
-                return Err(AuditError::from("Cannot get payloads (values) in change action, because it has different inner action type"));
-            },
-            InnerChangeAction::MODIFY(m) => {
-                Ok(&m.values)
-            }
-        }
-    }
+    // pub(crate) fn get_payloads(&self) -> Result<&Vec<Arc<String>>, AuditError> {
+    //     match &self.r#type {
+    //         InnerChangeAction::ADD(_) => {
+    //             return Err(AuditError::from("Cannot get payloads (values) in change action, because it has different inner action type"));
+    //         },
+    //         InnerChangeAction::MODIFY(m) => {
+    //             Ok(&m.values)
+    //         }
+    //     }
+    // }
 
     pub(crate) fn check_up(&mut self, watch_id_ref: &HashMap<String, usize>) -> Result<(), AuditError> {
         let splitted_watch_id: Vec<&str> = self.watch_id.split(".").collect();

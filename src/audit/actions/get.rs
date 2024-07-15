@@ -4,7 +4,7 @@ use bstr::ByteSlice;
 use log::debug;
 use regex::bytes::Regex;
 
-use crate::audit::{contexts::traits::{WithFindAction, WithGetAction}, types::PayloadsTests};
+use crate::audit::contexts::traits::{WithFindAction, WithGetAction};
 use crate::cruster_proxy::request_response::extract::ExtractFromHTTPPartByRegex;
 
 use super::*;
