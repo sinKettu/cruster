@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use regex::Regex;
+
 use super::AuditError;
 use super::Rule;
 use crate::config::AuditConfig;
@@ -25,6 +29,85 @@ impl Rule {
 
         rule.check_up()?;
         Ok(rule)
+    }
+}
+
+impl AuditConfig {
+    fn str_vec_to_re_vec(strs: &[String]) -> Result<Option<Vec<Regex>>, AuditError> {
+        let mut result: Vec<Regex> = vec![];
+        for pth in strs {
+            let re = Regex::new(pth)?;
+            result.push(re);
+        }
+
+        if result.is_empty() {
+            Ok(None)
+        }
+        else {
+            Ok(Some(result))
+        }
+    }
+
+    fn get_include_paths_re(&self) -> Result<Option<Vec<Regex>>, AuditError> {
+        if let Some(includies) = self.include.as_ref() {
+            AuditConfig::str_vec_to_re_vec(&includies.paths)
+        }
+        else {
+            Ok(None)
+        }
+    }
+
+    fn get_exclude_paths_re(&self) -> Result<Option<Vec<Regex>>, AuditError> {
+        if let Some(excludies) = self.exclude.as_ref() {
+            AuditConfig::str_vec_to_re_vec(&excludies.paths)
+        }
+        else {
+            Ok(None)
+        }
+    }
+
+    fn excludes_rule(&self, rule: &Rule) -> bool {
+        let rule_id = rule.get_id();
+        let rule_tags = rule.metadata.tags.as_slice();
+
+        if let Some(includies) = self.include.as_ref() {
+            // if rule_id is not in included ids, then skip it
+            if !includies.ids.is_empty() && !includies.ids.iter().any(|id| { id == rule_id }) {
+                return true;
+            }
+
+            if !includies.tags.is_empty() {
+                let tag_found = includies.tags
+                    .iter()
+                    .any(|inc_tag| {
+                        rule_tags.contains(inc_tag)
+                    });
+                
+                if !tag_found {
+                    return true;
+                }
+            }
+        }
+
+        if let Some(excludies) = self.exclude.as_ref() {
+            if !excludies.ids.is_empty() && excludies.ids.iter().any(|id| { id == rule_id} ) {
+                return true;
+            }
+
+            if !excludies.tags.is_empty() {
+                let tag_found = excludies.tags
+                    .iter()
+                    .any(|exc_tag| {
+                        rule_tags.contains(exc_tag)
+                    });
+                
+                if tag_found {
+                    return true;
+                }
+            }            
+        }
+
+        return false;
     }
 }
 
@@ -92,4 +175,41 @@ pub(crate) fn compose_files_list_by_config(audit_conf: &AuditConfig) -> Result<V
     }
 
     Ok(result)
+}
+
+pub(crate) fn load_rules(audit_conf: &AuditConfig) -> Result<Vec<Arc<Rule>>, AuditError> {
+    let rules_paths = compose_files_list_by_config(audit_conf)?;
+    let inc_paths = audit_conf.get_include_paths_re()?;
+    let exc_paths = audit_conf.get_exclude_paths_re()?;
+    let mut result: Vec<Arc<Rule>> = vec![];
+
+    for path in rules_paths.iter() {
+        debug!("Loading rule - {}", path);
+
+        if let Some(inc_re) = inc_paths.as_ref() {
+            let any_re = inc_re.iter().any(|re| { re.is_match(path) });
+            if !any_re {
+                debug!("Rule excluded because was not found in include paths list");
+            }
+        }
+
+        if let Some(exc_re) = exc_paths.as_ref() {
+            for re in exc_re {
+                if re.is_match(&path) {
+                    debug!("Rule excluded by path regex: {}", re.as_str());
+                    continue;
+                }
+            }
+        }
+
+        let rule = Rule::from_file(path)?;
+
+        if audit_conf.excludes_rule(&rule) {
+            continue;
+        }
+
+        result.push(Arc::new(rule));
+    }
+
+    return Ok(result);
 }
