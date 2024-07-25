@@ -22,15 +22,6 @@ impl Operations for ExecutableExpressionArgsValues {
         }
 
         match (self, arg) {
-            (Self::Boolean(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.boolean() == arg.boolean())
-            },
-            (Self::Integer(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.integer() == arg.integer())
-            },
-            (Self::String(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.string() == arg.string())
-            },
             (Self::Several(arg1), Self::Several(arg2)) => {
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
                 for i in 0..arg1.len() {
@@ -126,6 +117,15 @@ impl Operations for ExecutableExpressionArgsValues {
                     )
                 )
             },
+            (Self::Boolean(_), _) => {
+                ExecutableExpressionArgsValues::Boolean(self.boolean() == arg.boolean())
+            },
+            (Self::Integer(_), _) => {
+                ExecutableExpressionArgsValues::Boolean(self.integer() == arg.integer())
+            },
+            (Self::String(_), _) => {
+                ExecutableExpressionArgsValues::Boolean(self.string() == arg.string())
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -138,9 +138,6 @@ impl Operations for ExecutableExpressionArgsValues {
         }
 
         match (self, arg) {
-            (Self::Integer(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.integer() > arg.integer())
-            },
             (Self::Several(arg1), Self::Several(arg2)) => {
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
                 for i in 0..arg1.len() {
@@ -236,6 +233,9 @@ impl Operations for ExecutableExpressionArgsValues {
                     )
                 )
             },
+            (Self::Integer(_), _) => {
+                ExecutableExpressionArgsValues::Boolean(self.integer() > arg.integer())
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -248,9 +248,6 @@ impl Operations for ExecutableExpressionArgsValues {
         }
 
         match (self, arg) {
-            (Self::Integer(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.integer() >= arg.integer())
-            },
             (Self::Several(arg1), Self::Several(arg2)) => {
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
                 for i in 0..arg1.len() {
@@ -346,6 +343,9 @@ impl Operations for ExecutableExpressionArgsValues {
                     )
                 )
             },
+            (Self::Integer(_), _) => {
+                ExecutableExpressionArgsValues::Boolean(self.integer() >= arg.integer())
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -358,9 +358,6 @@ impl Operations for ExecutableExpressionArgsValues {
         }
 
         match (self, arg) {
-            (Self::Integer(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.integer() < arg.integer())
-            },
             (Self::Several(arg1), Self::Several(arg2)) => {
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
                 for i in 0..arg1.len() {
@@ -456,6 +453,9 @@ impl Operations for ExecutableExpressionArgsValues {
                     )
                 )
             },
+            (Self::Integer(_), _) => {
+                ExecutableExpressionArgsValues::Boolean(self.integer() < arg.integer())
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -468,9 +468,6 @@ impl Operations for ExecutableExpressionArgsValues {
         }
 
         match (self, arg) {
-            (Self::Integer(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.integer() <= arg.integer())
-            },
             (Self::Several(arg1), Self::Several(arg2)) => {
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
                 for i in 0..arg1.len() {
@@ -566,6 +563,9 @@ impl Operations for ExecutableExpressionArgsValues {
                     )
                 )
             },
+            (Self::Integer(_), _) => {
+                ExecutableExpressionArgsValues::Boolean(self.integer() <= arg.integer())
+            },
             _ => {
                 unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
             }
@@ -578,9 +578,6 @@ impl Operations for ExecutableExpressionArgsValues {
         }
 
         match self {
-            Self::String(s) => {
-                ExecutableExpressionArgsValues::Integer(s.len() as i64)
-            },
             Self::Several(arg1) => {
                 // println!("{:?}", arg1);
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
@@ -606,7 +603,10 @@ impl Operations for ExecutableExpressionArgsValues {
                         }
                     )
                 )
-            }
+            },
+            Self::String(s) => {
+                ExecutableExpressionArgsValues::Integer(s.len() as i64)
+            },
             _ => {
                 unreachable!("In len operations found the following case that shoud not exist: {:?}", self)
             }
