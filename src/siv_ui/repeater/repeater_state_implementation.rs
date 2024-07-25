@@ -94,7 +94,7 @@ impl RepeaterState {
                 (method.to_string(), uri, version.to_string())
             },
             None => {
-                let err_str = format!("Could not parse first line of request in repeater: {}", req_fl.clone());
+                let err_str = format!("Could not parse first line of request in repeater: {}", req_fl);
                 return Err(CrusterError::RegexError(err_str));
             }
         };

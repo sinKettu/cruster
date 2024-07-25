@@ -2,14 +2,12 @@ use hudsucker;
 
 #[cfg(feature = "openssl-ca")]
 use hudsucker::{
-    certificate_authority::{OpensslAuthority as HudSuckerCA},
+    certificate_authority::OpensslAuthority as HudSuckerCA,
     openssl::{hash::MessageDigest, pkey::PKey, x509::X509},
 };
 
 #[cfg(feature = "rcgen-ca")]
-use hudsucker::{
-    certificate_authority::{RcgenAuthority as HudSuckerCA},
-};
+use hudsucker::certificate_authority::RcgenAuthority as HudSuckerCA;
 
 #[cfg(feature = "rcgen-ca")]
 use hudsucker::rustls::{PrivateKey, Certificate};
@@ -31,7 +29,7 @@ use serde_yaml;
 // use std::time::macros::datetime;
 use time::OffsetDateTime;
 use time::macros::datetime;
-use tokio::sync::mpsc::error::{TryRecvError};
+use tokio::sync::mpsc::error::TryRecvError;
 use regex::Error as regex_error;
 use reqwest::Error as ReqwestErr;
 
@@ -45,10 +43,11 @@ use http::{
 
 use crossbeam::channel::{SendError, TryRecvError as CBTryRecvError};
 
-use crate::{cruster_proxy::events::ProxyEvents};
+use crate::cruster_proxy::events::ProxyEvents;
 use crate::config::CrusterConfigError;
 use crate::cli::CrusterCLIError;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub(crate) enum CrusterError {
     IOError(String),
