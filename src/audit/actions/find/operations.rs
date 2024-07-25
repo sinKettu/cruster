@@ -5,6 +5,10 @@ use crate::audit::types::OpArgWithRef;
 use super::args::{ExecutableExpressionArgsTypes, ExecutableExpressionArgsValues};
 use regex;
 
+// fn _equal(left: &ExecutableExpressionArgsValues, right: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+//     left.equal(right)
+// }
+
 pub(super) trait Operations {
     fn equal(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
     fn greater(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
@@ -15,50 +19,66 @@ pub(super) trait Operations {
     fn re_match(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
 }
 
+fn process_both_args_several(arg1: &Vec<ExecutableExpressionArgsValues>, arg2: &Vec<ExecutableExpressionArgsValues>, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+    let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
+    for i in 0..arg1.len() {
+        if i == arg2.len() {
+            break
+        }
+
+        let iter_arg1 = &arg1[i];
+        let iter_arg2 = &arg2[i];
+
+        let res = f(iter_arg1, iter_arg2);
+        collected.push(res);
+    }
+
+    ExecutableExpressionArgsValues::Several(collected)
+}
+
+fn process_right_arg_several(arg1: &ExecutableExpressionArgsValues, arg2: &Vec<ExecutableExpressionArgsValues>, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+    let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg2.len());
+    for i in 0..arg2.len() {
+        let iter_arg2 = &arg2[i];
+
+        let res = f(arg1, iter_arg2);
+        collected.push(res);
+    }
+
+    ExecutableExpressionArgsValues::Several(collected)
+}
+
+fn process_left_arg_several(arg1: &Vec<ExecutableExpressionArgsValues>, arg2: &ExecutableExpressionArgsValues, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+    let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
+    for i in 0..arg1.len() {
+        let iter_arg1 = &arg1[i];
+
+        let res = f(iter_arg1, arg2);
+        collected.push(res);
+    }
+
+    ExecutableExpressionArgsValues::Several(collected)
+}
+
 impl Operations for ExecutableExpressionArgsValues {
     fn equal(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
         if self.get_type() != arg.get_type() {
             unreachable!("Trying to compare args with diffrerent types, but it should be catched earlier");
         }
 
+        let f = |left: &ExecutableExpressionArgsValues, right: &ExecutableExpressionArgsValues| -> ExecutableExpressionArgsValues {
+            left.equal(right)
+        };
+
         match (self, arg) {
             (Self::Several(arg1), Self::Several(arg2)) => {
-                let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
-                for i in 0..arg1.len() {
-                    if i == arg2.len() {
-                        break
-                    }
-
-                    let iter_arg1 = &arg1[i];
-                    let iter_arg2 = &arg2[i];
-
-                    let res = iter_arg1.equal(iter_arg2);
-                    collected.push(res);
-                }
-
-                ExecutableExpressionArgsValues::Several(collected)
+                process_both_args_several(arg1, arg2, f)
             },
             (Self::Several(arg1), _) => {
-                let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
-                for i in 0..arg1.len() {
-                    let iter_arg1 = &arg1[i];
-
-                    let res = iter_arg1.equal(arg);
-                    collected.push(res);
-                }
-
-                ExecutableExpressionArgsValues::Several(collected)
+                process_left_arg_several(arg1, arg, f)
             },
             (_, Self::Several(arg2)) => {
-                let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg2.len());
-                for i in 0..arg2.len() {
-                    let iter_arg2 = &arg2[i];
-
-                    let res = self.equal(iter_arg2);
-                    collected.push(res);
-                }
-
-                ExecutableExpressionArgsValues::Several(collected)
+                process_right_arg_several(self, arg2, f)
             },
             (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
                 let arg1 = &arg1_with_ref.arg;
