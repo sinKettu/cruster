@@ -51,7 +51,7 @@ impl RuleSendAction {
         if ln == 0 {
             let Ok(new_line) = new_line.to_str() else {
                 let err_str = format!("Cannot encode to UTF-8: {}", new_line.to_str_lossy());
-                    return Err(AuditError(err_str));
+                return Err(AuditError(err_str));
             };
 
             let splitted: Vec<&str> = new_line.split(' ').collect();
@@ -252,7 +252,9 @@ impl RuleSendAction {
                 debug!("SendAction - modified line: {}", new_line.as_slice().to_str_lossy());
                 debug!("SendAction -                {: <2$}^{: <3$}^", "", "", new_start, (new_end - new_start).saturating_sub(1));
 
-                let modified_request = self.modify_request(request, new_line, line_number.to_owned())?;
+                let mut modified_request = self.modify_request(request, new_line, line_number.to_owned())?;
+                let str_body_length = modified_request.body.len().to_string();
+                let _ = modified_request.headers.insert("Content-Length", HeaderValue::from_str(&str_body_length)?);
                 let modified_request = Arc::new(modified_request);
 
                 let repeat_number = if let Some(rn) = self.repeat.as_ref() { rn.to_owned() } else { 0 };
@@ -304,6 +306,9 @@ impl RuleSendAction {
                 }
             }
         }
+
+        let str_body_length = request.body.len().to_string();
+        let _ = request.headers.insert("Content-Length", HeaderValue::from_str(&str_body_length)?);
 
         let request = Arc::new(request);
         let repeat_number = if let Some(rn) = self.repeat.as_ref() { rn.to_owned() } else { 0 };

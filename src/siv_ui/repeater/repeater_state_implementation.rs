@@ -137,6 +137,7 @@ impl RepeaterState {
         let header_re = Regex::new(r"^(?P<name>[\d\w_\-]+): (?P<val>.*)$").unwrap();
         let mut body = String::with_capacity(self.request.len());
         let mut the_following_is_body = false;
+        let mut first_body_line = true;
         for line in self.request.split("\n").skip(1) {
             let trimmed_line = line.trim_end();
             if trimmed_line.is_empty() {
@@ -146,7 +147,14 @@ impl RepeaterState {
 
             if the_following_is_body {
                 body.push_str(line);
-                body.push_str("\r\n");
+
+                if ! first_body_line {
+                    body.push_str("\r\n");
+                }
+                else {
+                    first_body_line = false;
+                }
+                
                 continue;
             }
 
@@ -182,12 +190,14 @@ impl RepeaterState {
             }
         }
 
+        let str_body_length = body.len().to_string();
+        let _ = new_headers.insert("Content-Length", HeaderValue::from_str(&str_body_length)?);
+
         let request = request
             .headers(new_headers)
             .body(body)
             .build()?;
         
-
         Ok(request)
     }
 }

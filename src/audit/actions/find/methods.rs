@@ -191,7 +191,7 @@ impl ExecutableExpressionMethod {
                 Ok(args[0].greater_or_equal(&args[1]))
             },
             Self::AND => {
-                Ok(args[0].and(&args[2]))
+                Ok(args[0].and(&args[1]))
             }
         }   
     }
