@@ -69,49 +69,27 @@ impl RuleFindAction {
                 "len" => {
                     methods::ExecutableExpressionMethod::LEN
                 },
-
-                "equal" => {
+                "equal" | "=" => {
                     methods::ExecutableExpressionMethod::EQUAL
                 },
-                "=" => {
-                    methods::ExecutableExpressionMethod::EQUAL
-                },
-
-                "greater" => {
+                "greater" | ">" => {
                     methods::ExecutableExpressionMethod::GREATER
                 },
-                ">" => {
-                    methods::ExecutableExpressionMethod::GREATER
-                },
-
-                "greaterorequal" => {
+                "greaterorequal" | ">=" => {
                     methods::ExecutableExpressionMethod::GreaterOrEqual
                 },
-                ">=" => {
-                    methods::ExecutableExpressionMethod::GreaterOrEqual
-                },
-
-                "less" => {
+                "less" | "<" => {
                     methods::ExecutableExpressionMethod::LESS
                 },
-                "<" => {
-                    methods::ExecutableExpressionMethod::LESS
-                },
-
-                "lessorequal" => {
+                "lessorequal" | "<=" => {
                     methods::ExecutableExpressionMethod::LessOrEqual
                 },
-                "<=" => {
-                    methods::ExecutableExpressionMethod::LessOrEqual
-                },
-
-                "rematch" => {
+                "rematch" | "~" => {
                     methods::ExecutableExpressionMethod::ReMatch
                 },
-                "~" => {
-                    methods::ExecutableExpressionMethod::ReMatch
+                "and" | "&&" => {
+                    methods::ExecutableExpressionMethod::AND
                 },
-
                 _ => {
                     let err_str = format!("Found unknown operation type - {} - at operation {}", &operation.operation, &operation.name);
                     return Err(AuditError(err_str));

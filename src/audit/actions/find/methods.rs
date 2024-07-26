@@ -16,7 +16,9 @@ pub enum ExecutableExpressionMethod {
     GreaterOrEqual,
     LessOrEqual,
 
-    ReMatch
+    ReMatch,
+
+    AND,
 }
 
 impl ExecutableExpressionMethod {
@@ -43,6 +45,9 @@ impl ExecutableExpressionMethod {
             ExecutableExpressionMethod::ReMatch => {
                 ExecutableExpressionArgsTypes::BOOLEAN
             },
+            ExecutableExpressionMethod::AND => {
+                ExecutableExpressionArgsTypes::BOOLEAN
+            }
         }
     }
 
@@ -146,6 +151,17 @@ impl ExecutableExpressionMethod {
                     return Err(AuditError(err_str));
                 }
             },
+            ExecutableExpressionMethod::AND => {
+                if args.len() != 2 {
+                    let err_str = format!("'Logical AND' operation expects 2 arguments, but {} were given", args.len());
+                    return Err(AuditError(err_str));
+                }
+
+                if ! args_have_exact_type(args, ExecutableExpressionArgsTypes::BOOLEAN) {
+                    let err_str = "'Logical AND' operation expects all arguments have the type 'boolean'".to_string();
+                    return Err(AuditError(err_str));
+                }
+            }
         }
 
         Ok(())
@@ -174,6 +190,9 @@ impl ExecutableExpressionMethod {
             Self::GreaterOrEqual => {
                 Ok(args[0].greater_or_equal(&args[1]))
             },
+            Self::AND => {
+                Ok(args[0].and(&args[2]))
+            }
         }   
     }
 }

@@ -1,3 +1,7 @@
+mod equal;
+mod greater;
+mod and;
+
 use std::sync::Arc;
 
 use crate::audit::types::OpArgWithRef;
@@ -17,6 +21,7 @@ pub(super) trait Operations {
     fn less_or_equal(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
     fn len(&self) -> ExecutableExpressionArgsValues;
     fn re_match(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
+    fn and(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
 }
 
 fn process_both_args_several(arg1: &Vec<ExecutableExpressionArgsValues>, arg2: &Vec<ExecutableExpressionArgsValues>, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
@@ -60,207 +65,77 @@ fn process_left_arg_several(arg1: &Vec<ExecutableExpressionArgsValues>, arg2: &E
     ExecutableExpressionArgsValues::Several(collected)
 }
 
+fn process_both_args_wref(arg1_with_ref: &Arc<OpArgWithRef>, arg2_with_ref: &Arc<OpArgWithRef>, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+    let arg1 = &arg1_with_ref.arg;
+    let arg2 = &arg2_with_ref.arg;
+
+    let result = f(arg1, arg2);
+
+    if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
+        ExecutableExpressionArgsValues::WithSendResReference(
+            Arc::new(
+                OpArgWithRef {
+                    arg: result,
+                    refer: arg2_with_ref.refer.to_owned(),
+                    one_arg: arg2_with_ref.one_arg
+                }
+            )
+        )
+    }
+    else {
+        ExecutableExpressionArgsValues::WithSendResReference(
+            Arc::new(
+                OpArgWithRef {
+                    arg: result,
+                    refer: arg1_with_ref.refer.to_owned(),
+                    one_arg: arg1_with_ref.one_arg
+                }
+            )
+        )
+    }
+}
+
+fn process_left_arg_wref(arg1_with_ref: &Arc<OpArgWithRef>, arg2: &ExecutableExpressionArgsValues, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+    let arg1 = &arg1_with_ref.arg;
+    let result = f(arg1, arg2);
+
+    ExecutableExpressionArgsValues::WithSendResReference(
+        Arc::new(
+            OpArgWithRef {
+                arg: result,
+                refer: arg1_with_ref.refer.to_owned(),
+                one_arg: arg1_with_ref.one_arg
+            }
+        )
+    )
+}
+
+fn process_right_arg_wref(arg1: &ExecutableExpressionArgsValues, arg2_with_ref: &Arc<OpArgWithRef>, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+    let arg2 = &arg2_with_ref.arg;
+    let result = f(arg1, arg2);
+
+    ExecutableExpressionArgsValues::WithSendResReference(
+        Arc::new(
+            OpArgWithRef {
+                arg: result,
+                refer: arg2_with_ref.refer.to_owned(),
+                one_arg: arg2_with_ref.one_arg
+            }
+        )
+    )   
+}
+
+
 impl Operations for ExecutableExpressionArgsValues {
     fn equal(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
-        if self.get_type() != arg.get_type() {
-            unreachable!("Trying to compare args with diffrerent types, but it should be catched earlier");
-        }
-
-        let f = |left: &ExecutableExpressionArgsValues, right: &ExecutableExpressionArgsValues| -> ExecutableExpressionArgsValues {
-            left.equal(right)
-        };
-
-        match (self, arg) {
-            (Self::Several(arg1), Self::Several(arg2)) => {
-                process_both_args_several(arg1, arg2, f)
-            },
-            (Self::Several(arg1), _) => {
-                process_left_arg_several(arg1, arg, f)
-            },
-            (_, Self::Several(arg2)) => {
-                process_right_arg_several(self, arg2, f)
-            },
-            (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
-                let arg1 = &arg1_with_ref.arg;
-                let arg2 = &arg2_with_ref.arg;
-
-                let result = arg1.equal(arg2);
-
-                if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
-                    ExecutableExpressionArgsValues::WithSendResReference(
-                        Arc::new(
-                            OpArgWithRef {
-                                arg: result,
-                                refer: arg2_with_ref.refer.to_owned(),
-                                one_arg: arg2_with_ref.one_arg
-                            }
-                        )
-                    )
-                }
-                else {
-                    ExecutableExpressionArgsValues::WithSendResReference(
-                        Arc::new(
-                            OpArgWithRef {
-                                arg: result,
-                                refer: arg1_with_ref.refer.to_owned(),
-                                one_arg: arg1_with_ref.one_arg
-                            }
-                        )
-                    )
-                }
-            },
-            (_, Self::WithSendResReference(arg2_with_ref)) => {
-                let arg2 = &arg2_with_ref.arg;
-                let result = self.equal(arg2);
-
-                ExecutableExpressionArgsValues::WithSendResReference(
-                    Arc::new(
-                        OpArgWithRef {
-                            arg: result,
-                            refer: arg2_with_ref.refer.to_owned(),
-                            one_arg: arg2_with_ref.one_arg
-                        }
-                    )
-                )
-            },
-            (Self::WithSendResReference(arg1_with_ref), _) => {
-                let arg1 = &arg1_with_ref.arg;
-                let result = self.equal(arg1);
-
-                ExecutableExpressionArgsValues::WithSendResReference(
-                    Arc::new(
-                        OpArgWithRef {
-                            arg: result,
-                            refer: arg1_with_ref.refer.to_owned(),
-                            one_arg: arg1_with_ref.one_arg
-                        }
-                    )
-                )
-            },
-            (Self::Boolean(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.boolean() == arg.boolean())
-            },
-            (Self::Integer(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.integer() == arg.integer())
-            },
-            (Self::String(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.string() == arg.string())
-            },
-            _ => {
-                unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
-            }
-        }
+        equal::exec(&self, &arg)
     }
 
     fn greater(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
-        if self.get_type() != ExecutableExpressionArgsTypes::INTEGER && self.get_type() != arg.get_type() {
-            unreachable!("Trying to compare (>) args with non-integer types, but it should be catched earlier");
-        }
-
-        match (self, arg) {
-            (Self::Several(arg1), Self::Several(arg2)) => {
-                let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
-                for i in 0..arg1.len() {
-                    if i == arg2.len() {
-                        break
-                    }
-
-                    let iter_arg1 = &arg1[i];
-                    let iter_arg2 = &arg2[i];
-
-                    let res = iter_arg1.greater(iter_arg2);
-                    collected.push(res);
-                }
-
-                ExecutableExpressionArgsValues::Several(collected)
-            },
-            (Self::Several(arg1), _) => {
-                let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg1.len());
-                for i in 0..arg1.len() {
-                    let iter_arg1 = &arg1[i];
-
-                    let res = iter_arg1.greater(arg);
-                    collected.push(res);
-                }
-
-                ExecutableExpressionArgsValues::Several(collected)
-            },
-            (_, Self::Several(arg2)) => {
-                let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg2.len());
-                for i in 0..arg2.len() {
-                    let iter_arg2 = &arg2[i];
-
-                    let res = self.greater(iter_arg2);
-                    collected.push(res);
-                }
-
-                ExecutableExpressionArgsValues::Several(collected)
-            },
-            (Self::WithSendResReference(arg1_with_ref), Self::WithSendResReference(arg2_with_ref)) => {
-                let arg1 = &arg1_with_ref.arg;
-                let arg2 = &arg2_with_ref.arg;
-
-                let result = arg1.greater(arg2);
-
-                if arg2_with_ref.refer[0].send_action_id > arg1_with_ref.refer[0].send_action_id {
-                    ExecutableExpressionArgsValues::WithSendResReference(
-                        Arc::new(
-                            OpArgWithRef {
-                                arg: result,
-                                refer: arg2_with_ref.refer.to_owned(),
-                                one_arg: arg2_with_ref.one_arg
-                            }
-                        )
-                    )
-                }
-                else {
-                    ExecutableExpressionArgsValues::WithSendResReference(
-                        Arc::new(
-                            OpArgWithRef {
-                                arg: result,
-                                refer: arg1_with_ref.refer.to_owned(),
-                                one_arg: arg1_with_ref.one_arg
-                            }
-                        )
-                    )
-                }
-            },
-            (_, Self::WithSendResReference(arg2_with_ref)) => {
-                let arg2 = &arg2_with_ref.arg;
-                let result = self.greater(arg2);
-
-                ExecutableExpressionArgsValues::WithSendResReference(
-                    Arc::new(
-                        OpArgWithRef {
-                            arg: result,
-                            refer: arg2_with_ref.refer.to_owned(),
-                            one_arg: arg2_with_ref.one_arg
-                        }
-                    )
-                )
-            },
-            (Self::WithSendResReference(arg1_with_ref), _) => {
-                let arg1 = &arg1_with_ref.arg;
-                let result = self.greater(arg1);
-
-                ExecutableExpressionArgsValues::WithSendResReference(
-                    Arc::new(
-                        OpArgWithRef {
-                            arg: result,
-                            refer: arg1_with_ref.refer.to_owned(),
-                            one_arg: arg1_with_ref.one_arg
-                        }
-                    )
-                )
-            },
-            (Self::Integer(_), _) => {
-                ExecutableExpressionArgsValues::Boolean(self.integer() > arg.integer())
-            },
-            _ => {
-                unreachable!("In 'equal' method of Operations found the case: {:?}, {:?}, but it should not exists", self, arg)
-            }
-        }
+        greater::exec(&self, &arg)
     }
+
+    // TODO: rewrite other function like equal, greater
 
     fn greater_or_equal(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
         if self.get_type() != ExecutableExpressionArgsTypes::INTEGER && self.get_type() != arg.get_type() {
@@ -351,7 +226,7 @@ impl Operations for ExecutableExpressionArgsValues {
             },
             (Self::WithSendResReference(arg1_with_ref), _) => {
                 let arg1 = &arg1_with_ref.arg;
-                let result = self.greater_or_equal(arg1);
+                let result = arg1.greater_or_equal(arg);
 
                 ExecutableExpressionArgsValues::WithSendResReference(
                     Arc::new(
@@ -461,7 +336,7 @@ impl Operations for ExecutableExpressionArgsValues {
             },
             (Self::WithSendResReference(arg1_with_ref), _) => {
                 let arg1 = &arg1_with_ref.arg;
-                let result = self.less(arg1);
+                let result = arg1.less(arg);
 
                 ExecutableExpressionArgsValues::WithSendResReference(
                     Arc::new(
@@ -571,7 +446,7 @@ impl Operations for ExecutableExpressionArgsValues {
             },
             (Self::WithSendResReference(arg1_with_ref), _) => {
                 let arg1 = &arg1_with_ref.arg;
-                let result = self.less_or_equal(arg1);
+                let result = arg1.less_or_equal(arg);
 
                 ExecutableExpressionArgsValues::WithSendResReference(
                     Arc::new(
@@ -676,5 +551,9 @@ impl Operations for ExecutableExpressionArgsValues {
                 unreachable!("In re_match operation found the following case that shoud not exist: {:?}, {:?}", self, arg)
             }
         }
+    }
+
+    fn and(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+        and::exec(&self, arg)
     }
 }
