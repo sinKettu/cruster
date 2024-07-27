@@ -143,8 +143,8 @@ impl<'pair_lt, 'rule_lt> WithGetAction<'pair_lt> for ActiveRuleContext {
 impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleContext {
     fn make_result(self, rule: &Rule) -> crate::audit::RuleResult {
         
-        let mut findings: HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)> = HashMap::with_capacity(self.find_results.len());
-        for (index, find_result) in self.find_results.iter().enumerate() {
+        let mut findings: HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)> = HashMap::with_capacity(self.find_results().len());
+        for (index, find_result) in self.find_results().iter().enumerate() {
             if find_result.0 {
                 let find_id = rule.get_find_action_str_id(index).unwrap();
                 let extracted_data = if let Some(one_get_result) = self.get_result.get(&index) {

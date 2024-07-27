@@ -213,7 +213,7 @@ impl Reference {
             }
         }
         else {
-            let id = self.id - 1;
+            let id = self.id;
 
             let mut values: Vec<ExecutableExpressionArgsValues> = Vec::default();
             let send_result = &send_results[id];
@@ -258,7 +258,7 @@ impl Reference {
                         };
 
                         let reference = SendResultEntryRef {
-                            send_action_id: id + 1,
+                            send_action_id: id,
                             index: entry_index
                         };
 
@@ -303,7 +303,7 @@ impl Reference {
                         };
 
                         let reference = SendResultEntryRef {
-                            send_action_id: id + 1,
+                            send_action_id: id,
                             index: entry_index
                         };
 

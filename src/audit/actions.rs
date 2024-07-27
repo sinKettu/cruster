@@ -4,7 +4,7 @@ pub(super) mod send;
 pub(super) mod watch;
 pub(super) mod get;
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use serde::{Serialize, Deserialize};
 
@@ -57,7 +57,7 @@ pub(crate) struct RuleFindAction {
 
     exec: Vec<find::ExecutableExpression>,
 
-    required_send_actions: Option<Vec<usize>>,
+    required_send_actions: Option<HashSet<usize>>,
 }
 
 

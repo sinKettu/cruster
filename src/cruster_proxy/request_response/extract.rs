@@ -1,4 +1,3 @@
-use bstr::ByteSlice;
 use http::HeaderMap;
 use regex::bytes::{Captures, Regex as ByteRegex};
 use crate::{audit::actions::ExtractionMode, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}};

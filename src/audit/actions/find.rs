@@ -38,7 +38,7 @@ impl ExecutableExpression {
 
 
 impl RuleFindAction {
-    pub(crate) fn get_required_send_results(&self) -> &[usize] {
+    pub(crate) fn get_required_send_results(&self) -> &HashSet<usize> {
         self.required_send_actions.as_ref().unwrap()
     }
 
@@ -61,7 +61,7 @@ impl RuleFindAction {
         // }
 
         let mut existing_operations: HashMap<&str, ExecutableExpressionArgsTypes> = HashMap::with_capacity(self.exec.len());
-        let mut required_send_actions = Vec::with_capacity(4);
+        let mut required_send_actions: HashSet<usize> = HashSet::with_capacity(4);
 
         for operation in self.exec.iter_mut() {
             let operation_name = operation.operation.to_lowercase().replace("_", "");
@@ -162,7 +162,7 @@ impl RuleFindAction {
                             return Err(AuditError(err_str));
                         }
 
-                        required_send_actions.push(int_id);
+                        let _ = required_send_actions.insert(int_id);
 
                         let pair_part = match parts[1] {
                             "request" => args::PairPart::REQUEST,
