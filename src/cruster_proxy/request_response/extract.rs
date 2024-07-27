@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use http::HeaderMap;
 use regex::bytes::{Captures, Regex as ByteRegex};
 use crate::{audit::actions::ExtractionMode, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}};
@@ -127,9 +128,9 @@ impl ExtractFromHTTPPartByRegex for HyperRequestWrapper {
 impl ExtractFromHTTPPartByRegex for HyperResponseWrapper {
     fn extract_from_first_line(&self, re: &ByteRegex, mode: &ExtractionMode) -> Option<Vec<u8>> {
         let first_line = [
-            self.status.as_bytes(),
-            " ".as_bytes(),
             self.version.as_bytes(),
+            " ".as_bytes(),
+            self.status.as_bytes(),
             "\r\n".as_bytes()
         ]
             .into_iter()
