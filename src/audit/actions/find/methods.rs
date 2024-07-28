@@ -19,6 +19,7 @@ pub enum ExecutableExpressionMethod {
     ReMatch,
 
     AND,
+    OR,
 }
 
 impl ExecutableExpressionMethod {
@@ -47,7 +48,10 @@ impl ExecutableExpressionMethod {
             },
             ExecutableExpressionMethod::AND => {
                 ExecutableExpressionArgsTypes::BOOLEAN
-            }
+            },
+            ExecutableExpressionMethod::OR => {
+                ExecutableExpressionArgsTypes::BOOLEAN
+            },
         }
     }
 
@@ -161,6 +165,17 @@ impl ExecutableExpressionMethod {
                     let err_str = "'Logical AND' operation expects all arguments have the type 'boolean'".to_string();
                     return Err(AuditError(err_str));
                 }
+            },
+            ExecutableExpressionMethod::OR => {
+                if args.len() != 2 {
+                    let err_str = format!("'Logical OR' operation expects 2 arguments, but {} were given", args.len());
+                    return Err(AuditError(err_str));
+                }
+
+                if ! args_have_exact_type(args, ExecutableExpressionArgsTypes::BOOLEAN) {
+                    let err_str = "'Logical OR' operation expects all arguments have the type 'boolean'".to_string();
+                    return Err(AuditError(err_str));
+                }
             }
         }
 
@@ -192,6 +207,9 @@ impl ExecutableExpressionMethod {
             },
             Self::AND => {
                 Ok(args[0].and(&args[1]))
+            },
+            Self::OR => {
+                Ok(args[0].or(&args[1]))
             }
         }   
     }

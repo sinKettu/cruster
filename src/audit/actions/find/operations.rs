@@ -1,6 +1,7 @@
 mod equal;
 mod greater;
 mod and;
+mod or;
 
 use std::sync::Arc;
 
@@ -22,6 +23,7 @@ pub(super) trait Operations {
     fn len(&self) -> ExecutableExpressionArgsValues;
     fn re_match(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
     fn and(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
+    fn or(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues;
 }
 
 fn process_both_args_several(arg1: &Vec<ExecutableExpressionArgsValues>, arg2: &Vec<ExecutableExpressionArgsValues>, f: fn(&ExecutableExpressionArgsValues, &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
@@ -520,7 +522,7 @@ impl Operations for ExecutableExpressionArgsValues {
                     panic!("Cannot parse the string '{}' as regex", str_re)
                 };
 
-                ExecutableExpressionArgsValues::Boolean(re.is_match(str_arg))
+                ExecutableExpressionArgsValues::Boolean(re.find(str_arg).is_some())
             },
             (_, Self::Several(arg2)) => {
                 let mut collected: Vec<ExecutableExpressionArgsValues> = Vec::with_capacity(arg2.len());
@@ -555,5 +557,9 @@ impl Operations for ExecutableExpressionArgsValues {
 
     fn and(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
         and::exec(&self, arg)
+    }
+
+    fn or(&self, arg: &ExecutableExpressionArgsValues) -> ExecutableExpressionArgsValues {
+        or::exec(&self, arg)
     }
 }

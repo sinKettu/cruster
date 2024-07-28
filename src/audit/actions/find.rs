@@ -90,6 +90,9 @@ impl RuleFindAction {
                 "and" | "&&" => {
                     methods::ExecutableExpressionMethod::AND
                 },
+                "or" | "||" => {
+                    methods::ExecutableExpressionMethod::OR
+                },
                 _ => {
                     let err_str = format!("Found unknown operation type - {} - at operation {}", &operation.operation, &operation.name);
                     return Err(AuditError(err_str));
