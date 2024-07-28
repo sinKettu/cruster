@@ -4,6 +4,8 @@ use regex::Regex;
 
 use super::AuditError;
 use super::Rule;
+use super::RuleByProtocal;
+use super::RuleType;
 use crate::config::AuditConfig;
 
 use log::debug;
@@ -69,6 +71,23 @@ impl AuditConfig {
     fn excludes_rule(&self, rule: &Rule) -> bool {
         let rule_id = rule.get_id();
         let rule_tags = rule.metadata.tags.as_slice();
+
+        match &rule.rule {
+            RuleByProtocal::Http(http_rule) => {
+                match http_rule {
+                    RuleType::Active(_) => {
+                        if !self.active {
+                            return true;
+                        }
+                    },
+                    RuleType::Passive(_) => {
+                        if !self.passive {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
 
         if let Some(includies) = self.include.as_ref() {
             // if rule_id is not in included ids, then skip it

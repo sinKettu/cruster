@@ -150,10 +150,14 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
                     WorkerToMainMsg::Result(res) => {
                         match res {
                             RuleFinalState::Failed(reason) => {
-                                println!("Failed: {}", reason);
+                                eprintln!("Failed: {}", reason);
                             },
                             RuleFinalState::Skipped(reason) => {
-                                println!("Skiped: {}", reason);
+                                if let Some(verbose) = audit_conf.verbose {
+                                    if verbose {
+                                        eprintln!("Skiped: {}", reason);
+                                    }
+                                }
                             },
                             RuleFinalState::Finished(possible_result) => {
                                 match possible_result {
