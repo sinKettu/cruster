@@ -26,12 +26,13 @@ rule:
             modify:
               placement: after
               values:
-                - \' OR \'1\'=\'1
+                - "' OR '1'='1"
       send:
         - id: check_sqli_in_body
           apply: add_sqli_to_body
           max_redirects: 1
       find:
+        # if ( initial_status == received_status AND received_body.len() > initial_response_body.len() )
         - id: sql_injection_in_body
           exec:
             - operation: equal
@@ -41,10 +42,34 @@ rule:
                   value: initial.response.status
                 - type: reference
                   value: check_sqli_in_body.response.status
+            - operation: len
+              name: init_body_length
+              args:
+                - type: reference
+                  value: initial.response.body
+            - operation: len
+              name: received_body_length
+              args:
+                - type: reference
+                  value: check_sqli_in_body.response.body
+            - operation: '>='
+              name: compare_bodies
+              args:
+                - type: variable
+                  value: received_body_length
+                - type: variable
+                  value: init_body_length
+            - operation: and
+              name: last_condition
+              args:
+                - type: variable
+                  value: status_comparison
+                - type: variable
+                  value: compare_bodies
       get:
         - from: check_sqli_in_body
           if_succeed: sql_injection_in_body
-          pattern: 'HTTP/\d(\.\d)* (?P<status>\d\d\d \w+)$'
+          pattern: .*HTTP/\d(\.\d)* (?P<status>\d\d\d \w+).*
           extract:
             response:
               group: status
