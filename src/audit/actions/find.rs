@@ -274,6 +274,15 @@ impl RuleFindAction {
     where
         T: WithFindAction<'pair_lt,> + WithSendAction<'pair_lt>
     {
+        let required_send_results = self.get_required_send_results();
+        let send_results = ctxt.send_results();
+        for send_res_id in required_send_results {
+            if send_results[*send_res_id].is_empty() {
+                ctxt.add_find_result((false, None));
+                return Ok(());
+            }
+        }
+
         let mut executed: HashMap<&str, ExecutableExpressionArgsValues> = HashMap::with_capacity(self.exec.len());
         let mut last_op: &str = "";
         for op in self.exec.iter() {
