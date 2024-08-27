@@ -522,6 +522,7 @@ impl Operations for ExecutableExpressionArgsValues {
                     panic!("Cannot parse the string '{}' as regex", str_re)
                 };
 
+                // TODO: sometimes fails on long regexes
                 ExecutableExpressionArgsValues::Boolean(re.find(str_arg).is_some())
             },
             (_, Self::Several(arg2)) => {
