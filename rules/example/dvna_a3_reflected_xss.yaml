@@ -1,0 +1,76 @@
+metadata:
+  about: Example of rule to detect Reflected XSS.
+  authors:
+    - sinKettu<avangard.jazz@gmail.com>
+  name: 'DVNA A3: Reflected XSS'
+  references: 
+    - https://www.owasp.org/index.php/Cross-site_Scripting_(XSS)
+    - https://www.owasp.org/index.php/OWASP_Testing_Guide_v4_Table_of_Contents
+    - https://github.com/appsecco/dvna
+  tags:
+    - example
+    - dvna
+    - xss
+    - reflected_xss
+severity: medium
+id: dvna-a3-reflected-xss
+rule:
+  http:
+    active:
+      watch:
+        - id: body-watch
+          part: body
+          pattern: '=(?P<bv>[^=&$]+)(&|$)'
+        - id: query-watch
+          part: path
+          pattern: '=(?P<qv>[^=&$]+)(&|$)'
+      change:
+        - id: add_xss_to_body
+          watch_id: body-watch.bv
+          type:
+            modify:
+              placement: after
+              values:
+                - "<script>alert('dvna-a3-reflected-xss')</script>"
+        - id: add_xss_to_query
+          watch_id: query-watch.qv
+          type:
+            modify:
+              placement: after
+              values:
+                - "<script>alert('dvna-a3-reflected-xss')</script>"
+      send:
+        - id: check_xss_in_body
+          apply: add_xss_to_body
+          max_redirects: 2
+        - id: check_xss_in_query
+          apply: add_xss_to_query
+          max_redirects: 2
+      find:
+        # if regex.match("<script>alert('XSS found in request query with Cruster')</script>", check_xss_in_body.response.body)
+        - id: xss_via_body_parameter
+          exec:
+            - operation: rematch
+              name: match_script
+              args:
+                - type: string
+                  value: "<script>alert\\('dvna-a3-reflected-xss'\\)</script>"
+                - type: reference
+                  value: check_xss_in_body.response.body
+        # if regex.match("<script>alert('XSS found in request query with Cruster')</script>", check_xss_in_query.response.body)
+        - id: xss_via_query_parameter
+          exec:
+            - operation: rematch
+              name: match_script
+              args:
+                - type: string
+                  value: "<script>alert\\('dvna-a3-reflected-xss'\\)</script>"
+                - type: reference
+                  value: check_xss_in_query.response.body
+      get:
+        - from: check_xss_in_body
+          if_succeed: xss_via_body_parameter
+          pattern: (^|&)(?P<param>\w+)=[^=&]+<script>alert\('dvna.*
+          extract:
+            request:
+              group: param
