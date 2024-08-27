@@ -78,7 +78,7 @@ impl RuleGetAction {
         // Checks are done before
         let pattern = Regex::new(&self.pattern).unwrap();
 
-        let send_data = ctxt.get_pair_by_id(find_id)?;
+        let send_data = ctxt.get_pair_by_id(self.from_cache.unwrap() + 1)?;
         for accordance in send_data {
             let request = &accordance.request;
             let response = &accordance.response;
