@@ -79,7 +79,7 @@ impl Rule {
         return Ok(change);
     }
 
-    pub(crate) fn get_change_inner_action_by_index(&self, index: usize) -> Result<&InnerChangeAction, AuditError> {
+    pub(crate) fn get_change_inner_action_by_index(&self, index: usize) -> Result<&Vec<InnerChangeAction>, AuditError> {
         let change_action = self.get_change_action_by_index(index)?;
         Ok(change_action.get_inner_action())
     }

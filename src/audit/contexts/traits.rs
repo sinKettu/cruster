@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use crate::{audit::{types::{CapturesBorders, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, http_storage::RequestResponsePair};
 
+use super::active::AllChangeStepsResults;
+
 
 pub(crate) trait BasicContext<'pair_lt> {
     fn init(rule: &Rule, pair: Arc<RequestResponsePair>) -> Self;
@@ -21,8 +23,8 @@ pub(crate) trait WithWatchAction<'pair_lt>: BasicContext<'pair_lt> {
 
 pub(crate) trait WithChangeAction<'pair_lt>: BasicContext<'pair_lt> {
     // Result of change action is WatchId of successful watch action, that should be changed
-    fn add_change_result(&mut self, res: Option<SingleCaptureGroupCoordinates>);
-    fn change_results(&self) -> &Vec<Option<SingleCaptureGroupCoordinates>>;
+    fn add_change_result(&mut self, res: AllChangeStepsResults);
+    fn change_results(&self) -> &Vec<AllChangeStepsResults>;
     fn found_anything_to_change(&self) -> bool;
 }
 

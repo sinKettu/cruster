@@ -41,10 +41,7 @@ pub(crate) enum ChangeValuePlacement {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct RuleChangeAction {
     id: Option<String>,
-    watch_id: String,
-    r#type: InnerChangeAction,
-
-    watch_id_cache: Option<WatchId>, // This field will store more convinient representation of watch_id after first check
+    changes: Vec<InnerChangeAction>
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

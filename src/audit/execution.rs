@@ -70,9 +70,9 @@ impl Rule {
                             debug!("Executing send action: {:?}", action);
                             let apply_id = action.get_apply_id();
 
-                            let inner_action = match self.get_change_inner_action_by_index(apply_id) {
-                                Ok(inner_action) => {
-                                    inner_action
+                            let change_steps = match self.get_change_inner_action_by_index(apply_id) {
+                                Ok(change_steps) => {
+                                    change_steps
                                 },
                                 Err(err) => {
                                     let err_str = format!("with rule {} cannot execute send action with apply_id {}: {}", self.get_id(), apply_id, err.to_string());
@@ -81,7 +81,7 @@ impl Rule {
                             };
                             
                             debug!("SendAction - will apply change action with index {}", apply_id);
-                            if let Err(err) = action.exec(&mut ctxt, inner_action).await {
+                            if let Err(err) = action.exec(&mut ctxt, change_steps).await {
                                 let err_str = format!("Rule '{}' failed for pair {} on send action: {}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
                             }

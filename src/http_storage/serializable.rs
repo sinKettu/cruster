@@ -4,6 +4,8 @@ use serde_json as json;
 use serde::{Serialize, Deserialize};
 use http::{HeaderMap, header::HeaderName, HeaderValue as HTTPHeaderValue};
 
+// pub(crate) static HEADERS_ENCODINGS: [&str; 2] = ["utf-8", "base64"];
+
 use std::{
     io::{Write, BufReader, BufRead},
     sync::mpsc::Receiver,

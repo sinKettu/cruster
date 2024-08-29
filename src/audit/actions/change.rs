@@ -4,15 +4,18 @@ use http::{header::HeaderName, HeaderValue};
 use log::debug;
 use base64;
 
-use crate::{audit::contexts::traits::{WithChangeAction, WithWatchAction}, http_storage::serializable::Header};
+use crate::{audit::contexts::{active::{AllChangeStepsResults, ChangeStepResult}, traits::{WithChangeAction, WithWatchAction}}, http_storage::serializable::Header};
 
 use super::*;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub(crate) struct ChangeModify {
+    watch_id: String,
     placement: ChangeValuePlacement,
     values: Vec<Arc<String>>,
+
+    watch_id_cache: Option<WatchId>, // This field will store more convinient representation of watch_id after first check
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -57,7 +60,8 @@ impl Header {
                 HeaderValue::from_bytes(&data)?
             },
             _ => {
-                unreachable!("Found unknown header encoding '{}', but it should be checked!", &self.encoding);
+                let err_msg = format!("Unknown header encoding type in change action: {}", &self.encoding);
+                return Err(AuditError::from_str(&err_msg).unwrap());
             }
         };
 
@@ -66,8 +70,8 @@ impl Header {
 }
 
 impl RuleChangeAction {
-    pub(crate) fn get_inner_action(&self) -> &InnerChangeAction {
-        &self.r#type
+    pub(crate) fn get_inner_action(&self) -> &Vec<InnerChangeAction> {
+        &self.changes
     }
 
     // pub(crate) fn get_placement(&self) -> Result<ChangeValuePlacement, AuditError> {
@@ -93,47 +97,64 @@ impl RuleChangeAction {
     // }
 
     pub(crate) fn check_up(&mut self, watch_id_ref: &HashMap<String, usize>) -> Result<(), AuditError> {
-        let splitted_watch_id: Vec<&str> = self.watch_id.split(".").collect();
-        if splitted_watch_id.len() > 2 {
-            let err_mes = format!("Wwrong format of .watch_id, it should have 0 or 1 '.' (dot) delimiter: {}", &self.watch_id);
-            return Err(AuditError::from_str(&err_mes).unwrap());
-        }
-
-        // TODO: Do not use numbers in groups names
-        let parsed_watch_id: WatchId = match splitted_watch_id.len() {
-            2 => {
-                if let Ok(num_id) = splitted_watch_id[0].parse::<usize>() {
-                    WatchId::new(num_id, Some(splitted_watch_id[1].to_string()))
-                }
-                else {
-                    if let Some(num_id) = watch_id_ref.get(splitted_watch_id[0]) {
-                        WatchId::new(num_id.to_owned(), Some(splitted_watch_id[1].to_string()))
+        for change in self.changes.iter_mut() {
+            match change {
+                InnerChangeAction::ADD(adds) => {
+                    for add in adds {
+                        match add {
+                            ChangeAdd::HEADER(h) => {
+                                let _ = h.http_header()?;
+                            }
+                        }
                     }
-                    else {
-                        return Err(AuditError(format!("Cannot find watch action with id '{}'", splitted_watch_id[0])));
+                },
+                InnerChangeAction::MODIFY(modify) => {
+                    let splitted_watch_id: Vec<&str> = modify.watch_id.split(".").collect();
+                    if splitted_watch_id.len() > 2 {
+                        let err_mes = format!("Wwrong format of .watch_id, it should have 0 or 1 '.' (dot) delimiter: {}", &modify.watch_id);
+                        return Err(AuditError::from_str(&err_mes).unwrap());
                     }
-                }
-            },
-            1 => {
-                if let Some(num_id) = watch_id_ref.get(splitted_watch_id[0]) {
-                    WatchId::new(num_id.to_owned(), None)
-                }
-                else {
-                    return Err(AuditError(format!("Cannot find watch action with id '{}'", splitted_watch_id[0])));
-                }
-            },
-            _ => {
-                let err_mes = format!("Wwrong format of .watch_id, it should have 0 or 1 '.' (dot) delimiter and must not be empty: {}", &self.watch_id);
-            return Err(AuditError::from_str(&err_mes).unwrap());
-            }
-        };
 
-        self.watch_id_cache = Some(parsed_watch_id);
+                    let parsed_watch_id: WatchId = match splitted_watch_id.len() {
+                        2 => {
+                            // if group name is a number - throw error
+                            let group_contains_digits = splitted_watch_id[1]
+                                .chars()
+                                .any(|c| { c.is_digit(10) });
 
-        if let InnerChangeAction::ADD(add_actions) = &self.r#type {
-            for add_action in add_actions {
-                let ChangeAdd::HEADER(h) = add_action;
-                let _ = h.http_header()?;
+                            if group_contains_digits {
+                                let err_mes = format!("Groups names in watch actions must not contain digits: {}", &modify.watch_id);
+                                return Err(AuditError::from_str(&err_mes).unwrap());
+                            }
+
+                            if let Ok(num_id) = splitted_watch_id[0].parse::<usize>() {
+                                WatchId::new(num_id, Some(splitted_watch_id[1].to_string()))
+                            }
+                            else {
+                                if let Some(num_id) = watch_id_ref.get(splitted_watch_id[0]) {
+                                    WatchId::new(num_id.to_owned(), Some(splitted_watch_id[1].to_string()))
+                                }
+                                else {
+                                    return Err(AuditError(format!("Cannot find watch action with id '{}'", splitted_watch_id[0])));
+                                }
+                            }
+                        },
+                        1 => {
+                            if let Some(num_id) = watch_id_ref.get(splitted_watch_id[0]) {
+                                WatchId::new(num_id.to_owned(), None)
+                            }
+                            else {
+                                return Err(AuditError(format!("Cannot find watch action with id '{}'", splitted_watch_id[0])));
+                            }
+                        },
+                        _ => {
+                            let err_mes = format!("Wwrong format of .watch_id, it should have 0 or 1 '.' (dot) delimiter and must not be empty: {}", &modify.watch_id);
+                            return Err(AuditError::from_str(&err_mes).unwrap());
+                        }
+                    };
+
+                    modify.watch_id_cache = Some(parsed_watch_id);
+                }
             }
         }
 
@@ -149,34 +170,50 @@ impl RuleChangeAction {
         T: WithWatchAction<'pair_lt> + WithChangeAction<'pair_lt>
     {
         let watch_results = ctxt.watch_results();
-        let wid = self.watch_id_cache.as_ref().unwrap();
+        let mut steps_results: Vec<ChangeStepResult> = Vec::with_capacity(self.changes.len());
 
-        debug!("ChangeAction - watch_id '{}' resolved into index {}", &self.watch_id, wid.id);
+        for (step, change) in self.changes.iter().enumerate() {
+            match change {
+                InnerChangeAction::ADD(_) => {
+                    debug!("ChangeAction - step {} (ADD)", step);
+                    steps_results.push(ChangeStepResult::ADD)
+                },
+                InnerChangeAction::MODIFY(modify) => {
+                    let wid = modify.watch_id_cache.as_ref().unwrap();
 
-        if wid.id >= watch_results.len() {
-            let err_str = format!("action has watch_id '{}' which is resolved into watch-list element with index {} that is greater than the list size - {}", &self.watch_id, wid.id, watch_results.len());
-            return Err(AuditError(err_str));
-        }
+                    debug!("ChangeAction - step {} (MODIFY) - watch_id '{}' resolved into index {}", step, &modify.watch_id, wid.id);
 
-        let group_name = match wid.group_name.as_ref() {
-            Some(gn) => { gn },
-            None => { "0" }
-        };
+                    if wid.id >= watch_results.len() {
+                        let err_str = format!("action has watch_id '{}' which is resolved into watch-list element with index {} that is greater than the list size - {}", &modify.watch_id, wid.id, watch_results.len());
+                        return Err(AuditError(err_str));
+                    }
 
-        debug!("ChangeAction - will change capture group from WatchAction with name '{}'", group_name);
+                    let group_name = match wid.group_name.as_ref() {
+                        Some(gn) => { gn },
+                        None => { "0" }
+                    };
 
-        let single_watch_result = &watch_results[wid.id];
+                    debug!("ChangeAction - will change capture group from WatchAction {} with name '{}'", wid.id, group_name);
 
-        match single_watch_result.get(group_name) {
-            Some(f) => {
-                debug!("ChangeAction - found wanted capture");
-                ctxt.add_change_result(Some(f.clone()));
-            },
-            None => {
-                debug!("ChangeAction - didn't find wanted capture");
-                ctxt.add_change_result(None);
+                    let single_watch_result = &watch_results[wid.id];
+
+                    match single_watch_result.get(group_name) {
+                        Some(f) => {
+                            debug!("ChangeAction - step {} (MODIFY) - found wanted capture", step);
+                            let step_result = ChangeStepResult::MODIFY(f.clone());
+                            steps_results.push(step_result);
+                        },
+                        None => {
+                            debug!("ChangeAction - step {} (MODIFY) - didn't find wanted capture", step);
+                            steps_results.push(ChangeStepResult::NONE);
+                        }
+                    }
+                }
             }
         }
+
+        let all_steps_results = AllChangeStepsResults(steps_results);
+        ctxt.add_change_result(all_steps_results);
 
         Ok(())
     }

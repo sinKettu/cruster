@@ -13,7 +13,7 @@ impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for PassiveRuleContext
             vec![
                 SingleSendResultEntry {
                     request: Arc::new(pair.request.clone().unwrap()),
-                    payload: Arc::new("__INITIAL_PAIR__".to_string()),
+                    payloads: vec![Arc::new("__INITIAL_PAIR__".to_string())],
                     response: pair.response.clone().unwrap()
                 }
             ]

@@ -4,9 +4,11 @@ pub(crate) mod traits;
 
 use std::{collections::HashMap, sync::Arc};
 
+use active::AllChangeStepsResults;
+
 use crate::http_storage::RequestResponsePair;
 
-use super::types::{CapturesBorders, SingleCaptureGroupCoordinates, SingleSendResultEntry};
+use super::types::{CapturesBorders, SingleSendResultEntry};
 
 pub(crate) struct ActiveRuleContext {
     rule_id: String,
@@ -15,7 +17,7 @@ pub(crate) struct ActiveRuleContext {
     watch_results: Vec<CapturesBorders>,
 
     watch_succeeded_for_change: bool,
-    change_results: Vec<Option<SingleCaptureGroupCoordinates>>,
+    change_results: Vec<AllChangeStepsResults>,
 
     send_results: Vec<Vec<SingleSendResultEntry>>,
 

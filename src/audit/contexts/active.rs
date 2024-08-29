@@ -5,6 +5,36 @@ use bstr::ByteSlice;
 use super::{traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction, WithGetAction, WithSendAction, WithWatchAction}, ActiveRuleContext};
 use crate::{audit::{types::{CapturesBorders, SerializableSendResultEntry, SingleCaptureGroupCoordinates, SingleSendResultEntry}, AuditError, Rule, RuleResult}, http_storage::RequestResponsePair};
 
+#[derive(Debug, Clone)]
+pub(crate) enum ChangeStepResult {
+    MODIFY(SingleCaptureGroupCoordinates),
+    ADD,
+    NONE
+}
+
+impl ChangeStepResult {
+    pub(crate) fn is_none(&self) -> bool {
+        return match self {
+            ChangeStepResult::NONE => {
+                true
+            },
+            _ => {
+                false
+            }
+        };
+    }
+}
+
+pub(crate) struct AllChangeStepsResults(pub(crate) Vec<ChangeStepResult>);
+
+impl AllChangeStepsResults {
+    pub(crate) fn can_be_executed(&self) -> bool {
+        self.0
+            .iter()
+            .all(|i| { ! i.is_none() })
+    }
+}
+
 impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext
 {
     fn init(rule: &Rule, pair: Arc<RequestResponsePair>) -> Self {
@@ -13,7 +43,7 @@ impl<'pair_lt, 'rule_lt> BasicContext<'pair_lt> for ActiveRuleContext
             vec![
                 SingleSendResultEntry {
                     request: Arc::new(pair.request.clone().unwrap()),
-                    payload: Arc::new("__INITIAL_PAIR__".to_string()),
+                    payloads: vec![Arc::new("__INITIAL_PAIR__".to_string())],
                     response: pair.response.clone().unwrap()
                 }
             ]
@@ -63,15 +93,15 @@ impl<'pair_lt, 'rule_lt> WithWatchAction<'pair_lt> for ActiveRuleContext {
 }
 
 impl<'pair_lt, 'rule_lt> WithChangeAction<'pair_lt> for ActiveRuleContext {
-    fn add_change_result(&mut self, res: Option<SingleCaptureGroupCoordinates>) {
-        if res.is_some() {
+    fn add_change_result(&mut self, res: AllChangeStepsResults) {
+        if res.can_be_executed() {
             self.watch_succeeded_for_change = true;
         }
 
         self.change_results.push(res);
     }
 
-    fn change_results(&self) -> &Vec<Option<SingleCaptureGroupCoordinates>> {
+    fn change_results(&self) -> &Vec<AllChangeStepsResults> {
         &self.change_results
     }
 
@@ -170,12 +200,11 @@ impl<'pair_lt, 'rule_lt> ActiveRuleExecutionContext<'pair_lt> for ActiveRuleCont
 
                         let send_res_entry = &send_results[*res_index][send_index];
                         let request = send_res_entry.request.to_string();
-                        let payload = send_res_entry.payload.as_str().to_string();
                         let response = send_res_entry.response.to_string();
 
                         let serializable_res_entry = SerializableSendResultEntry {
                             request,
-                            payload,
+                            payloads: send_res_entry.payloads.iter().map(|s| { s.as_str().to_string() }).collect(),
                             response
                         };
 

@@ -101,17 +101,18 @@ fn print_single_result(print_conf: &AuditPrintConfig, line: String) -> Result<bo
 
         if !print_conf.no_data {
             for send_result in send_results {
+                let str_payloads = send_result.payloads.join(" || ");
 
                 print_http_message(
                     "\t",
-                    format!("Request (payload='{}'):", &send_result.payload),
+                    format!("Request (payload='{}'):", &str_payloads),
                     &send_result.request,
                     print_conf.wout_body
                 );
 
                 print_http_message(
                     "\t",
-                    format!("Response (payload='{}'):", &send_result.payload),
+                    format!("Response (payload='{}'):", &str_payloads),
                     &send_result.response,
                     print_conf.wout_body
                 );

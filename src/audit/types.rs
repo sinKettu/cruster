@@ -22,14 +22,14 @@ pub(crate) type SingleCaptureGroupCoordinates = Vec<SingleCoordinates>;
 #[derive(Clone, Debug)]
 pub(crate) struct SingleSendResultEntry {
     pub(crate) request: Arc<HyperRequestWrapper>,
-    pub(crate) payload: Arc<String>,
+    pub(crate) payloads: Vec<Arc<String>>,
     pub(crate) response: HyperResponseWrapper
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct SerializableSendResultEntry {
     pub(crate) request: String,
-    pub(crate) payload: String,
+    pub(crate) payloads: Vec<String>,
     pub(crate) response: String
 }
 
