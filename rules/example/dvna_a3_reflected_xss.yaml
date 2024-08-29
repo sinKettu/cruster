@@ -26,19 +26,19 @@ rule:
           pattern: '=(?P<qv>[^=&$]+)(&|$)'
       change:
         - id: add_xss_to_body
-          watch_id: body-watch.bv
-          type:
-            modify:
-              placement: after
-              values:
-                - "<script>alert('dvna-a3-reflected-xss')</script>"
+          changes:
+            - modify:
+                placement: after
+                watch_id: body-watch.bv
+                values:
+                  - "<script>alert('dvna-a3-reflected-xss')</script>"
         - id: add_xss_to_query
-          watch_id: query-watch.qv
-          type:
-            modify:
-              placement: after
-              values:
-                - "<script>alert('dvna-a3-reflected-xss')</script>"
+          changes:
+            - modify:
+                placement: after
+                watch_id: query-watch.qv
+                values:
+                  - "<script>alert('dvna-a3-reflected-xss')</script>"
       send:
         - id: check_xss_in_body
           apply: add_xss_to_body
@@ -71,6 +71,12 @@ rule:
         - from: check_xss_in_body
           if_succeed: xss_via_body_parameter
           pattern: (^|&)(?P<param>\w+)=[^=&]+<script>alert\('dvna.*
+          extract:
+            request:
+              group: param
+        - from: check_xss_in_query
+          if_succeed: xss_via_query_parameter
+          pattern: (\?|&)(?P<param>\w+)=[^=&]+<script>alert\('dvna.*
           extract:
             request:
               group: param
