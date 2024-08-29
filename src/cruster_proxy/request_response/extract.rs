@@ -1,3 +1,4 @@
+use bstr::ByteSlice;
 use http::HeaderMap;
 use regex::bytes::{Captures, Regex as ByteRegex};
 use crate::{audit::actions::ExtractionMode, cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}};
@@ -54,8 +55,9 @@ fn get_capture_from_header_map(re: &ByteRegex, headers: &HeaderMap, mode: &Extra
 }
 
 fn get_capture_from_body(re: &ByteRegex, body: &[u8], mode: &ExtractionMode) -> Option<Vec<u8>> {
-    for body_line in body.split(|c| { *c == b'c' }) {
-        if let Some(cap) = re.captures(&body_line) {
+    for body_line in body.split(|c| { *c == b'\n' }) {
+        let captures = re.captures(&body_line);
+        if let Some(cap) = captures {
             return Some(get_capture(cap, body_line, mode));
         }
     }
