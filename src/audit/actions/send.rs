@@ -351,7 +351,15 @@ impl RuleSendAction {
 
             let modified_request = Arc::new(modified_request);
 
-            for _ in 0..(repeat_number + 1) {
+            for j in 0..(repeat_number + 1) {
+                debug!("SendAction - Sending request, repeat: {}/{}, URL: {} {} {}",
+                    j + 1,
+                    repeat_number + 1,
+                    &modified_request.method,
+                    &modified_request.uri,
+                    &modified_request.version
+                );
+
                 let response = match http_sender::send_request_from_wrapper(&modified_request, 0).await {
                     Ok((response, _)) => {
                         response
@@ -403,6 +411,11 @@ impl RuleSendAction {
             }
         }
 
-        self.execute_requests(ctxt, executed_steps).await
+        if ! executed_steps.is_empty() {
+            self.execute_requests(ctxt, executed_steps).await
+        }
+        else {
+            Ok(())
+        }
     }
 }

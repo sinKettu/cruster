@@ -61,7 +61,7 @@ impl ActiveRule {
 
         // Check the same for FIND
         let mut find_ref = HashMap::with_capacity(actions.find.len());
-        let count = actions.find.len();
+        let count = actions.send.len();
         for (index, find_action) in actions.find.iter_mut().enumerate() {
             find_action.check_up(actions.send_ref.as_ref(), count)?;
             if let Some(find_id) = find_action.get_id() {
