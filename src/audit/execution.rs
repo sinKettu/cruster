@@ -82,7 +82,7 @@ impl Rule {
                             
                             debug!("SendAction - will apply change action with index {}", apply_id);
                             if let Err(err) = action.exec(&mut ctxt, change_steps).await {
-                                let err_str = format!("Rule '{}' failed for pair {} on send action: {}", self.get_id(), pair.index, err.to_string());
+                                let err_str = format!("Rule '{}' failed for pair {} on send action: {:?}", self.get_id(), pair.index, err.to_string());
                                 return RuleFinalState::Failed(err_str)
                             }
                             debug!("");

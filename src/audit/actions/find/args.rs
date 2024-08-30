@@ -298,7 +298,7 @@ impl Reference {
                                 ExecutableExpressionArgsValues::String(body)
                             },
                             MessagePart::STATUS => {
-                                ExecutableExpressionArgsValues::String(pair.response.as_ref().unwrap().status.clone())
+                                ExecutableExpressionArgsValues::String(response.status.clone())
                             }
                         };
 

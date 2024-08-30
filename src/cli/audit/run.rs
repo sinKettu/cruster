@@ -1,6 +1,7 @@
 use std::{fs::File, sync::Arc};
 
 use clap::ArgMatches;
+use colored::Colorize;
 use crossbeam::channel::TryRecvError;
 
 use crate::{
@@ -150,7 +151,7 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
                     WorkerToMainMsg::Result(res) => {
                         match res {
                             RuleFinalState::Failed(reason) => {
-                                eprintln!("Failed: {}", reason);
+                                eprintln!("[{}] {}", "FAILED", reason);
                             },
                             RuleFinalState::Skipped(reason) => {
                                 if let Some(verbose) = audit_conf.verbose {

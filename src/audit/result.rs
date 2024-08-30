@@ -9,14 +9,14 @@ use colored::Colorize;
 
 impl Display for RuleResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let severity = match &self.severity {
-            RuleSeverity::Info => { "info".cyan() },
-            RuleSeverity::Low => { "low".bright_green() },
-            RuleSeverity::Medium => { "medium".bright_yellow() },
-            RuleSeverity::High => { "high".bright_red() }
+        let (severity, shift) = match &self.severity {
+            RuleSeverity::Info => { ("info".cyan(), 2) },
+            RuleSeverity::Low => { ("low".bright_green(), 3) },
+            RuleSeverity::Medium => { ("medium".bright_yellow(), 0) },
+            RuleSeverity::High => { ("high".bright_red(), 2) }
         };
 
-        write!(f, "[{}] {} - {}: ", severity, self.pair_index, &self.rule_id.green())?;
+        write!(f, "{}[{}] {} - {}: ", " ".repeat(shift), severity, self.pair_index, &self.rule_id.green())?;
         let mut first_finding = true;
 
         for (found, extracted) in self.findings.iter() {
@@ -43,6 +43,13 @@ impl Display for RuleResult {
 
             write!(f, ")")?;
         }
+
+        let initial_request = self.get_initial_request()
+            .split("\n")
+            .collect::<Vec<&str>>()[0]
+                .trim();
+
+        write!(f, " > {}", initial_request.bright_black())?;
 
         Ok(())
     }
