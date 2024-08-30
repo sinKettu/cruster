@@ -23,13 +23,13 @@ rule:
           pattern: '=(?P<form_value>[^=&$]+)(&|$)'
       change:
         - id: add_cmdi_to_body
-          watch_id: body_form.form_value
-          type:
-            modify:
-              placement: after
-              values:
-                - " && cat /etc/passwd"
-                - "; cat /etc/passwd"
+          changes:
+            - modify:
+                placement: after
+                watch_id: body_form.form_value
+                values:
+                  - " && cat /etc/passwd"
+                  - "; cat /etc/passwd"
       send:
         - id: check_cmdi_in_body
           apply: add_cmdi_to_body

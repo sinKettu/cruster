@@ -21,12 +21,12 @@ rule:
           pattern: '=(?P<form_value>[^=&$]+)(&|$)'
       change:
         - id: add_sqli_to_body
-          watch_id: body_form.form_value
-          type:
-            modify:
-              placement: after
-              values:
-                - "' OR '1'='1"
+          changes:
+            - modify:
+                placement: after
+                watch_id: body_form.form_value
+                values:
+                  - "' OR '1'='1"
       send:
         - id: check_sqli_in_body
           apply: add_sqli_to_body
