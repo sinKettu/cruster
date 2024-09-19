@@ -140,6 +140,11 @@ fn open_editor(editor: &str, request: String) -> Result<String, CrusterCLIError>
 
     std::fs::remove_file(tmp_path)?;
 
+    // TODO: Make some toggle or warning
+    if edited_request.ends_with("\n") {
+        edited_request = edited_request.trim_end().to_string();
+    }
+
     return  Ok(edited_request);
 }
 
@@ -154,6 +159,7 @@ fn get_ready_request(repeater: &mut RepeaterState, editor: &str, force: bool) ->
 }
 
 async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: &str, editor: &str, settings: &RepeaterExecSettings) -> Result<(), CrusterCLIError> {
+    // TODO: update repeater after changing content-length
     let request = get_ready_request(&mut repeater, editor, settings.force)?;
 
     if settings.no_body {

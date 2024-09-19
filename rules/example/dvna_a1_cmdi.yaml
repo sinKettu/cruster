@@ -1,0 +1,61 @@
+metadata:
+  about: Example of rule to detect OS Command Injection. It looks for injection in DVNA A1 task.
+  authors:
+    - sinKettu<avangard.jazz@gmail.com>
+  name: 'DVNA A1: OS Command Injection'
+  references: 
+    - https://wiki.owasp.org/index.php/Testing_for_Command_Injection_(OTG-INPVAL-013)
+    - https://github.com/appsecco/dvna
+  tags:
+    - example
+    - dvna
+    - os_cmd_i
+    - injection
+    - cmdi
+severity: high
+id: dvna-a1-cmdi
+rule:
+  http:
+    active:
+      watch:
+        - id: body_form
+          part: body
+          pattern: '=(?P<form_value>[^=&$]+)(&|$)'
+      change:
+        - id: add_cmdi_to_body
+          changes:
+            - modify:
+                placement: after
+                watch_id: body_form.form_value
+                values:
+                  - " && cat /etc/passwd"
+                  - "; cat /etc/passwd"
+      send:
+        - id: check_cmdi_in_body
+          apply: add_cmdi_to_body
+          max_redirects: 1
+      find:
+        # if ( regex.match("^root:x:0:0:root:.*$", check_cmdi_in_body.response.body) OR regex.match("No such file or directory", check_cmdi_in_body.response.body) )
+        - id: os_cmd_injection_in_body
+          exec:
+            - operation: rematch
+              name: match_passwd
+              args:
+                - type: string
+                  value: "root:x:0:0:root:/root:/bin/bash"
+                - type: reference
+                  value: check_cmdi_in_body.response.body
+            - operation: rematch
+              name: match_not_found
+              args:
+                - type: string
+                  value: No such file or directory
+                - type: reference
+                  value: check_cmdi_in_body.response.body
+            - operation: or
+              name: test_conditions
+              args:
+                - type: variable
+                  value: match_passwd
+                - type: variable
+                  value: match_not_found

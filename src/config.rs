@@ -9,6 +9,8 @@ use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config as L4R_Config, Root};
 
+use crate::utils::CrusterError;
+
 pub(crate) struct CrusterConfigError {
     error: String
 }
@@ -49,6 +51,25 @@ pub(crate) struct Dump {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct AuditEntities {
+    pub(crate) tags: Vec<String>,
+    pub(crate) paths: Vec<String>,
+    pub(crate) ids: Vec<String>
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct AuditConfig {
+    pub(crate) passive: bool,
+    pub(crate) active: bool,
+    pub(crate) rules: Vec<String>,
+    pub(crate) tasks: Option<usize>,
+    pub(crate) exclude: Option<AuditEntities>,
+    pub(crate) include: Option<AuditEntities>,
+    pub(crate) verbose: Option<bool>,
+    pub(crate) name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct Config {
     pub(crate) tls_key_name: String,
     pub(crate) tls_cer_name: String,
@@ -58,7 +79,9 @@ pub(crate) struct Config {
     pub(crate) project: Option<String>,
     pub(crate) scope: Option<Scope>,
     pub(crate) dump_mode: Option<Dump>,
-    pub(crate) editor: Option<String>
+    pub(crate) editor: Option<String>,
+    pub(crate) audit: bool,
+    pub(crate) audit_config: Option<String>,
 }
 
 impl Default for Dump {
@@ -67,6 +90,27 @@ impl Default for Dump {
             enabled: false,
             verbosity: 0,
             color: true
+        }
+    }
+}
+
+impl Default for AuditEntities {
+    fn default() -> Self {
+        AuditEntities { tags: Vec::new(), paths: Vec::new(), ids: Vec::new() }
+    }
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        AuditConfig {
+            passive: false,
+            active: false,
+            rules: Vec::new(),
+            tasks: Some(1),
+            exclude: None,
+            include: None,
+            verbose: None,
+            name: None,
         }
     }
 }
@@ -82,8 +126,31 @@ impl Default for Config {
             project: None,
             scope: None,
             dump_mode: None,
-            editor: None
+            editor: None,
+            audit: false,
+            audit_config: None
         }
+    }
+}
+
+impl Config {
+    pub(crate) fn save_with_project(&self) -> Result<(), CrusterError> {
+        if self.project.is_none() {
+            return Err(CrusterError::UndefinedError("Cannot save config with project, no project path is set".to_string()));
+        }
+
+        let config_path = format!("{}/config.yaml", self.project.as_ref().unwrap());
+        let config_file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&config_path)?;
+
+        yml::to_writer(&config_file, self)?;
+        Ok(())
+    }
+
+    pub(crate) fn get_audit_results_file(&self, name: &str) -> String {
+        format!("{}/audit_{}.jsonl", self.project.as_ref().unwrap(), name)
     }
 }
 
@@ -104,9 +171,11 @@ fn parse_cmd() -> clap::ArgMatches {
     let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
     let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>";
     let editor_help = "Path to editor executable to use in CLI mode";
+    let audit_help = "Enable audit";
+    let audit_conf_help = "Path to audit config with YAML format";
 
     let matches = clap::Command::new("cruster")
-        .version("0.7.2")
+        .version("0.8.0")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .subcommand(
@@ -323,6 +392,196 @@ fn parse_cmd() -> clap::ArgMatches {
                                 )
                         )
                 )
+                .subcommand(
+                    clap::Command::new("audit")
+                        .alias("a")
+                        .about("Work with audit via CLI")
+                        .subcommand_required(true)
+                        .subcommand(
+                            clap::Command::new("run")
+                                .alias("r")
+                                .about("Run audit using audit config")
+                                .arg(
+                                    clap::Arg::new("audit-name")
+                                        .value_name("NAME")
+                                        .required(true)
+                                        .help("Name of the audit (used in files names)")
+                                )
+                                .arg(
+                                    clap::Arg::new("verbose")
+                                        .long("verbose")
+                                        .short('v')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Enable verbose output from audit workers")
+                                )
+                                .arg(
+                                    clap::Arg::new("add-path")
+                                        .value_name("PATH_TO_ADD")
+                                        .long("add-path")
+                                        .short('d')
+                                        .conflicts_with("rule-path")
+                                        .action(clap::ArgAction::Append)
+                                        .help("Paths containig rules to add for loading")
+                                )
+                                .arg(
+                                    clap::Arg::new("rule-path")
+                                        .value_name("RULE_PATH")
+                                        .long("rule-path")
+                                        .short('r')
+                                        .conflicts_with("add-path")
+                                        .help("Path containig rules to overwrite existing and load rules only from it")
+                                )
+                                .arg(
+                                    clap::Arg::new("tags")
+                                        .value_name("TAGS")
+                                        .long("tags")
+                                        .short('t')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Load only rules, whcih contain these tags")
+                                )
+                                .arg(
+                                    clap::Arg::new("exclude-tags")
+                                        .value_name("EXCLUDE-TAGS")
+                                        .long("exclude-tags")
+                                        .short('e')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Ignore rules while loading with these tags")
+                                )
+                                .arg(
+                                    clap::Arg::new("ids")
+                                        .value_name("IDs")
+                                        .long("ids")
+                                        .short('i')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Load only rules with these ids")
+                                )
+                                .arg(
+                                    clap::Arg::new("exclude-ids")
+                                        .value_name("EXCLUDE-IDs")
+                                        .long("exclude-ids")
+                                        .short('x')
+                                        .action(clap::ArgAction::Append)
+                                        .help("Ignore rules with these ids")
+                                )
+                                .arg(
+                                    clap::Arg::new("active")
+                                        .long("active")
+                                        .short('a')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Enable active rules")
+                                )
+                                .arg(
+                                    clap::Arg::new("passive")
+                                        .long("passive")
+                                        .short('p')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Enable passive rules")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("test")
+                                .alias("t")
+                                .about("Test audit features")
+                                .arg(
+                                    clap::Arg::new("arg")
+                                        .value_name("ARG")
+                                        .help("Any test arg")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("debug-rule")
+                                .alias("d")
+                                .about("Debug audit rule")
+                                .arg(
+                                    clap::Arg::new("rule")
+                                        .value_name("RULE_PATH")
+                                        .required(true)
+                                        .help("Path to file with rule for debugging")
+                                )
+                                .arg(
+                                    clap::Arg::new("http-pair-index")
+                                        .value_name("INDEX")
+                                        .short('i')
+                                        .value_parser(clap::value_parser!(usize))
+                                        .help("Index of exact http pair in current project to run rule against it")
+                                )
+                        )
+                        .subcommand(
+                            clap::Command::new("print")
+                                .alias("p")
+                                .about("Print audit results from file, it's possible to print details of exact result or print all briefly")
+                                .arg(
+                                    clap::Arg::new("name")
+                                        .value_name("NAME")
+                                        .required(true)
+                                        .help("Name of audit execution which results are interested in")
+                                )
+                                .arg(
+                                    clap::Arg::new("index")
+                                        .value_name("INDEX")
+                                        .short('i')
+                                        .value_parser(clap::value_parser!(usize))
+                                        .required(true)
+                                        .conflicts_with("all")
+                                        .help("Index of exact finding from audit file")
+                                )
+                                .arg(
+                                    clap::Arg::new("all")
+                                        .long("all")
+                                        .short('a')
+                                        .required(true)
+                                        .action(clap::ArgAction::SetTrue)
+                                        .conflicts_with("index")
+                                        .help("Print all findings briefly")
+                                )
+                                .arg(
+                                    clap::Arg::new("without-body")
+                                        .long("without-body")
+                                        .short('b')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .conflicts_with("all")
+                                        .requires("index")
+                                        .help("Print finding and do not print bodies of requests/responses")
+                                )
+                                .arg(
+                                    clap::Arg::new("initial-data")
+                                        .long("initial-data")
+                                        .short('I')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .conflicts_with("all")
+                                        .requires("index")
+                                        .help("Print initial data used in for rule (i.e. http request/response)")
+                                )
+                                .arg(
+                                    clap::Arg::new("no-data")
+                                        .long("no-data")
+                                        .short('n')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .conflicts_with("all")
+                                        .conflicts_with("without-body")
+                                        .conflicts_with("initial-data")
+                                        .requires("index")
+                                        .help("Do not print any data used to execute rule or received with it (i.e. http request/response)")
+                                )
+                                .arg(
+                                    clap::Arg::new("sort-severity")
+                                        .long("sort-severity")
+                                        .short('s')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .requires("all")
+                                        .conflicts_with("sort-ruleid")
+                                        .help("Do not print any data used to execute rule or received with it (i.e. http request/response)")
+                                )
+                                .arg(
+                                    clap::Arg::new("sort-ruleid")
+                                        .long("sort-ruleid")
+                                        .short('r')
+                                        .action(clap::ArgAction::SetTrue)
+                                        .requires("all")
+                                        .help("Do not print any data used to execute rule or received with it (i.e. http request/response)")
+                                )
+                        )
+                )
         )
         .arg(
             clap::Arg::new("workplace")
@@ -395,6 +654,18 @@ fn parse_cmd() -> clap::ArgMatches {
                 .value_name("PATH_TO_EXECUTABLE")
                 .help(editor_help)
         )
+        .arg(
+            clap::Arg::new("audit")
+                .short('A')
+                .action(clap::ArgAction::SetTrue)
+                .help(audit_help)
+        )
+        .arg(
+            clap::Arg::new("audit-config")
+                .long("audit-config")
+                .value_name("AUDIT_CONFIG_PATH")
+                .help(audit_conf_help)
+        )
         .get_matches();
 
     return matches;
@@ -402,7 +673,7 @@ fn parse_cmd() -> clap::ArgMatches {
 
 // -----------------------------------------------------------------------------------------------//
 #[allow(dead_code)]
-pub(crate) fn handle_user_input() -> Result<(Config, CrusterMode), CrusterConfigError> {
+pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), CrusterConfigError> {
     let matches = parse_cmd();
     let default_workplace = tilde("~/.cruster");
     let default_config = tilde("~/.cruster/config.yaml");
@@ -635,64 +906,104 @@ pub(crate) fn handle_user_input() -> Result<(Config, CrusterMode), CrusterConfig
         config.editor = Some(editor.to_string());
     }
 
-    Ok((config, cmd))
+    if matches.get_flag("audit") {
+        config.audit = true;
+    }
+
+    if let Some(audit_conf) = matches.get_one::<String>("audit-config") {
+        config.audit_config = Some(audit_conf.clone());
+    }
+
+    if let Some(audit_conf) = config.audit_config {
+        config.audit_config = Some(resolve_path(&workplace, &audit_conf, false)?);
+    }
+
+    let audit_config = if config.audit {
+        load_audit_config(config.audit_config.as_ref(), &workplace)?
+    }
+    else {
+        AuditConfig::default()
+    };
+
+    match config.save_with_project() {
+        Err(CrusterError::UndefinedError(_)) => {},
+        Err(err) => {
+            return Err(err.into());
+        }
+        _ => {}
+    }
+
+    Ok((config, audit_config, cmd))
+}
+
+fn load_audit_config(conf_path: Option<&String>, workplace: &str) -> Result<AuditConfig, CrusterConfigError> {
+    if conf_path.is_none() {
+        return Ok(AuditConfig::default());
+    }
+
+    let conf_file = std::fs::OpenOptions::new()
+        .read(true)
+        .open(conf_path.unwrap())?;
+
+    let mut audit_conf: AuditConfig = yml::from_reader(&conf_file)?;
+    for i in 0..audit_conf.rules.len() {
+        let rule_path_str = audit_conf.rules[i].as_str();
+        audit_conf.rules[i] = find_file_or_dir(workplace, rule_path_str)?;
+    }
+
+    return Ok(audit_conf);
 }
 
 fn enable_debug(debug_file_path: &str) {
     let logfile = FileAppender::builder()
-            .encoder(Box::new(PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}] {l} - {M} - {m}\n")))
-            .build(debug_file_path)
-            .unwrap();
+        .encoder(Box::new(PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}] {l} - {M} - {m}\n")))
+        .build(debug_file_path)
+        .unwrap();
 
-        let log_config = L4R_Config::builder()
-            .appender(Appender::builder().build("logfile", Box::new(logfile)))
-            .build(Root::builder()
-                    .appender("logfile")
-                    .build(LevelFilter::Debug)).unwrap();
+    let log_config = L4R_Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .build(Root::builder()
+            .appender("logfile")
+            .build(LevelFilter::Debug)).unwrap();
 
-        log4rs::init_config(log_config).unwrap();
-        debug!("Debugging enabled");
+    log4rs::init_config(log_config).unwrap();
+    debug!("Debugging enabled");
 }
 
-/// For existing files and dirs
-// fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
-//     let fpath = path::Path::new(path);
-//     if fpath.is_absolute() {
-//         if fpath.exists() {
-//             return Ok(path.to_string());
-//         }
-//         else {
-//             return Err(
-//                 CrusterError::ConfigError(
-//                     format!("Could not find file or dir at absolute path '{}'", path)
-//                 )
-//             );
-//         }
-//     }
-//     else {
-//         if fpath.starts_with("./") && fpath.exists() {
-//             return Ok(path.to_string());
-//         }
+// For existing files and dirs
+fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError> {
+    let fpath = path::Path::new(path);
+    if fpath.is_absolute() {
+        if fpath.exists() {
+            return Ok(path.to_string());
+        }
+        else {
+            return Err(
+                CrusterError::ConfigError(
+                    format!("Could not find file or dir at absolute path '{}'", path)
+                )
+            );
+        }
+    }
+    else {
+        if fpath.starts_with("./") && fpath.exists() {
+            return Ok(path.to_string());
+        }
 
-//         let workspace_path = format!("{}/{}", base_path, path);
-//         let wpath = path::Path::new(&workspace_path);
-//         if wpath.exists() {
-//             return Ok(workspace_path);
-//         }
-//         else {
-//             if fpath.exists() {
-//                 return Ok(path.to_string());
-//             }
-//             else {
-//                 return Err(
-//                     CrusterError::ConfigError(
-//                         format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
-//                     )
-//                 );
-//             }
-//         }
-//     }
-// }
+        let workspace_path = format!("{}/{}", base_path, path);
+        let wpath = path::Path::new(&workspace_path);
+        if wpath.exists() {
+            return Ok(workspace_path);
+        }
+        else {
+            return Err(
+                CrusterError::ConfigError(
+                    format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
+                )
+            );
+        }
+    }
+}
 
 /// Return such path state, which is accessbile with cruster
 fn resolve_path(base_path: &str, path: &str, dir: bool) -> Result<String, CrusterConfigError> {

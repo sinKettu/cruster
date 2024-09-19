@@ -1,10 +1,14 @@
 mod http;
 mod repeater;
+mod audit;
 
+use audit::print::AuditPrintConfig;
 use clap::{self, ArgMatches};
 
-use crate::config;
+use crate::{audit::AuditError, config};
 use std::process::exit;
+
+use self::audit::debug_rule::DebugRuleConfig;
 
 #[derive(Debug)]
 pub struct CrusterCLIError {
@@ -17,13 +21,19 @@ impl<T> From<T> for CrusterCLIError where T: ToString {
     }
 }
 
+impl From<AuditError> for CrusterCLIError {
+    fn from(value: AuditError) -> Self {
+        Self { error: value.to_string() }
+    }
+}
+
 impl Into<String> for CrusterCLIError {
     fn into(self) -> String {
         self.error
     }
 }
 
-pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Result<(), CrusterCLIError> {
+pub(crate) async fn launch(command: ArgMatches, config: config::Config, mut audit_conf: config::AuditConfig) -> Result<(), CrusterCLIError> {
     let project = match config.project.as_ref() {
         Some(path) => {
             path.to_string()
@@ -113,6 +123,47 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config) -> Resul
                     }
                 }
                 _ => unreachable!()
+            }
+        },
+        Some(("audit", subcommands)) => {
+            let http_data_path = format!("{}/http.jsonl", &project);
+            match subcommands.subcommand() {
+                Some(("run", _args)) => {
+                    audit_conf = audit::run::modify_audit_config_with_cmd_args(audit_conf, _args)?;
+                    if let Err(err) = audit::run::exec(&config, &audit_conf, &http_data_path).await {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured  while audit::run executed: {}", err_str);
+                        exit(8);
+                    }
+                },
+                Some(("test", _args)) => {
+                    let arg = _args.get_one::<String>("arg").unwrap();
+                    if let Err(err) = audit::test::exec(arg, &http_data_path, &audit_conf).await {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while audit::test executed: {}", err_str);
+                        exit(8);
+                    }
+                },
+                Some(("debug-rule", _args)) => {
+                    let conf = DebugRuleConfig::try_from(_args)?;
+                    if let Err(err) = audit::debug_rule::exec(&conf, &http_data_path).await {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while audit::debug_rule executed: {}", err_str);
+                        exit(9);
+                    }
+                },
+                Some(("print", _args)) => {
+                    let conf = AuditPrintConfig::try_from(_args)?;
+                    let audit_results = config.get_audit_results_file(&conf.audit_name);
+                    if let Err(err) = audit::print::exec(conf, audit_results).await {
+                        let err_str: String = err.into();
+                        eprintln!("Error occured while audit::print executed: {}", err_str);
+                        exit(10);
+                    }
+                },
+                _ => {
+                    unreachable!()
+                }
             }
         }
         _ => {

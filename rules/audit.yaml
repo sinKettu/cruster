@@ -1,0 +1,9 @@
+active: true
+passive: false
+rules:
+  - rules/http
+include: null
+exclude:
+  tags: []
+  paths: []
+  ids: []

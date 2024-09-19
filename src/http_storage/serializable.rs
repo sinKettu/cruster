@@ -4,6 +4,8 @@ use serde_json as json;
 use serde::{Serialize, Deserialize};
 use http::{HeaderMap, header::HeaderName, HeaderValue as HTTPHeaderValue};
 
+// pub(crate) static HEADERS_ENCODINGS: [&str; 2] = ["utf-8", "base64"];
+
 use std::{
     io::{Write, BufReader, BufRead},
     sync::mpsc::Receiver,
@@ -21,11 +23,11 @@ use crate::{
     scope
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Header {
-    key: String,
-    encoding: String,
-    value: String
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub(crate) struct Header {
+    pub(crate) key: String,
+    pub(crate) encoding: String,
+    pub(crate) value: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

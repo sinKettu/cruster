@@ -1,3 +1,5 @@
+pub(crate) mod extract;
+
 use hudsucker::{
     hyper::{
         Body,
@@ -18,6 +20,7 @@ use std::ffi::CString;
 use crate::CrusterError;
 use regex::Regex;
 use hyper::body::Bytes;
+
 
 #[derive(Clone, Debug)]
 pub(crate) struct HyperRequestWrapper {
@@ -261,6 +264,7 @@ impl HyperRequestWrapper {
         let body = self.body.as_slice().to_str_lossy();
         return re.find(&body).is_some();
     }
+
 }
 
 // -----------------------------------------------------------------------------------------------//

@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cargo",
+			"command": "build",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build",
+			// "args": ["--no-default-features", "--features", "openssl-ca,crossterm"],
+			"args": [],
+			"label": "rust: cargo build"
+		}
+	]
+}

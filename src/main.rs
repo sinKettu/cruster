@@ -6,6 +6,8 @@ mod siv_ui;
 mod scope;
 mod dump;
 mod cli;
+mod audit;
+mod http_sender;
 
 
 #[cfg(feature = "rcgen-ca")]
@@ -18,8 +20,8 @@ use tokio;
 use utils::CrusterError;
 use cursive::{Cursive, CbSink};
 use std::{net::{IpAddr, SocketAddr}, process::exit};
-use crossbeam_channel::Sender as CB_Sender;
-use crossbeam_channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
+use crossbeam::channel::Sender as CB_Sender;
+use crossbeam::channel::{unbounded, Sender as CrusterSender, Receiver as CrusterReceiver};
 use cruster_proxy::{CrusterHandler, CrusterWSHandler, events::ProxyEvents};
 use dump::DumpMode;
 
@@ -40,8 +42,15 @@ async fn start_proxy(
     ) {
 
     let proxy = ProxyBuilder::new()
-        .with_addr(socket_addr)
-        .with_native_tls_client()
+        .with_addr(socket_addr);
+
+    #[cfg(feature = "openssl-ca")]
+    let proxy = proxy.with_native_tls_client();
+
+    #[cfg(feature = "rcgen-ca")]
+    let proxy = proxy.with_rustls_client();
+
+    let proxy = proxy
         .with_ca(ca)
         .with_http_handler(
             CrusterHandler {
@@ -55,19 +64,20 @@ async fn start_proxy(
             CrusterWSHandler {
                 proxy_tx: tx.clone()
             }
-        )
-        .build();
+        );
+
+    let proxy = proxy.build();
 
     // TODO: something better than unwrap()
     proxy.start(shutdown_signal()).await.unwrap();
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), utils::CrusterError> {
-    let (config, mode) = config::handle_user_input()?;
+    let (config, audit_config, mode) = config::handle_user_input()?;
 
     if let config::CrusterMode::CLI(subcmd_args) = mode {
-        if let Err(err) = cli::launch(subcmd_args, config).await {
+        if let Err(err) = cli::launch(subcmd_args, config, audit_config).await {
             let err_str: String = err.into();
             eprintln!("Error in Cruster CLI: {}", err_str);
             exit(-1);
