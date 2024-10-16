@@ -1,5 +1,8 @@
 # Cruster
 
+> [!IMPORTANT]  
+> The project is not abondoned, but I do not really have much time to work on it. Now I'm working on scanning based on YAML rules. You can find code in [this PR](https://github.com/sinKettu/cruster/pull/13).
+
 `v0.7.2`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
