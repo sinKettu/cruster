@@ -417,7 +417,7 @@ pub(crate) fn get_ca(key_path: &str, cer_path: &str) -> Result<HudSuckerCA, Crus
 }
 
 pub(crate) fn generate_key_and_cer(key_path: &str, cer_path: &str) {
-    if std::path::Path::new(key_path).exists() && std::path::Path::new(key_path).exists() {
+    if std::path::Path::new(key_path).exists() && std::path::Path::new(cer_path).exists() {
         return;
     }
 
