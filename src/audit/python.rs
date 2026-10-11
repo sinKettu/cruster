@@ -298,6 +298,7 @@ fn python_literal(value: &str) -> String {
 
 const BOOTSTRAP: &str = r#"
 import json as __cruster_json
+import sys as __cruster_sys
 
 class HttpRequest:
     def __init__(self, data):
@@ -324,6 +325,16 @@ def finding(name, extracted=None, exchanges=None):
     return {'name': name, 'extracted': extracted or [], 'exchanges': exchanges or []}
 def exchange(request, response, payloads=None):
     return {'request': request.to_dict(), 'response': response.to_dict(), 'payloads': payloads or []}
+
+# Rules use a normal Python import. The module is supplied by Cruster at runtime;
+# its matching type declaration lives in python/cruster/__init__.pyi for editors.
+__cruster_module = type(__cruster_json)('cruster')
+__cruster_module.HttpRequest = HttpRequest
+__cruster_module.HttpResponse = HttpResponse
+__cruster_module.send = send
+__cruster_module.finding = finding
+__cruster_module.exchange = exchange
+__cruster_sys.modules['cruster'] = __cruster_module
 "#;
 
 impl From<&HyperRequestWrapper> for PythonRequest {

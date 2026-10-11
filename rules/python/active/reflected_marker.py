@@ -1,5 +1,7 @@
 import base64
 
+from cruster import HttpRequest, HttpResponse, exchange, finding, send
+
 metadata = {
     "id": "python-reflected-marker",
     "about": "Inject a marker into the query and detect reflection",
@@ -11,7 +13,7 @@ metadata = {
 }
 
 
-def scan(request, response):
+def scan(request: HttpRequest, response: HttpResponse):
     marker = "cruster-python-marker-7391"
     changed = request.clone()
     separator = "&" if "?" in changed.uri else "?"

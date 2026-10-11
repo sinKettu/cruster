@@ -1,3 +1,6 @@
+from cruster import HttpRequest, HttpResponse, finding
+
+
 metadata = {
     "id": "python-missing-security-headers",
     "about": "Detect responses without basic browser security headers",
@@ -9,7 +12,7 @@ metadata = {
 }
 
 
-def scan(request, response):
+def scan(request: HttpRequest, response: HttpResponse):
     names = [header["name"].lower() for header in response.headers]
     required = ["content-security-policy", "x-content-type-options"]
     missing = [name for name in required if name not in names]
