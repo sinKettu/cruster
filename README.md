@@ -13,16 +13,9 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 
 - Proxy HTTP;
 - Proxy WebSocket;
-- Interactive text interface:
-  - Table visualization of HTTP messgages went through proxy;
-  - Requests/Responses highlighted visualization;
-  - Filtering content;
-  - Manual requests repeater;
-- Dump mode (`-d`) with controlable verbosity;
-- CLI, which is comparable with TUI;
-- Local MCP server for AI-agent access to persisted projects, audits, and explicitly authorized request replay;
-- Process requests/responses basing on scope (`-I`, `-E`);
-- Storing/Loading proxy data on/from drive;
+- Dump these things;
+- CLI and `MCP` to work with traffic;
+- Python-based rules to check in HTTP traffic whatever you want (scan!);
 - ... *Coming soon*...
 
 ## Usage
