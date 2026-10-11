@@ -27,6 +27,8 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 
 ## Usage
 
+For a short, scenario-based walkthrough of dump, CLI, and MCP modes, start with [Cruster Quick Start](docs/Quick%20Start.md).
+
 There are four ways to use Cruster, described below in the recommended order:
 
 1. *Dump mode* for capturing and storing proxy traffic;
