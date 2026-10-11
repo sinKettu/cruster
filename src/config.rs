@@ -33,7 +33,15 @@ where
 pub(crate) enum CrusterMode {
     INTERACTIVE,
     DUMP(ArgMatches),
-    CLI(ArgMatches)
+    CLI(ArgMatches),
+    MCP(McpConfig),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct McpConfig {
+    pub(crate) allow_dangerous_tools: bool,
+    pub(crate) max_result_bytes: usize,
+    pub(crate) request_timeout_seconds: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -199,6 +207,13 @@ fn parse_cmd() -> clap::ArgMatches {
                         .action(clap::ArgAction::SetTrue)
                         .help(nc_help)
                 )
+        )
+        .subcommand(
+            clap::Command::new("mcp")
+                .about("Run the Cruster Model Context Protocol server over stdio")
+                .arg(clap::Arg::new("allow-dangerous-tools").long("allow-dangerous-tools").action(clap::ArgAction::SetTrue).help("Allow network requests, active rules, and other state-changing MCP tools"))
+                .arg(clap::Arg::new("max-result-bytes").long("max-result-bytes").value_parser(clap::value_parser!(usize)).default_value("1048576").help("Maximum serialized result size returned by one MCP tool"))
+                .arg(clap::Arg::new("request-timeout-seconds").long("request-timeout-seconds").value_parser(clap::value_parser!(u64)).default_value("30").help("Timeout for MCP-triggered HTTP requests"))
         )
         .subcommand(
             clap::Command::new("cli")
@@ -683,6 +698,17 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
             "interactive" => CrusterMode::INTERACTIVE,
             "dump" => CrusterMode::DUMP(args.clone()),
             "cli" => CrusterMode::CLI(args.clone()),
+            "mcp" => {
+                let max_result_bytes = *args.get_one::<usize>("max-result-bytes").unwrap();
+                let request_timeout_seconds = *args.get_one::<u64>("request-timeout-seconds").unwrap();
+                if !(1024..=16_777_216).contains(&max_result_bytes) {
+                    return Err(CrusterConfigError::from("MCP max result bytes must be between 1024 and 16777216"));
+                }
+                if !(1..=600).contains(&request_timeout_seconds) {
+                    return Err(CrusterConfigError::from("MCP request timeout must be between 1 and 600 seconds"));
+                }
+                CrusterMode::MCP(McpConfig { allow_dangerous_tools: args.get_flag("allow-dangerous-tools"), max_result_bytes, request_timeout_seconds })
+            },
             _ => unreachable!()
         }
     }

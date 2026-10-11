@@ -8,6 +8,7 @@ mod dump;
 mod cli;
 mod audit;
 mod http_sender;
+mod mcp;
 
 
 #[cfg(feature = "rcgen-ca")]
@@ -75,6 +76,10 @@ async fn start_proxy(
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), utils::CrusterError> {
     let (config, audit_config, mode) = config::handle_user_input()?;
+
+    if let config::CrusterMode::MCP(mcp_config) = mode {
+        return mcp::serve(config, audit_config, mcp_config).await;
+    }
 
     if let config::CrusterMode::CLI(subcmd_args) = mode {
         if let Err(err) = cli::launch(subcmd_args, config, audit_config).await {

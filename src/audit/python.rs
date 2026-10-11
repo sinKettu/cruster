@@ -90,7 +90,7 @@ struct PythonExchange {
     payloads: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct PythonRuleLog {
     pub(crate) level: String,
     pub(crate) message: String,

@@ -20,13 +20,14 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
   - Manual requests repeater;
 - Dump mode (`-d`) with controlable verbosity;
 - CLI, which is comparable with TUI;
+- Local MCP server for AI-agent access to persisted projects, audits, and explicitly authorized request replay;
 - Process requests/responses basing on scope (`-I`, `-E`);
 - Storing/Loading proxy data on/from drive;
 - ... *Coming soon*...
 
 ## Usage
 
-There are three ways you can use Cruster: with *interactive text interface*, in *dump mode* (logging) and as *CLI* tool.
+There are four ways you can use Cruster: with *interactive text interface*, in *dump mode* (logging), as a *CLI* tool, and as a local *MCP server* for AI agents.
 
 To start, just run `cruster` and it will create working directory in `~/.cruster`, putting there *base config*, *TLS certificate* with *key*. Then it will be listening to requests on address `127.0.0.1:8080`.
 
@@ -184,6 +185,18 @@ $ cruster cli http show 2
 ```
 
 > Probably, in future all new features will be developing for CLI firstly and then for TUI
+
+### MCP server
+
+Cruster can expose a persisted project to an MCP-compatible AI agent over stdio:
+
+```shell
+cruster --project my-project -A --audit-config rules/audit.yaml mcp
+```
+
+The default MCP mode permits project/history inspection and passive Python audits. Network requests and active rules are denied unless the server is deliberately started with `mcp --allow-dangerous-tools`.
+
+See [MCP.md](docs/MCP.md) for client configuration, available tools, contracts, limits, and the security model.
 
 ## Features and Compilation
 
