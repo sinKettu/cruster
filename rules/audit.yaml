@@ -1,7 +1,8 @@
 active: true
 passive: false
 rules:
-  - rules/python
+  - rules/example
+  - rules/http
 include: null
 exclude:
   tags: []
