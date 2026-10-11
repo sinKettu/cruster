@@ -16,13 +16,18 @@ pub(crate) struct RepeaterIterator {
 }
 
 impl RepeaterIterator {
-    pub(crate) fn new(path: &str) -> RepeaterIterator {
-        let file = File::open(path).expect("No file with saved repeaters exists!");
+    pub(crate) fn new(path: &str) -> Result<RepeaterIterator, CrusterCLIError> {
+        let file = File::open(path).map_err(|error| {
+            CrusterCLIError::from(format!(
+                "Cannot open repeater state file '{}': {}. No saved repeaters may exist",
+                path, error
+            ))
+        })?;
         let iter = RepeaterIterator {
             reader: BufReader::new(file)
         };
 
-        return iter;
+        Ok(iter)
     }
 }
 

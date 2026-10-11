@@ -194,7 +194,7 @@ async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: 
 }
 
 pub(crate) async fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str) -> Result<(), CrusterCLIError> {
-    let repeater_iter = RepeaterIterator::new(path);
+    let repeater_iter = RepeaterIterator::new(path)?;
     for (i, mut repeater) in repeater_iter.enumerate() {
         if let Some(number) = settings.number.as_ref() {
             if &(i + 1) == number {

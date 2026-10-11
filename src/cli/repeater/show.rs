@@ -51,7 +51,7 @@ pub(super) fn print_repeater_request_and_response(repeater: &RepeaterState, no_b
 }
 
 pub(crate) fn execute(settings: &RepeaterShowSettings, path: &str) -> Result<(), CrusterCLIError> {
-    let repeater_iter = RepeaterIterator::new(path);
+    let repeater_iter = RepeaterIterator::new(path)?;
     for (i, repeater) in repeater_iter.enumerate() {
         if let Some(number) = settings.number.as_ref() {
             if &(i + 1) == number {

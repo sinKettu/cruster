@@ -25,7 +25,7 @@ impl TryFrom<&ArgMatches> for RepeaterAddSettings {
 pub(crate) fn exec(settings: &RepeaterAddSettings, http_path: &str, repeater_path: &str) -> Result<(), CrusterCLIError> {
     // Not very good way, but...
     let next_repeater_id = if std::path::Path::new(repeater_path).is_file() {
-        super::RepeaterIterator::new(repeater_path).count()
+        super::RepeaterIterator::new(repeater_path)?.count()
     }
     else {
         0

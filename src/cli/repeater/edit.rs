@@ -94,7 +94,7 @@ pub(crate) fn execute(settings: &RepeaterEditSettings, path: &str) -> Result<(),
         }
     };
 
-    let repeater_iter = super::RepeaterIterator::new(path);
+    let repeater_iter = super::RepeaterIterator::new(path)?;
     let mut number_to_update: usize = 0;
     let mut repeater_to_update: Option<RepeaterState> = None;
 
