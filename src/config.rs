@@ -274,6 +274,13 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .help("Print full formated requests and responses (if any)")
                                 )
                                 .arg(
+                                    clap::Arg::new("no-body")
+                                        .short('b')
+                                        .long("no-body")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Do not print request and response bodies in pretty mode")
+                                )
+                                .arg(
                                     clap::Arg::new("raw")
                                         .short('r')
                                         .long("raw")

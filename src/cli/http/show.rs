@@ -82,6 +82,7 @@ enum HTTPTableSelection {
 pub(crate) struct ShowSettings {
     pub(super) print_urls: bool,
     pub(super) pretty: bool,
+    pub(super) no_body: bool,
     pub(super) raw: bool,
     pub(super) filter: Option<String>,
     pub(super) attribute: Option<ExtractionAttribute>,
@@ -93,6 +94,7 @@ impl Default for ShowSettings {
         ShowSettings {
             print_urls: false,
             pretty: false,
+            no_body: false,
             raw: false,
             filter: None,
             attribute: None,
@@ -106,6 +108,7 @@ pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterC
 
     settings.print_urls = args.get_flag("urls");
     settings.pretty = args.get_flag("pretty");
+    settings.no_body = args.get_flag("no-body");
     settings.raw = args.get_flag("raw");
     settings.filter = match args.get_one::<String>("filter") {
         Some(filter) => Some(filter.clone()),
@@ -135,6 +138,12 @@ pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterC
     if settings.raw && settings.pretty {
         return Err(
             CrusterCLIError::from("Parameters '-r' and '-p' cannot be used at the same time")
+        )
+    }
+
+    if settings.no_body && settings.raw {
+        return Err(
+            CrusterCLIError::from("Parameters '-b' and '-r' cannot be used at the same time")
         )
     }
 
@@ -239,7 +248,10 @@ fn pretty_status(status: &str) -> ColoredString {
     }
 }
 
-fn print_pretty_request(request: &crate::cruster_proxy::request_response::HyperRequestWrapper) {
+fn print_pretty_request(
+    request: &crate::cruster_proxy::request_response::HyperRequestWrapper,
+    no_body: bool,
+) {
     let path = request
         .get_request_path_without_query()
         .unwrap_or_else(|_| request.get_request_path());
@@ -252,34 +264,37 @@ fn print_pretty_request(request: &crate::cruster_proxy::request_response::HyperR
     println!(" {}", request.version.bright_black());
     pretty_headers(&request.headers);
 
-    if !request.body.is_empty() {
+    if !no_body && !request.body.is_empty() {
         println!("\n{}", pretty_body(&request.body));
     }
 }
 
-fn print_pretty_response(response: &crate::cruster_proxy::request_response::HyperResponseWrapper) {
+fn print_pretty_response(
+    response: &crate::cruster_proxy::request_response::HyperResponseWrapper,
+    no_body: bool,
+) {
     println!("{} {}", response.version.bright_black(), pretty_status(&response.status));
     pretty_headers(&response.headers);
 
-    if !response.body.is_empty() {
+    if !no_body && !response.body.is_empty() {
         println!("\n{}", pretty_body(&response.body));
     }
 }
 
-fn print_pretty(pair: &http_storage::RequestResponsePair) {
+fn print_pretty(pair: &http_storage::RequestResponsePair, no_body: bool) {
     println!("\n{}", format!(" HTTP exchange #{} ", pair.index).bold().on_bright_black());
 
     match (pair.request.as_ref(), pair.response.as_ref()) {
         (Some(request), Some(response)) => {
             println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
-            print_pretty_request(request);
+            print_pretty_request(request, no_body);
             println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
-            print_pretty_response(response);
+            print_pretty_response(response, no_body);
             println!("{}", "──────────────────────────────────────────────────────────".bright_black());
         },
         (Some(request), None) => {
             println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
-            print_pretty_request(request);
+            print_pretty_request(request, no_body);
             println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
             println!("{}", "<EMPTY RESPONSE>".bright_black());
             println!("{}", "──────────────────────────────────────────────────────────".bright_black());
@@ -288,7 +303,7 @@ fn print_pretty(pair: &http_storage::RequestResponsePair) {
             println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
             println!("{}", "<EMPTY REQUEST>".bright_black());
             println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
-            print_pretty_response(response);
+            print_pretty_response(response, no_body);
             println!("{}", "──────────────────────────────────────────────────────────".bright_black());
         }
         _ => unreachable!()
@@ -300,7 +315,7 @@ fn print_pair(pair: &http_storage::RequestResponsePair, settings: &ShowSettings,
         super::print_urls(pair);
     }
     else if settings.pretty {
-        print_pretty(pair);
+        print_pretty(pair, settings.no_body);
     }
     else {
         super::print_briefly(pair, header_if_any);
