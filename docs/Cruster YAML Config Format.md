@@ -14,7 +14,7 @@ You cannot configure path to config (`-c`) and path to workplace (`-w`) with con
 | port | *Integer* | `8080` | Port for proxy to listen to |
 | debug_file | *String* or `null` | `null` | Path to file to write debug logs. Mostly used for development, for now you will not find there anything useful |
 | dump_mode | *JSON* or `null` | `null` | Subconfig to maintain dump mode. See `Dump` section for details. |
-| project | *String* or `null` | `null` | Path where current project, wchi is directory, is stored (HTTP history, repeaters, etc.) in JSONLines format. |
+| project | *String* or `null` | `default` | Path where the current project directory is stored (HTTP history, repeaters, etc.) in JSONLines format. Relative paths are resolved inside the Cruster workplace, so the default project is `~/.cruster/default`. |
 | scope | *JSON* or `null` | `null` | Subconfig to maintain scope. It allows to include/exclude requests by regexes for URIs. See `Scope` section for details. |
 | editor | *String* or `null` | `null` | Executable of text editor to use in CLI Repeater |
 

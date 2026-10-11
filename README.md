@@ -1,9 +1,6 @@
 # Cruster
 
-> [!IMPORTANT]  
-> The project is not abondoned, but I do not really have much time to work on it. Now I'm working on scanning based on YAML rules. You can find code in [this PR](https://github.com/sinKettu/cruster/pull/13).
-
-`v0.7.2`
+`v0.8.2`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -23,15 +20,25 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
   - Manual requests repeater;
 - Dump mode (`-d`) with controlable verbosity;
 - CLI, which is comparable with TUI;
+- Local MCP server for AI-agent access to persisted projects, audits, and explicitly authorized request replay;
 - Process requests/responses basing on scope (`-I`, `-E`);
 - Storing/Loading proxy data on/from drive;
 - ... *Coming soon*...
 
 ## Usage
 
-There are three ways you can use Cruster: with *interactive text interface*, in *dump mode* (logging) and as *CLI* tool.
+For a short, scenario-based walkthrough of dump, CLI, and MCP modes, start with [Cruster Quick Start](docs/Quick%20Start.md).
 
-To start, just run `cruster` and it will create working directory in `~/.cruster`, putting there *base config*, *TLS certificate* with *key*. Then it will be listening to requests on address `127.0.0.1:8080`.
+There are four ways to use Cruster, described below in the recommended order:
+
+1. *Dump mode* for capturing and storing proxy traffic;
+2. *CLI* for working with persisted project data;
+3. *MCP server* for controlling Cruster through an AI agent;
+4. *Interactive text interface* for terminal-based manual operation.
+
+CLI is the primary Cruster interface. Running `cruster` without a command is treated as `cruster cli`: it prints CLI help and reports that a CLI subcommand is required. Use `cruster cli <COMMAND>` to work with a project, or select another mode explicitly.
+
+On the first operational launch, Cruster creates its default configuration and uses the project named `default`, stored in `~/.cruster/default`. An explicit `--project` option or a configured project path overrides it.
 
 To use this proxy with browser you must import CA certificate of proxy (stored by default in `~/.cruster/cruster.cer`) into browser manually.
 
@@ -42,9 +49,10 @@ $ cruster help
 Usage: cruster [OPTIONS] [COMMAND]
 
 Commands:
-  interactive  Default interactive Cruster mode. This mode will be used if none is specified
   dump         Enable non-interactive dumping mode: all communications will be shown in terminal output
   cli          Cruster Command Line Interface
+  mcp          Run the Cruster Model Context Protocol server over stdio
+  interactive  Run the interactive Cruster text interface
   help         Print this message or the help of the given subcommand(s)
 
 Options:
@@ -63,57 +71,6 @@ Options:
 ```
 
 Cruster has several commands (`interactive`, `dump`, etc.) and options. Options used after executable name (i.e. `cruster -p 8082`) are global and also can be managed with config. Options used after commands are command-specific. You always can call `help` or `-h` to learn details.
-
-### Text User Interface
-
-You can find more details at [TUI.md](https://github.com/sinKettu/cruster/blob/master/docs/TUI.md)
-
-To run TUI use
-
-``` shell
-cruster
-```
-
-or
-
-``` shell
-cruster interactive
-```
-
-Interactive mode is fully controlled by global Cruster cmd-options or config.
-
-You will be provided with interactive interface inside your terminal, which you can control with keyboard (and mouse, sometimes).
-
-> This type of interface will be developing longer than others, since it requires more efforts.
-
-#### Navigation on text user interface
-
-``` text
-? - Show this help view
-<Enter> - 
-    <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
-    <On Filter View> - Apply written filter
-    <On Repeater View> - Apply edited request / Send
-<Esc> - Close secondary view (i.e. help, errors, etc.)
-<Shift> + r - Repeat request selected on table
-<Shift> + s - Store proxy data on drive, file path is configured on start
-<Shift> + f - Set filter for table
-e - Show error logs view
-f - 
-    <On FullScreen Request/Response> - Copy request and response content to clipboard
-i - 
-    <On Repeater View> - Edit request
-p - 
-    <On Repeater View> - Show parameters
-r - 
-    <On Proxy Table> - Show active repeaters
-    <On FullScreen Request/Response> - Copy request content to clipboard
-s - 
-    <On FullScreen Request/Response> - Copy response content to clipboard
-t - Show fullscreen HTTP proxy table
-q - Quit
-
-```
 
 ### Dump mode
 
@@ -188,6 +145,62 @@ $ cruster cli http show 2
 
 > Probably, in future all new features will be developing for CLI firstly and then for TUI
 
+### MCP server
+
+Cruster can expose a persisted project to an MCP-compatible AI agent over stdio:
+
+```shell
+cruster --project my-project --audit-config rules/audit.yaml mcp
+```
+
+The default MCP mode permits project/history inspection and passive Python audits. Network requests and active rules are denied unless the server is deliberately started with `mcp --allow-dangerous-tools`.
+
+See [MCP.md](docs/MCP.md) for client configuration, available tools, contracts, limits, and the security model.
+
+### Interactive text interface
+
+You can find more details at [TUI.md](https://github.com/sinKettu/cruster/blob/master/docs/TUI.md).
+
+To run the TUI, use:
+
+```shell
+cruster interactive
+```
+
+Interactive mode must be selected explicitly with `cruster interactive` (or its `cruster i` alias).
+
+Interactive mode is controlled by global Cruster command-line options or configuration. It provides a terminal interface that can be controlled with the keyboard and, in some places, the mouse.
+
+> This type of interface will be developing longer than others, since it requires more efforts.
+
+#### Navigation on the text user interface
+
+```text
+? - Show this help view
+<Enter> -
+    <On Proxy Table> - Show interactive fullscreen view for selected request and response contents
+    <On Filter View> - Apply written filter
+    <On Repeater View> - Apply edited request / Send
+<Esc> - Close secondary view (i.e. help, errors, etc.)
+<Shift> + r - Repeat request selected on table
+<Shift> + s - Store proxy data on drive, file path is configured on start
+<Shift> + f - Set filter for table
+e - Show error logs view
+f -
+    <On FullScreen Request/Response> - Copy request and response content to clipboard
+i -
+    <On Repeater View> - Edit request
+p -
+    <On Repeater View> - Show parameters
+r -
+    <On Proxy Table> - Show active repeaters
+    <On FullScreen Request/Response> - Copy request content to clipboard
+s -
+    <On FullScreen Request/Response> - Copy response content to clipboard
+t - Show fullscreen HTTP proxy table
+q - Quit
+```
+
 ## Features and Compilation
 
 Cruster contains the following features (in terms of Rust):
@@ -218,7 +231,7 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.2"
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.2"
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
@@ -232,7 +245,7 @@ If, for some reason, you do not want to use `rcgen` to handle certificates, you 
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.2" --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.2" --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -240,7 +253,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.2" --no-defa
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.7.2" --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.2" --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## With Docker

@@ -1,5 +1,6 @@
 pub(crate) mod serializable;
 
+use std::sync::Arc;
 use std::{fs::File, cmp::max};
 use std::collections::HashMap;
 use std::time;
@@ -357,4 +358,10 @@ impl HTTPStorage {
 
     //     return (min, max);
     // }
+}
+
+impl Into<Vec<Arc<RequestResponsePair>>> for HTTPStorage {
+    fn into(self) -> Vec<Arc<RequestResponsePair>> {
+        self.storage.into_iter().map(|item| { Arc::new(item) }).collect()
+    }
 }

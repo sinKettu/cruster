@@ -1,0 +1,75 @@
+metadata:
+  about: Example of rule to detect SQL Injection. It looks for SQLi in DVNA A1 task.
+  authors:
+    - sinKettu<avangard.jazz@gmail.com>
+  name: 'DVNA A1: SQL Injection'
+  references: 
+    - https://www.owasp.org/index.php/Testing_for_SQL_Injection_(OTG-INPVAL-005)
+    - https://github.com/appsecco/dvna
+  tags:
+    - example
+    - dvna
+    - sqli
+severity: high
+id: dvna-a1-sqli
+rule:
+  http:
+    active:
+      watch:
+        - id: body_form
+          part: body
+          pattern: '=(?P<form_value>[^=&$]+)(&|$)'
+      change:
+        - id: add_sqli_to_body
+          changes:
+            - modify:
+                placement: after
+                watch_id: body_form.form_value
+                values:
+                  - "' OR '1'='1"
+      send:
+        - id: check_sqli_in_body
+          apply: add_sqli_to_body
+          max_redirects: 1
+      find:
+        # if ( initial_status == received_status AND received_body.len() > initial_response_body.len() )
+        - id: sql_injection_in_body
+          exec:
+            - operation: equal
+              name: status_comparison
+              args:
+                - type: reference
+                  value: initial.response.status
+                - type: reference
+                  value: check_sqli_in_body.response.status
+            - operation: len
+              name: init_body_length
+              args:
+                - type: reference
+                  value: initial.response.body
+            - operation: len
+              name: received_body_length
+              args:
+                - type: reference
+                  value: check_sqli_in_body.response.body
+            - operation: '>='
+              name: compare_bodies
+              args:
+                - type: variable
+                  value: received_body_length
+                - type: variable
+                  value: init_body_length
+            - operation: and
+              name: last_condition
+              args:
+                - type: variable
+                  value: status_comparison
+                - type: variable
+                  value: compare_bodies
+      get:
+        - from: check_sqli_in_body
+          if_succeed: sql_injection_in_body
+          pattern: .*HTTP/\d(\.\d)* (?P<status>\d\d\d \w+).*
+          extract:
+            response:
+              group: status

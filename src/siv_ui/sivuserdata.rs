@@ -2,7 +2,7 @@ use std::fs;
 use regex::Regex;
 use serde_json as json;
 use std::collections::HashMap;
-use crossbeam_channel::Receiver;
+use crossbeam::channel::Receiver;
 use std::io::{Write, BufReader, BufRead};
 use cursive::{views::TextContent, Cursive};
 

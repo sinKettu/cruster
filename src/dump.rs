@@ -2,7 +2,7 @@ use bstr::ByteSlice;
 use std::borrow::Cow;
 use std::time;
 use colored::Colorize;
-use crossbeam_channel::Receiver;
+use crossbeam::channel::Receiver;
 use hudsucker::WebSocketContext;
 
 use crate::{

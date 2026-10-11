@@ -1,0 +1,109 @@
+# Config example will be here
+# Config example will be here
+metadata:
+  authors:
+    - sinKettu<avangard.jazz@gmail.com>
+  name: Dummy SQLI
+  references: []
+  tags:
+    - test
+    - sqli
+severity: high
+id: dummy-sqli-test-new
+rule:
+  http:
+    active:
+      watch:
+        - id: query-watch
+          part: path
+          # Regex for query values
+          pattern: '=(?P<qv>[^=&$]+)(&|$)'
+        - id: body-watch
+          part: body
+          pattern: '=(?P<bv>[^=&$]+)(&|$)'
+      change:
+        - placement: after
+          id: query-change
+          watch_id: query-watch.qv
+          values:
+            - test\' OR \'1\'=\'1\'
+        - placement: after
+          watch_id: body-watch.bv
+          values:
+            - "test' OR '1'='1'"
+      send:
+        - id: check-sqli-in-query
+          apply: query-change
+          max_redirects: 0
+          repeat: 0
+          timeout_after: 0
+        - id: check-sqli-in-body
+          apply: 1
+          repeat: 0
+          max_redirects: 0
+          timeout_after: 0
+      find:
+        - id: sqli-in-query-1
+          exec:
+            - name: init_body_length
+              operation: len
+              args:
+                - type: reference
+                  value: 0.response.body
+            - name: received_body_length
+              operation: len
+              args:
+                - type: reference
+                  value: check-sqli-in-query.response.body
+            - name: comparison
+              operation: greater
+              args:
+                - type: variable
+                  value: received_body_length
+                - type: variable
+                  value: init_body_length
+        - id: sqli-in-query-2
+          exec:
+            - name: init_body_length
+              operation: len
+              args:
+                - type: reference
+                  value: 0.response.body
+            - name: received_body_length
+              operation: len
+              args:
+                - type: reference
+                  value: check-sqli-in-query.response.body
+            - name: comparison
+              operation: "="
+              args:
+                - type: variable
+                  value: received_body_length
+                - type: variable
+                  value: init_body_length
+        - id: sqli-in-query-3
+          exec:
+            - name: init_body_length
+              operation: len
+              args:
+                - type: reference
+                  value: 0.response.body
+            - name: received_body_length
+              operation: len
+              args:
+                - type: reference
+                  value: check-sqli-in-query.response.body
+            - name: comparison
+              operation: less
+              args:
+                - type: variable
+                  value: received_body_length
+                - type: variable
+                  value: init_body_length
+      get:
+        - from: check-sqli-in-query
+          if_succeed: sqli-in-query-2
+          pattern: abc=(?P<test>[a-z]+)
+          extract:
+            request:
+              group: test

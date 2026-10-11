@@ -1,0 +1,119 @@
+metadata:
+  about: Example of rule to detect Stored XSS.
+  authors:
+    - sinKettu<avangard.jazz@gmail.com>
+  name: 'DVNA A3: Stored XSS'
+  references: 
+    - https://www.owasp.org/index.php/Cross-site_Scripting_(XSS)
+    - https://www.owasp.org/index.php/OWASP_Testing_Guide_v4_Table_of_Contents
+    - https://github.com/appsecco/dvna
+  tags:
+    - example
+    - dvna
+    - xss
+    - stored_xss
+severity: medium
+id: dvna-a3-stored-xss
+rule:
+  http:
+    active:
+      watch:
+        - id: body-name-param
+          part: body
+          pattern: 'name=(?P<bv>[^=&$]+)(&|$)'
+        - id: query-name-param
+          part: path
+          pattern: 'name=(?P<qv>[^=&$]+)(&|$)'
+        - id: for-checking-1
+          part: path
+          pattern: .*
+        - id: for-checking-2
+          part: method
+          pattern: .*
+      change:
+        - id: add_xss_to_body
+          changes:
+            - modify:
+                placement: after
+                watch_id: body-name-param.bv
+                values:
+                  - "<script>alert('cruster-dvna-a3-stored-xss')</script>"
+                  - "cruster<script>alert('cruster-dvna-a3-stored-xss')</script>"
+        - id: add_xss_to_query
+          changes:
+            - modify:
+                placement: after
+                watch_id: query-name-param.qv
+                values:
+                  - "<script>alert('cruster-dvna-a3-sctored-xss')</script>"
+                  - "cruster<script>alert('cruster-dvna-a3-sctored-xss')</script>"
+        # The action replaces initial request's path and method, so cruster will send a very new request
+        # It is needed to check stored XSS on other page
+        - id: check_xss
+          changes:
+            - modify:
+                placement: replace
+                watch_id: for-checking-1
+                values:
+                  - /app/products
+            - modify:
+                placement: replace
+                watch_id: for-checking-2
+                values:
+                  - GET
+      send:
+        - id: check_xss_in_body
+          apply: add_xss_to_body
+          max_redirects: 2
+        - id: check_xss_in_query
+          apply: add_xss_to_query
+          max_redirects: 2
+        - id: check_xss
+          apply: check_xss
+          max_redirects: 2
+      find:
+        # if regex.match("<script>alert('XSS found in request query with Cruster')</script>", check_xss_in_body.response.body)
+        - id: xss_via_body_parameter_name
+          exec:
+            # this is needed to exclude results for unsent requests or include request with payload to results
+            - operation: len
+              name: body_len
+              args:
+                - type: reference
+                  value: check_xss_in_body.response.body
+            - operation: rematch
+              name: match_script
+              args:
+                - type: string
+                  value: "<script>alert\\('cruster-.*'\\)</script>"
+                - type: reference
+                  value: check_xss.response.body
+        # if regex.match("<script>alert('XSS found in request query with Cruster')</script>", check_xss_in_query.response.body)
+        - id: xss_via_query_parameter_name
+          exec:
+            # this is needed to exclude results for unsent requests or include request with payload to results
+            - operation: len
+              name: body_len
+              args:
+                - type: reference
+                  value: check_xss_in_query.response.body
+            - operation: rematch
+              name: match_script
+              args:
+                - type: string
+                  value: "<script>alert\\('cruster-.*'\\)</script>"
+                - type: reference
+                  value: check_xss.response.body
+      get:
+        - from: check_xss
+          if_succeed: xss_via_body_parameter_name
+          pattern: (?P<param><script>alert\('cruster-.*\)</script>)
+          extract:
+            response:
+              group: param
+        - from: check_xss
+          if_succeed: xss_via_query_parameter_name
+          pattern: (?P<param><script>alert\('cruster-.*\)</script>)
+          extract:
+            request:
+              group: param

@@ -1,14 +1,9 @@
-FROM ubuntu:22.04
-
-RUN mkdir /opt/cruster \
-    && useradd -u 4242 --shell /bin/bash --home /opt/cruster cruster \
-    && chown -R cruster /opt/cruster \
-    && chmod u+rwx /opt/cruster
+FROM ubuntu:22.04 as build
 
 # For ncurses
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-        locales=2.35-0ubuntu3.1 \
+        locales \
     && locale-gen en_US.UTF-8
 
 ENV LANG=en_US.UTF-8
@@ -29,11 +24,9 @@ RUN apt-get install --no-install-recommends -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /opt/cruster
+WORKDIR /root
 
-USER cruster
-
-ENV PATH="/opt/cruster/.cargo/bin:$PATH"
+ENV PATH="/root/.cargo/bin:$PATH"
 
 RUN curl --proto '=https' --tlsv1.2 -sSf -o rustup.sh https://sh.rustup.rs \
     && sh rustup.sh -y \
@@ -43,17 +36,44 @@ COPY src cruster-src/src
 COPY Cargo.toml cruster-src/
 COPY Cargo.lock cruster-src/
 
-RUN cargo install \
-    --path ./cruster-src \
-    --no-default-features \
-    --features openssl-ca,ncurses
+RUN cd cruster-src \
+    && cargo build --release \
+    && cp target/release/cruster /cruster
 
-USER root
 
-RUN rm -rf /opt/cruster/.rustup \
-    && rm -rf /opt/cruster/.cargo/registry \
-    && rm -rf /opt/cruster/cruster-src
+
+FROM ubuntu:22.04
+
+# For ncurses
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        locales \
+    && locale-gen en_US.UTF-8
+
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US.UTF-8
+ENV NCURSES_NO_UTF8_ACS=1
+
+RUN apt-get install --no-install-recommends -y \
+        ca-certificates \
+        libssl-dev \
+        libncursesw5-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*    
+
+RUN mkdir /opt/cruster \
+    && useradd -u 4242 --shell /bin/bash --home /opt/cruster cruster \
+    && chmod u+rwx /opt/cruster
+
+COPY --from=build /cruster /opt/cruster/cruster
+
+RUN chown -R cruster /opt/cruster \
+    && chmod +x /opt/cruster/cruster
 
 USER cruster
 
-ENTRYPOINT [ "cruster" ]
+WORKDIR /opt/cruster
+
+ENTRYPOINT [ "/opt/cruster/cruster" ]
+
+CMD [ "help" ]

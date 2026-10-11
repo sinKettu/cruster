@@ -4,6 +4,8 @@ use serde_json as json;
 use serde::{Serialize, Deserialize};
 use http::{HeaderMap, header::HeaderName, HeaderValue as HTTPHeaderValue};
 
+// pub(crate) static HEADERS_ENCODINGS: [&str; 2] = ["utf-8", "base64"];
+
 use std::{
     io::{Write, BufReader, BufRead},
     sync::mpsc::Receiver,
@@ -21,42 +23,42 @@ use crate::{
     scope
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Header {
-    key: String,
-    encoding: String,
-    value: String
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub(crate) struct Header {
+    pub(crate) key: String,
+    pub(crate) encoding: String,
+    pub(crate) value: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct SerializableHTTPRequest {
-    method: String,
-    scheme: String,
-    host: String,
-    path: String,
-    query: Option<String>,
-    version: String,
-    headers: Vec<Header>,
-    body: Option<String>
+pub(crate) struct SerializableHTTPRequest {
+    pub(crate) method: String,
+    pub(crate) scheme: String,
+    pub(crate) host: String,
+    pub(crate) path: String,
+    pub(crate) query: Option<String>,
+    pub(crate) version: String,
+    pub(crate) headers: Vec<Header>,
+    pub(crate) body: Option<String>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct SerializableHTTPResponse {
-    status: String,
-    version: String,
-    headers: Vec<Header>,
-    body: Option<String>
+pub(crate) struct SerializableHTTPResponse {
+    pub(crate) status: String,
+    pub(crate) version: String,
+    pub(crate) headers: Vec<Header>,
+    pub(crate) body: Option<String>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct SerializableProxyData {
-    index: usize,
-    request: SerializableHTTPRequest,
-    response: Option<SerializableHTTPResponse>
+    pub(crate) index: usize,
+    pub(crate) request: SerializableHTTPRequest,
+    pub(crate) response: Option<SerializableHTTPResponse>
 }
 
 impl SerializableHTTPRequest {
-    fn get_uri(&self) -> String {
+    pub(crate) fn get_uri(&self) -> String {
         match &self.query {
             Some(query) => {
                 format!("{}{}{}{}", &self.scheme, &self.host, &self.path, query)

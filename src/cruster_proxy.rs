@@ -24,7 +24,7 @@ use std::{
 
 use std::time::SystemTime;
 use cursive::{Cursive, CbSink};
-use crossbeam_channel::Sender as CrossbeamSender;
+use crossbeam::channel::Sender as CrossbeamSender;
 
 use crate::CrusterError;
 use super::siv_ui::put_proxy_data_to_storage;
