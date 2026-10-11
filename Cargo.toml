@@ -46,6 +46,8 @@ base64 = "0.13.1"
 rcgen = { version = "0.10.0", features = ["x509-parser", "pem"]}
 crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
 num_cpus = "1.16.0"
+rustpython = { version = "0.3.1", default-features = false, features = ["stdlib", "zlib"] }
+rustpython-vm = "0.3.1"
 
 [features]
 crossterm = ["cursive/crossterm-backend"]

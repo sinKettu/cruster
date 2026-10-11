@@ -6,6 +6,7 @@ use super::AuditError;
 use super::Rule;
 use super::RuleByProtocal;
 use super::RuleType;
+use super::{AuditRule, python::{PythonRule, PythonRuleType}};
 use crate::config::AuditConfig;
 
 use log::debug;
@@ -128,6 +129,23 @@ impl AuditConfig {
 
         return false;
     }
+
+    fn excludes_python_rule(&self, rule: &PythonRule) -> bool {
+        match rule.rule_type() {
+            PythonRuleType::Active if !self.active => return true,
+            PythonRuleType::Passive if !self.passive => return true,
+            _ => {}
+        }
+        if let Some(include) = self.include.as_ref() {
+            if !include.ids.is_empty() && !include.ids.iter().any(|id| id == rule.get_id()) { return true; }
+            if !include.tags.is_empty() && !include.tags.iter().any(|tag| rule.tags().contains(tag)) { return true; }
+        }
+        if let Some(exclude) = self.exclude.as_ref() {
+            if exclude.ids.iter().any(|id| id == rule.get_id()) { return true; }
+            if exclude.tags.iter().any(|tag| rule.tags().contains(tag)) { return true; }
+        }
+        false
+    }
 }
 
 fn recursively_walk_dir(dir_path: &std::path::Path, base_dir: String) -> Vec<String> {
@@ -146,7 +164,7 @@ fn recursively_walk_dir(dir_path: &std::path::Path, base_dir: String) -> Vec<Str
                     let os_file_name = entry.file_name();
                     let fln = os_file_name.to_string_lossy();
 
-                    if fln.ends_with(".yaml") || fln.ends_with(".yml") {
+                    if fln.ends_with(".yaml") || fln.ends_with(".yml") || fln.ends_with(".py") {
                         result.push(format!("{}/{}", base_dir, fln.clone()));
                     }
                 } else if entry.path().is_dir() {
@@ -182,7 +200,7 @@ pub(crate) fn compose_files_list_by_config(audit_conf: &AuditConfig) -> Result<V
         }
 
         if rule_path.is_file() {
-            if raw_rule_path.ends_with(".yaml") || raw_rule_path.ends_with(".yml") {
+            if raw_rule_path.ends_with(".yaml") || raw_rule_path.ends_with(".yml") || raw_rule_path.ends_with(".py") {
                 result.push(raw_rule_path.clone());
             }
         } else if rule_path.is_dir() {
@@ -196,11 +214,11 @@ pub(crate) fn compose_files_list_by_config(audit_conf: &AuditConfig) -> Result<V
     Ok(result)
 }
 
-pub(crate) fn load_rules(audit_conf: &AuditConfig) -> Result<Vec<Arc<Rule>>, AuditError> {
+pub(crate) fn load_rules(audit_conf: &AuditConfig) -> Result<Vec<Arc<AuditRule>>, AuditError> {
     let rules_paths = compose_files_list_by_config(audit_conf)?;
     let inc_paths = audit_conf.get_include_paths_re()?;
     let exc_paths = audit_conf.get_exclude_paths_re()?;
-    let mut result: Vec<Arc<Rule>> = vec![];
+    let mut result: Vec<Arc<AuditRule>> = vec![];
 
     for path in rules_paths.iter() {
         debug!("Loading rule - {}", path);
@@ -209,25 +227,28 @@ pub(crate) fn load_rules(audit_conf: &AuditConfig) -> Result<Vec<Arc<Rule>>, Aud
             let any_re = inc_re.iter().any(|re| { re.is_match(path) });
             if !any_re {
                 debug!("Rule excluded because was not found in include paths list");
+                continue;
             }
         }
 
         if let Some(exc_re) = exc_paths.as_ref() {
-            for re in exc_re {
-                if re.is_match(&path) {
-                    debug!("Rule excluded by path regex: {}", re.as_str());
-                    continue;
-                }
+            if let Some(re) = exc_re.iter().find(|re| re.is_match(path)) {
+                debug!("Rule excluded by path regex: {}", re.as_str());
+                continue;
             }
         }
 
-        let rule = Rule::from_file(path)?;
-
-        if audit_conf.excludes_rule(&rule) {
-            continue;
+        if path.ends_with(".py") {
+            let rule = PythonRule::from_file(path)?;
+            if !audit_conf.excludes_python_rule(&rule) {
+                result.push(Arc::new(AuditRule::Python(rule)));
+            }
+        } else {
+            let rule = Rule::from_file(path)?;
+            if !audit_conf.excludes_rule(&rule) {
+                result.push(Arc::new(AuditRule::Yaml(rule)));
+            }
         }
-
-        result.push(Arc::new(rule));
     }
 
     return Ok(result);

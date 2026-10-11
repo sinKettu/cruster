@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crossbeam::channel::TryRecvError;
 use num_cpus;
 
-use crate::{audit::{execution::{spawn_threads, MainToWorkerCmd, WorkerToMainMsg}, load_rule::compose_files_list_by_config, result::syntax_string, Rule, RuleFinalState}, cli::CrusterCLIError, config::AuditConfig, http_storage::RequestResponsePair};
+use crate::{audit::{execution::{spawn_threads, MainToWorkerCmd, WorkerToMainMsg}, load_rule, result::syntax_string, RuleFinalState}, cli::CrusterCLIError, config::AuditConfig, http_storage::RequestResponsePair};
 
 
 pub(crate) async fn exec(_arg: &str, http_data_path: &str, aconf: &AuditConfig) -> Result<(), CrusterCLIError> {
@@ -22,15 +22,8 @@ pub(crate) async fn exec(_arg: &str, http_data_path: &str, aconf: &AuditConfig) 
 
     let (tx, rx) = spawn_threads(tasks).await;
 
-    let rule_files = compose_files_list_by_config(&aconf)?;
-    let mut rules: Vec<Arc<Rule>> = Vec::with_capacity(rule_files.len());
+    let rules = load_rule::load_rules(aconf)?;
     let pairs: Vec<Arc<RequestResponsePair>> = storage.into();
-
-    for file_name in rule_files.iter() {
-        let mut rule = Rule::from_file(&file_name)?;
-        rule.check_up()?;
-        rules.push(Arc::new(rule));
-    }
     for rule in rules.iter() {
         for pair in pairs.iter() {
             tx.send(MainToWorkerCmd::Scan((rule.clone(), pair.clone())))?;

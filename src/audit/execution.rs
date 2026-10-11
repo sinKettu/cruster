@@ -6,7 +6,7 @@ use tokio;
 
 use super::contexts::traits::PassiveRuleExecutionContext;
 use super::contexts::PassiveRuleContext;
-use super::{AuditError, Rule, RuleByProtocal, RuleFinalState, RuleType};
+use super::{AuditError, AuditRule, Rule, RuleByProtocal, RuleFinalState, RuleType};
 use crate::audit::contexts::traits::{ActiveRuleExecutionContext, BasicContext, WithChangeAction, WithFindAction};
 use crate::audit::contexts::ActiveRuleContext;
 use crate::http_storage::RequestResponsePair;
@@ -174,7 +174,7 @@ impl Rule {
 
 
 pub(crate) enum MainToWorkerCmd {
-    Scan((Arc<Rule>, Arc<RequestResponsePair>)),
+    Scan((Arc<AuditRule>, Arc<RequestResponsePair>)),
     Stop,
 }
 

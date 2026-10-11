@@ -5,6 +5,7 @@ pub(crate) mod rules;
 pub(crate) mod contexts;
 pub(crate) mod types;
 pub(crate) mod result;
+pub(crate) mod python;
 pub(crate) 
 
 use std::{collections::HashMap, fmt::{Debug, Display}, str::FromStr};
@@ -19,6 +20,28 @@ use actions::{
 };
 
 use self::{rules::{active::ActiveRule, passive::PassiveRule}, types::SerializableSendResultEntry};
+
+#[derive(Debug, Clone)]
+pub(crate) enum AuditRule {
+    Yaml(Rule),
+    Python(python::PythonRule),
+}
+
+impl AuditRule {
+    pub(crate) fn get_id(&self) -> &str {
+        match self {
+            Self::Yaml(rule) => rule.get_id(),
+            Self::Python(rule) => rule.get_id(),
+        }
+    }
+
+    pub(crate) async fn execute(&self, pair: std::sync::Arc<crate::http_storage::RequestResponsePair>) -> RuleFinalState {
+        match self {
+            Self::Yaml(rule) => rule.execute(pair).await,
+            Self::Python(rule) => rule.execute(pair).await,
+        }
+    }
+}
 
 pub(crate) struct AuditError(String);
 

@@ -4,7 +4,7 @@ use clap::ArgMatches;
 use log::{debug, LevelFilter};
 use log4rs::{self, config::{Appender, Logger, Root}, encode::pattern::PatternEncoder};
 
-use crate::{audit::Rule, cli::CrusterCLIError};
+use crate::{audit::{AuditRule, Rule, python::PythonRule}, cli::CrusterCLIError};
 
 
 pub(crate) struct DebugRuleConfig {
@@ -37,7 +37,11 @@ impl TryFrom<&ArgMatches> for DebugRuleConfig {
 }
 
 pub(crate) async fn exec(conf: &DebugRuleConfig, http_data_path: &str) -> Result<(), CrusterCLIError> {
-    let rule = Rule::from_file(&conf.pth)?;
+    let rule = if conf.pth.ends_with(".py") {
+        AuditRule::Python(PythonRule::from_file(&conf.pth)?)
+    } else {
+        AuditRule::Yaml(Rule::from_file(&conf.pth)?)
+    };
     let mut storage = crate::http_storage::HTTPStorage::default();
     storage.load(http_data_path)?;
 
