@@ -10,6 +10,6 @@ Return a list created with `finding(name, extracted=[], exchanges=[])`. Returnin
 
 Active rules additionally call `send(request, max_redirects=5)`. This native bridge validates the modified request in Rust, sends it with Cruster's HTTP sender, and returns an `HttpResponse`. Evidence can be attached with `exchange(request, response, payloads=[])`.
 
-Rules are discovered recursively from configured rule paths alongside legacy YAML rules. Include/exclude IDs, tags, paths, and active/passive switches apply to both formats.
+Rules are discovered recursively from configured rule paths. Include/exclude IDs, tags, paths, and active/passive switches apply to Python rules. YAML rules and their implementation remain part of the project, but their execution is temporarily disabled while the YAML rule design is being reconsidered: the loader prints a warning and skips them, while direct execution is guarded by an explicit `todo!()`.
 
 The embedded interpreter is an extension boundary, not a security sandbox. Only load trusted rules. Active rules perform real network requests and must be enabled explicitly.

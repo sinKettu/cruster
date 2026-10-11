@@ -1,7 +1,6 @@
 active: true
 passive: false
 rules:
-  - rules/http
   - rules/python
 include: null
 exclude:

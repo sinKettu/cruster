@@ -4,7 +4,7 @@ use clap::ArgMatches;
 use log::{debug, LevelFilter};
 use log4rs::{self, config::{Appender, Logger, Root}, encode::pattern::PatternEncoder};
 
-use crate::{audit::{AuditRule, Rule, python::PythonRule}, cli::CrusterCLIError};
+use crate::{audit::{AuditRule, python::PythonRule}, cli::CrusterCLIError};
 
 
 pub(crate) struct DebugRuleConfig {
@@ -37,11 +37,16 @@ impl TryFrom<&ArgMatches> for DebugRuleConfig {
 }
 
 pub(crate) async fn exec(conf: &DebugRuleConfig, http_data_path: &str) -> Result<(), CrusterCLIError> {
-    let rule = if conf.pth.ends_with(".py") {
-        AuditRule::Python(PythonRule::from_file(&conf.pth)?)
-    } else {
-        AuditRule::Yaml(Rule::from_file(&conf.pth)?)
-    };
+    if !conf.pth.ends_with(".py") {
+        eprintln!(
+            "Warning: YAML audit rule '{}' is temporarily disabled while its design is being reconsidered",
+            conf.pth
+        );
+        return Err(CrusterCLIError::from(
+            "YAML audit rules are temporarily unavailable in this version",
+        ));
+    }
+    let rule = AuditRule::Python(PythonRule::from_file(&conf.pth)?);
     let mut storage = crate::http_storage::HTTPStorage::default();
     storage.load(http_data_path)?;
 

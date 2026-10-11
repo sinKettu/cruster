@@ -238,16 +238,17 @@ pub(crate) fn load_rules(audit_conf: &AuditConfig) -> Result<Vec<Arc<AuditRule>>
             }
         }
 
-        if path.ends_with(".py") {
-            let rule = PythonRule::from_file(path)?;
-            if !audit_conf.excludes_python_rule(&rule) {
-                result.push(Arc::new(AuditRule::Python(rule)));
-            }
-        } else {
-            let rule = Rule::from_file(path)?;
-            if !audit_conf.excludes_rule(&rule) {
-                result.push(Arc::new(AuditRule::Yaml(rule)));
-            }
+        if !path.ends_with(".py") {
+            eprintln!(
+                "Warning: YAML audit rule '{}' is temporarily disabled and will not be loaded while its design is being reconsidered",
+                path
+            );
+            continue;
+        }
+
+        let rule = PythonRule::from_file(path)?;
+        if !audit_conf.excludes_python_rule(&rule) {
+            result.push(Arc::new(AuditRule::Python(rule)));
         }
     }
 
