@@ -1,6 +1,6 @@
 [package]
 name = "cruster"
-version = "0.8.2"
+version = "0.8.3"
 edition = "2021"
 authors = ["Andrey Ivanov"]
 description = "Something between MitMProxy, Burp Suite/ZAP and Nuclei"
@@ -12,7 +12,7 @@ description = "Something between MitMProxy, Burp Suite/ZAP and Nuclei"
 async-trait = "0.1.7"
 regex = "1.6.0"
 rustls = "0.20.8"
-reqwest = { version = "0.11.14", default_features = false, features = ["rustls-tls-native-roots", "gzip", "brotli", "deflate", "multipart", "stream"]}
+reqwest = { version = "0.11.14", default-features = false, features = ["rustls-tls-native-roots", "gzip", "brotli", "deflate", "multipart", "stream"]}
 hyper = { version = "0.14.7", features = ["http1", "http2", "client"] }
 hyper-rustls = { version = "0.23.2", features = ["webpki-roots", "http2", "http1"]}
 # reqwest = { version = "0.11.13", features = ["blocking"] }

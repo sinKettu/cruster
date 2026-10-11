@@ -96,7 +96,7 @@ impl HyperRequestWrapper {
             hyper::Version::HTTP_09 => "HTTP/0.1".to_string(),
             hyper::Version::HTTP_10 => "HTTP/1.0".to_string(),
             hyper::Version::HTTP_2 => "HTTP/2".to_string(),
-            hyper::Version::HTTP_3 => "HTTP/2".to_string(),
+            hyper::Version::HTTP_3 => "HTTP/3".to_string(),
             _ => "HTTP/UNKNOWN".to_string()
         };
 
@@ -129,7 +129,7 @@ impl HyperRequestWrapper {
             reqwest::Version::HTTP_09 => "HTTP/0.1".to_string(),
             reqwest::Version::HTTP_10 => "HTTP/1.0".to_string(),
             reqwest::Version::HTTP_2 => "HTTP/2".to_string(),
-            reqwest::Version::HTTP_3 => "HTTP/2".to_string(),
+            reqwest::Version::HTTP_3 => "HTTP/3".to_string(),
             _ => "HTTP/UNKNOWN".to_string()
         };
 
@@ -342,7 +342,7 @@ impl HyperResponseWrapper {
             hyper::Version::HTTP_09 => "HTTP/0.1".to_string(),
             hyper::Version::HTTP_10 => "HTTP/1.0".to_string(),
             hyper::Version::HTTP_2 => "HTTP/2".to_string(),
-            hyper::Version::HTTP_3 => "HTTP/2".to_string(),
+            hyper::Version::HTTP_3 => "HTTP/3".to_string(),
             _ => "HTTP/UNKNOWN".to_string() // TODO: Think once more
         };
 
@@ -389,7 +389,7 @@ impl HyperResponseWrapper {
             reqwest::Version::HTTP_09 => "HTTP/0.1".to_string(),
             reqwest::Version::HTTP_10 => "HTTP/1.0".to_string(),
             reqwest::Version::HTTP_2 => "HTTP/2".to_string(),
-            reqwest::Version::HTTP_3 => "HTTP/2".to_string(),
+            reqwest::Version::HTTP_3 => "HTTP/3".to_string(),
             _ => "HTTP/UNKNOWN".to_string() // TODO: Think once more
         };
 

@@ -51,7 +51,7 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config, mut audi
 
             match subcommands.subcommand() {
                 Some(("show", args)) => {
-                    let str_range = args.get_one::<String>("INDEX").unwrap();
+                    let str_range = args.get_one::<String>("INDEX").expect("INDEX has a default value");
                     let range = http::show::parse_range(str_range)?;
                     let settings = http::show::parse_settings(args)?;
 

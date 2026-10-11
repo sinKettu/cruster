@@ -114,4 +114,4 @@ If a result exceeds the configured limit, request fewer records or omit bodies.
 
 ## Current scope
 
-Version 0.8.2 provides persisted-project inspection, Python audit execution, and request replay. MCP does not yet control the lifetime of an already running interactive proxy, mutate captured history, or expose arbitrary file/shell operations.
+Version 0.8.3 provides persisted-project inspection, Python audit execution, and request replay. MCP does not yet control the lifetime of an already running interactive proxy, mutate captured history, or expose arbitrary file/shell operations.

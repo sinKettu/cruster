@@ -28,7 +28,7 @@ pub(crate) fn execute(repeater_state_path: &str) -> Result<(), CrusterCLIError> 
         );
     }
 
-    let repeater_iter = RepeaterIterator::new(repeater_state_path);
+    let repeater_iter = RepeaterIterator::new(repeater_state_path)?;
     for (i, repeater) in repeater_iter.enumerate() {
         print_repeater_state(&repeater, i);
     }
