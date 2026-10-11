@@ -175,7 +175,7 @@ fn parse_cmd() -> clap::ArgMatches {
     let audit_conf_help = "Path to audit config with YAML format";
 
     let matches = clap::Command::new("cruster")
-        .version("0.8.0")
+        .version("0.8.1")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
         .subcommand(
