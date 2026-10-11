@@ -1,15 +1,96 @@
-use std::str::FromStr;
+use std::{net::{IpAddr, SocketAddr}, str::FromStr};
 
 use http::{HeaderValue, HeaderMap};
 use reqwest::{Request, Response, Client, Method, Url, Version};
 
 use crate::{cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper}, utils::CrusterError};
 
+fn headers_for_version(wrapper: &HyperRequestWrapper, version: Version) -> HeaderMap {
+    let mut headers = wrapper.headers.clone();
+
+    if version == Version::HTTP_2 {
+        // HTTP/2 carries connection state in frames. Forwarding HTTP/1-only
+        // connection headers can make strict servers reset the stream with
+        // PROTOCOL_ERROR. Keep Host: hyper maps it to the HTTP/2 :authority
+        // pseudo-header, which is required for virtual-host security testing.
+        for forbidden in [
+            "connection",
+            "keep-alive",
+            "proxy-connection",
+            "transfer-encoding",
+            "upgrade",
+            // Its value has already been moved into the URL authority by
+            // http2_client_and_url(); do not also encode it as a regular field.
+            "host",
+        ] {
+            headers.remove(forbidden);
+        }
+
+        if headers.get("te").map(|value| value.as_bytes()) != Some(b"trailers") {
+            headers.remove("te");
+        }
+    }
+
+    // Let reqwest/hyper encode the body length. This prevents a stale length
+    // copied from intercepted traffic from disagreeing with the edited body.
+    headers.remove("content-length");
+    headers
+}
+
+async fn http2_client_and_url(
+    wrapper: &HyperRequestWrapper,
+    mut url: Url,
+) -> Result<(Client, Url), CrusterError> {
+    let host_header = match wrapper.headers.get("host") {
+        Some(value) => value.to_str()?.to_string(),
+        None => return Ok((Client::builder().use_rustls_tls().redirect(reqwest::redirect::Policy::none()).build()?, url)),
+    };
+    let authority_url = Url::parse(&format!("{}://{}", url.scheme(), host_header))
+        .map_err(|error| CrusterError::CouldParseRequestPathError(error.to_string()))?;
+    let authority_host = authority_url.host_str()
+        .ok_or_else(|| CrusterError::CouldParseRequestPathError(format!("Invalid Host header: {}", host_header)))?
+        .to_string();
+    let authority_port = authority_url.port();
+
+    let connect_host = url.host_str()
+        .ok_or_else(|| CrusterError::CouldParseRequestPathError("Request URL has no host".to_string()))?
+        .to_string();
+    let connect_port = url.port_or_known_default()
+        .ok_or_else(|| CrusterError::CouldParseRequestPathError("Request URL has no known port".to_string()))?;
+    let connect_addr = if let Ok(ip) = connect_host.parse::<IpAddr>() {
+        SocketAddr::new(ip, connect_port)
+    } else {
+        tokio::net::lookup_host((connect_host.as_str(), connect_port))
+            .await?
+            .next()
+            .ok_or_else(|| CrusterError::UndefinedError(format!("Could not resolve connection target {}", connect_host)))?
+    };
+
+    // For HTTP/2, Host is represented by :authority, not a regular header.
+    // Put the desired virtual host into the URL, while resolve() keeps the TCP
+    // connection pinned to the user-selected repeater address.
+    url.set_host(Some(&authority_host))
+        .map_err(|_| CrusterError::CouldParseRequestPathError(format!("Invalid Host header: {}", host_header)))?;
+    url.set_port(authority_port)
+        .map_err(|_| CrusterError::CouldParseRequestPathError(format!("Invalid Host port: {}", host_header)))?;
+
+    let client = Client::builder()
+        .use_rustls_tls()
+        .redirect(reqwest::redirect::Policy::none())
+        .resolve(&authority_host, connect_addr)
+        .build()?;
+    Ok((client, url))
+}
 
 pub(crate) async fn send_request_from_wrapper(wrapper: &HyperRequestWrapper, max_redirects: usize) -> Result<(HyperResponseWrapper, bool), CrusterError> {
-    let client = Client::new();
+    if wrapper.version == "HTTP/3" || wrapper.version == "HTTP/3.0" {
+        return Err(CrusterError::HTTPBuildingError(
+            "HTTP/3 requests are not supported by the stable client; use HTTP/2 or lower".to_string()
+        ));
+    }
+
     let method = Method::from_str(&wrapper.method)?;
-    let url = match Url::from_str(&wrapper.uri) {
+    let mut url = match Url::from_str(&wrapper.uri) {
         Ok(url) => {
             url
         },
@@ -29,25 +110,27 @@ pub(crate) async fn send_request_from_wrapper(wrapper: &HyperRequestWrapper, max
         Version::HTTP_11
     }
     else if version == "HTTP/2" || version == "HTTP/2.0" {
-        // Crutch!
-        Version::HTTP_11
-        // return Err(
-        //     CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
-        // );
-    }
-    else if version == "HTTP/3" || version == "HTTP/3.0" {
-        // Crutch!
-        Version::HTTP_11
-        // return Err(
-        //     CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
-        // );
+        Version::HTTP_2
     }
     else {
         let err_str = format!("Unknown HTTP version of request in repeater: {}", &version);
         return Err(CrusterError::UndefinedError(err_str));
     };
 
-    let headers = wrapper.headers.clone();
+    let (client, rewritten_url) = if version == Version::HTTP_2 {
+        http2_client_and_url(wrapper, url).await?
+    } else {
+        (
+            Client::builder()
+                .use_rustls_tls()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()?,
+            url,
+        )
+    };
+    url = rewritten_url;
+
+    let headers = headers_for_version(wrapper, version);
     let body = wrapper.body.clone();
 
     let request = client
@@ -57,7 +140,7 @@ pub(crate) async fn send_request_from_wrapper(wrapper: &HyperRequestWrapper, max
         .body(body)
         .build()?;
 
-    let (response, rc_exceeded) = send_reqwest(request, max_redirects).await?;
+    let (response, rc_exceeded) = send_reqwest_with_client(request, max_redirects, &client).await?;
     return Ok(
         (
             HyperResponseWrapper::from_reqwest(response).await?,
@@ -114,6 +197,14 @@ async fn follow_redirect(response: Response, client: &Client, mut redirects_coun
 
 
 pub(crate) async fn send_reqwest(req: Request, max_redirects: usize) -> Result<(Response, bool), CrusterError> {
+    let client = Client::builder()
+        .use_rustls_tls()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    send_reqwest_with_client(req, max_redirects, &client).await
+}
+
+async fn send_reqwest_with_client(req: Request, max_redirects: usize, client: &Client) -> Result<(Response, bool), CrusterError> {
     let cookie = if let Some(cookie) = req.headers().get("cookie") {
         Some(cookie.to_owned())
     }
@@ -121,17 +212,11 @@ pub(crate) async fn send_reqwest(req: Request, max_redirects: usize) -> Result<(
         None
     };
 
-    let client = Client::builder()
-        .use_rustls_tls()
-        .redirect(reqwest::redirect::Policy::none())
-        .http1_only()
-        .build()?;
-
     let response = client.execute(req).await?;
 
     if response.status().is_redirection() && max_redirects > 0 {
         let counter = max_redirects.saturating_sub(1);
-        let (response, rc_exceeded) = follow_redirect(response, &client, counter, cookie.as_ref()).await?;
+        let (response, rc_exceeded) = follow_redirect(response, client, counter, cookie.as_ref()).await?;
         return Ok((response, rc_exceeded));
     }
 

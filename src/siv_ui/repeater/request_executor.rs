@@ -95,8 +95,19 @@ fn forge_request_for_redirect(client: &reqwest::Client, rsp_hdrs: &HeaderMap<Hea
 }
 
 async fn send_reqwest(req: reqwest::Request, state_index: usize, redirects: bool, sink: cursive::CbSink) -> Result<SpannedString<Style>, CrusterError> {
+    if req.version() == reqwest::Version::HTTP_3 {
+        let wrapper = HyperRequestWrapper::from_reqwest(req).await?;
+        let (response, redirects_exceeded) = crate::http_sender::send_request_from_wrapper(
+            &wrapper,
+            if redirects { 10 } else { 0 },
+        ).await?;
+        if redirects_exceeded {
+            return Err(CrusterError::UndefinedError("Redirects max count reached".to_string()));
+        }
+        return Ok(req_res_spanned::response_to_spanned_full(&response));
+    }
+
     let client = reqwest::ClientBuilder::new()
-        .http1_only()
         .use_rustls_tls()
         .redirect(reqwest::redirect::Policy::none());
 

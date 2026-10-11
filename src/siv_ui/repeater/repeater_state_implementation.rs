@@ -109,13 +109,13 @@ impl RepeaterState {
             Version::HTTP_11
         }
         else if version == "HTTP/2" || version == "HTTP/2.0" {
-            return Err(
-                CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
-            );
+            Version::HTTP_2
         }
         else if version == "HTTP/3" || version == "HTTP/3.0" {
             return Err(
-                CrusterError::HTTPBuildingError("Repeater does not support HTTP/2 neither HTTP/3, please set HTTP/1.1 version for request manually".to_string())
+                CrusterError::HTTPBuildingError(
+                    "HTTP/3 requests are not supported by the stable client; use HTTP/2 or lower".to_string()
+                )
             );
         }
         else {
@@ -190,8 +190,9 @@ impl RepeaterState {
             }
         }
 
-        let str_body_length = body.len().to_string();
-        let _ = new_headers.insert("Content-Length", HeaderValue::from_str(&str_body_length)?);
+        // reqwest calculates Content-Length from the final edited body. Keeping
+        // the intercepted value is unsafe and can cause HTTP/2 stream resets.
+        new_headers.remove("content-length");
 
         let request = request
             .headers(new_headers)
