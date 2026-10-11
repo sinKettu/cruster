@@ -162,6 +162,27 @@ impl Config {
     }
 }
 
+fn with_default_cli(mut args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsString> {
+    if args.len() == 1 {
+        args.push("cli".into());
+        return args;
+    }
+
+    let first_arg = args[1].to_string_lossy();
+    let is_explicit_top_level_command = matches!(
+        first_arg.as_ref(),
+        "interactive" | "i" | "dump" | "d" | "cli" | "c" | "mcp"
+    );
+
+    // Root options (notably --help and --version) must retain their original
+    // clap behavior. Every non-option command is otherwise a CLI subcommand.
+    if !is_explicit_top_level_command && !first_arg.starts_with('-') {
+        args.insert(1, "cli".into());
+    }
+
+    args
+}
+
 fn parse_cmd() -> clap::ArgMatches {
     let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.";
     let config_help = "Path to config with YAML format. Cannot be set by config file.";
@@ -683,15 +704,51 @@ fn parse_cmd() -> clap::ArgMatches {
                 .value_name("AUDIT_CONFIG_PATH")
                 .help(audit_conf_help)
         )
-        .get_matches_from({
-            let mut args: Vec<std::ffi::OsString> = std::env::args_os().collect();
-            if args.len() == 1 {
-                args.push("cli".into());
-            }
-            args
-        });
+        .get_matches_from(with_default_cli(std::env::args_os().collect()));
 
     return matches;
+}
+
+#[cfg(test)]
+mod command_line_tests {
+    use super::with_default_cli;
+    use std::ffi::OsString;
+
+    fn normalize(args: &[&str]) -> Vec<String> {
+        with_default_cli(args.iter().map(OsString::from).collect())
+            .into_iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn cli_is_inserted_before_an_implicit_cli_command() {
+        assert_eq!(
+            normalize(&["cruster", "http", "show", "a"]),
+            ["cruster", "cli", "http", "show", "a"]
+        );
+    }
+
+    #[test]
+    fn explicit_cli_is_unchanged() {
+        assert_eq!(
+            normalize(&["cruster", "cli", "http", "show", "a"]),
+            ["cruster", "cli", "http", "show", "a"]
+        );
+    }
+
+    #[test]
+    fn other_top_level_commands_are_unchanged() {
+        for command in ["interactive", "i", "dump", "d", "mcp"] {
+            assert_eq!(normalize(&["cruster", command]), ["cruster", command]);
+        }
+    }
+
+    #[test]
+    fn root_options_are_unchanged() {
+        assert_eq!(normalize(&["cruster", "--help"]), ["cruster", "--help"]);
+        assert_eq!(normalize(&["cruster", "--version"]), ["cruster", "--version"]);
+    }
 }
 
 // -----------------------------------------------------------------------------------------------//

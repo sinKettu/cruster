@@ -3,7 +3,10 @@ use crate::cli::CrusterCLIError;
 
 use serde_json as json;
 use std::io::BufRead;
+use std::{borrow::Cow, ffi::CString};
 use regex::Regex;
+use bstr::ByteSlice;
+use colored::{ColoredString, Colorize};
 
 use regex;
 use clap::ArgMatches;
@@ -188,27 +191,109 @@ pub(crate) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIE
     );
 }
 
+fn pretty_query(query: &str) -> String {
+    query
+        .trim_start_matches('?')
+        .split('&')
+        .map(|parameter| {
+            let (key, value) = parameter.split_once('=').unwrap_or((parameter, ""));
+            if parameter.contains('=') {
+                format!("{}{}{}", key.bright_yellow(), "=".bright_black(), value.bright_green())
+            }
+            else {
+                key.bright_yellow().to_string()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(&"&".bright_black().to_string())
+}
+
+fn pretty_headers(headers: &::http::HeaderMap) {
+    let mut keys: Vec<&str> = headers.keys().map(|key| key.as_str()).collect();
+    keys.sort();
+
+    for key in keys {
+        let values = headers
+            .get_all(key)
+            .iter()
+            .map(|value| value.as_bytes().to_str_lossy())
+            .collect::<Vec<Cow<str>>>()
+            .join("; ");
+        println!("{}{} {}", key.bright_blue(), ":".bright_black(), values);
+    }
+}
+
+fn pretty_body(body: &[u8]) -> String {
+    let body = body.to_str_lossy().to_string();
+    if CString::new(body.as_bytes()).is_ok() {
+        body
+    }
+    else {
+        "--- INCOMPATIBLE SET OF BYTES ---".to_string()
+    }
+}
+
+fn pretty_status(status: &str) -> ColoredString {
+    match status.parse::<u16>().ok().map(|status| status / 100) {
+        Some(2) => status.bright_green(),
+        Some(3) => status.bright_cyan(),
+        Some(4) => status.bright_yellow(),
+        Some(5) => status.bright_red(),
+        _ => status.bright_magenta(),
+    }
+}
+
+fn print_pretty_request(request: &crate::cruster_proxy::request_response::HyperRequestWrapper) {
+    let path = request
+        .get_request_path_without_query()
+        .unwrap_or_else(|_| request.get_request_path());
+    let query = request.get_query();
+
+    print!("{} {}", request.method.bold().bright_cyan(), path.bright_white());
+    if let Some(query) = query {
+        print!("{}{}", "?".bright_black(), pretty_query(&query));
+    }
+    println!(" {}", request.version.bright_black());
+    pretty_headers(&request.headers);
+
+    if !request.body.is_empty() {
+        println!("\n{}", pretty_body(&request.body));
+    }
+}
+
+fn print_pretty_response(response: &crate::cruster_proxy::request_response::HyperResponseWrapper) {
+    println!("{} {}", response.version.bright_black(), pretty_status(&response.status));
+    pretty_headers(&response.headers);
+
+    if !response.body.is_empty() {
+        println!("\n{}", pretty_body(&response.body));
+    }
+}
+
 fn print_pretty(pair: &http_storage::RequestResponsePair) {
-    println!("----------------------");
-    println!("   {}", pair.index);
-    println!("----------------------\n");
+    println!("\n{}", format!(" HTTP exchange #{} ", pair.index).bold().on_bright_black());
 
     match (pair.request.as_ref(), pair.response.as_ref()) {
         (Some(request), Some(response)) => {
-            println!("{}", request.to_string());
-            println!();
-            println!("{}", response.to_string());
-            println!();
+            println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
+            print_pretty_request(request);
+            println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
+            print_pretty_response(response);
+            println!("{}", "──────────────────────────────────────────────────────────".bright_black());
         },
         (Some(request), None) => {
-            println!("{}", request.to_string());
-            println!();
-            println!("\n<EMPTY RESPONSE>\n");
+            println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
+            print_pretty_request(request);
+            println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
+            println!("{}", "<EMPTY RESPONSE>".bright_black());
+            println!("{}", "──────────────────────────────────────────────────────────".bright_black());
         },
         (None, Some(response)) => {
-            println!("<EMPTY REQUEST>\n");
-            println!("{}", response.to_string());
-            println!();
+            println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
+            println!("{}", "<EMPTY REQUEST>".bright_black());
+            println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
+            print_pretty_response(response);
+            println!("{}", "──────────────────────────────────────────────────────────".bright_black());
         }
         _ => unreachable!()
     }
