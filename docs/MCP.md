@@ -13,7 +13,7 @@ cruster --project my-project mcp
 To expose configured audit rules, also enable audit and provide its configuration:
 
 ```shell
-cruster --project my-project -A --audit-config rules/audit.yaml mcp
+cruster --project my-project --audit-config rules/audit.yaml mcp
 ```
 
 The server uses MCP over stdio. Standard output is reserved for protocol messages. Diagnostics are written to standard error or the configured debug file.
@@ -27,7 +27,7 @@ Example client configuration:
       "command": "/absolute/path/to/cruster",
       "args": [
         "--project", "/absolute/path/to/project",
-        "-A", "--audit-config", "/absolute/path/to/rules/audit.yaml",
+        "--audit-config", "/absolute/path/to/rules/audit.yaml",
         "mcp"
       ]
     }
@@ -46,7 +46,7 @@ MCP starts in read-only/passive mode. The following operations are denied by def
 They can be enabled explicitly:
 
 ```shell
-cruster --project my-project -A --audit-config rules/audit.yaml \
+cruster --project my-project --audit-config rules/audit.yaml \
   mcp --allow-dangerous-tools
 ```
 

@@ -179,7 +179,7 @@ fn parse_cmd() -> clap::ArgMatches {
     let filter_help = "Filter pairs in specifyied bounds with regular expression in format of 're2'";
     let extract_help = "Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>";
     let editor_help = "Path to editor executable to use in CLI mode";
-    let audit_help = "Enable audit";
+    let audit_help = "Enable background audit in interactive or dump mode";
     let audit_conf_help = "Path to audit config with YAML format";
 
     let matches = clap::Command::new("cruster")
@@ -959,7 +959,8 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
         );
     }
 
-    let audit_config = if config.audit {
+    let audit_config_required = config.audit || matches!(&cmd, CrusterMode::CLI(_) | CrusterMode::MCP(_));
+    let audit_config = if audit_config_required {
         load_audit_config(config.audit_config.as_ref(), &workplace)?
     }
     else {

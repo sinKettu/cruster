@@ -146,7 +146,7 @@ $ cruster cli http show 2
 Cruster can expose a persisted project to an MCP-compatible AI agent over stdio:
 
 ```shell
-cruster --project my-project -A --audit-config rules/audit.yaml mcp
+cruster --project my-project --audit-config rules/audit.yaml mcp
 ```
 
 The default MCP mode permits project/history inspection and passive Python audits. Network requests and active rules are denied unless the server is deliberately started with `mcp --allow-dangerous-tools`.
