@@ -186,10 +186,12 @@ fn parse_cmd() -> clap::ArgMatches {
         .version("0.8.2")
         .author("Andrey Ivanov<avangard.jazz@gmail.com>")
         .bin_name("cruster")
+        .subcommand_required(true)
+        .arg_required_else_help(true)
         .subcommand(
             clap::Command::new("interactive")
                 .alias("i")
-                .about("Default interactive Cruster mode. This mode will be used if none is specified")
+                .about("Run the interactive Cruster text interface")
         )
         .subcommand(
             clap::Command::new("dump")
@@ -681,7 +683,13 @@ fn parse_cmd() -> clap::ArgMatches {
                 .value_name("AUDIT_CONFIG_PATH")
                 .help(audit_conf_help)
         )
-        .get_matches();
+        .get_matches_from({
+            let mut args: Vec<std::ffi::OsString> = std::env::args_os().collect();
+            if args.len() == 1 {
+                args.push("cli".into());
+            }
+            args
+        });
 
     return matches;
 }
@@ -713,7 +721,7 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
         }
     }
     else {
-        CrusterMode::INTERACTIVE
+        unreachable!("Clap requires a command; CLI is the primary operating mode")
     };
 
     let workplace_possible = matches.get_one::<String>("workplace");
