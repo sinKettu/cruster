@@ -23,10 +23,10 @@ Available arguments and options:
     $ cruster cli http show -h
     Filter/Sort/Find HTTP data and print it
 
-    Usage: cruster cli http show [OPTIONS] <INDEX>
+    Usage: cruster http show [OPTIONS] [INDEX]
 
     Arguments:
-    <INDEX>  range of line numbers or exact line number in file with stored HTTP data to print: n -- first n pairs, n-m -- pairs from n to m, a -- all stored pairs, n$ -- only Nth pair
+    [INDEX]  Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N in pretty mode [default: 100]
 
     Options:
     -u, --urls                 Print only indexes and full URLs
@@ -34,7 +34,7 @@ Available arguments and options:
     -r, --raw                  Print raw data as it was dumped in project (JSONLines)
     -f, --filter <filter>      Filter pairs in specifyied bounds with regular expression in format of 're2'
     -e, --extract <ATTRIBUTE>  Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>
-    -i, --index <NUMBER>       Get pair with specific ID
+    -i, --index <NUMBER>       Get pair with specific ID in pretty mode
     -h, --help                 Print help
     ```
 
@@ -58,7 +58,7 @@ $ cruster cli http show -e status=404 -u 3-5
      4 http://google.com/some/interesting/path
 ```
 
-> **Note**: There is required argument `<INDEX>` (that is actually `line number`) which represents range of line numbers with which CLI will work. So, even if you will provide index (`-i <NUMBER>`), Cruster will look for it only within initial range.
+`INDEX` is optional and defaults to the first 100 records. An explicit pair ID passed as `iN`, `Ni`, or with `-i <NUMBER>` is searched across the complete HTTP history and always printed in pretty mode. For `-i`, the positional range is ignored.
 
 ## repeater
 

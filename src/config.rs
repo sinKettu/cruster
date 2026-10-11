@@ -253,10 +253,11 @@ fn parse_cmd() -> clap::ArgMatches {
                             clap::Command::new("show")
                                 .about("Filter/Sort/Find HTTP data and print it")
                                 .alias("s")
-                                .arg_required_else_help(true)
                                 .arg(
-                                    clap::arg!(<INDEX> "range of line numbers or exact line number in file with stored HTTP data to print: n -- first n pairs, n-m -- pairs from n to m, 'a' -- all stored pairs, n$ -- only Nth pair")
-                                        .required(true)
+                                    clap::Arg::new("INDEX")
+                                        .default_value("100")
+                                        .allow_hyphen_values(true)
+                                        .help("Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N in pretty mode")
                                 )
                                 .arg(
                                     clap::Arg::new("urls")
@@ -297,7 +298,7 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .short('i')
                                         .long("index")
                                         .value_name("NUMBER")
-                                        .help("Get pair with specific ID")
+                                        .help("Get pair with specific ID in pretty mode")
                                 )
                         )
                         .subcommand(

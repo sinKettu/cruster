@@ -67,9 +67,16 @@ impl TryFrom<&str> for ExtractionAttribute {
 
 #[derive(Debug)]
 pub(crate) struct HTTPTableRange {
-    from: usize,
-    to: usize,
-    all: bool,
+    selection: HTTPTableSelection,
+}
+
+#[derive(Debug, PartialEq)]
+enum HTTPTableSelection {
+    First(usize),
+    Range(usize, usize),
+    Last(usize),
+    Id(usize),
+    All,
 }
 
 pub(crate) struct ShowSettings {
@@ -141,54 +148,43 @@ pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterC
 }
 
 pub(crate) fn parse_range(str_range: &str) -> Result<HTTPTableRange, CrusterCLIError> {
-    let right_bound_re = regex::Regex::new(r"^\d+$")?;
-    let strict_index_re = regex::Regex::new(r"^\d+\$$")?;
-    let range_re = regex::Regex::new(r"^\d+-\d+$")?;
-
-    if right_bound_re.is_match(str_range) {
-        return Ok(
-            HTTPTableRange {
-                from: 0,
-                to: str_range.parse()?,
-                all: false
-            }
-        );
-    }
-
-    if strict_index_re.is_match(str_range) {
-        return Ok(
-            HTTPTableRange {
-                from: (&str_range[..(str_range.len() - 1)]).parse()?,
-                to: (&str_range[..(str_range.len() - 1)]).parse()?,
-                all: false
-            }
-        )
-    }
-
-    if range_re.is_match(str_range) {
-        let parts: Vec<&str> = str_range.split("-").collect();
-        return Ok(
-            HTTPTableRange {
-                from: parts[0].parse()?,
-                to: parts[1].parse()?,
-                all: false
-            }
-        );
-    }
+    let first_re = regex::Regex::new(r"^\d+$")?;
+    let range_re = regex::Regex::new(r"^(\d+)-(\d+)$")?;
+    let negative_re = regex::Regex::new(r"^-(\d+)$")?;
+    let prefixed_last_re = regex::Regex::new(r"^i(\d+)$")?;
+    let suffixed_last_re = regex::Regex::new(r"^(\d+)i$")?;
 
     if str_range == "a" {
-        return Ok(
-            HTTPTableRange {
-                from: 0,
-                to: 0,
-                all: true
-            }
-        )
+        return Ok(HTTPTableRange { selection: HTTPTableSelection::All });
     }
 
-    return Err(
-        CrusterCLIError::from("Range arg has wrong format")
-    );
+    if first_re.is_match(str_range) {
+        return Ok(HTTPTableRange { selection: HTTPTableSelection::First(str_range.parse()?) });
+    }
+
+    if let Some(captures) = range_re.captures(str_range) {
+        let from: usize = captures[1].parse()?;
+        let to: usize = captures[2].parse()?;
+        if from == 0 || to == 0 {
+            return Err(CrusterCLIError::from("Range positions start at 1"));
+        }
+        if to < from {
+            return Err(CrusterCLIError::from("Right bound of range cannot be lower than left one"));
+        }
+        return Ok(HTTPTableRange { selection: HTTPTableSelection::Range(from, to) });
+    }
+
+    if let Some(captures) = negative_re.captures(str_range) {
+        return Ok(HTTPTableRange { selection: HTTPTableSelection::Last(captures[1].parse()?) });
+    }
+
+    for re in [&prefixed_last_re, &suffixed_last_re] {
+        if let Some(captures) = re.captures(str_range) {
+            return Ok(HTTPTableRange { selection: HTTPTableSelection::Id(captures[1].parse()?) });
+        }
+    }
+
+    Err(CrusterCLIError::from("Range has wrong format; expected n, a, n-m, -n, iN, or Ni"))
 }
 
 fn pretty_query(query: &str) -> String {
@@ -376,19 +372,17 @@ fn has_appropriate_attribute(pair: &http_storage::RequestResponsePair, attribute
     }
 }
 
-pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowSettings) -> Result<(), CrusterCLIError> {
-    if range.to < range.from {
-        return Err(
-            CrusterCLIError::from("Right bound of range cannot be lower than left one")
-        );
-    }
+pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, mut settings: ShowSettings) -> Result<(), CrusterCLIError> {
+    let selects_single_id = settings.index.is_some()
+        || matches!(range.selection, HTTPTableSelection::Id(_));
 
-    let (left_idx, right_idx) = if range.all {
-        (0_usize, usize::MAX)
+    // Selecting an exact pair is a detail-oriented operation, so it always
+    // uses the full pretty representation regardless of presentation flags.
+    if selects_single_id {
+        settings.pretty = true;
+        settings.raw = false;
+        settings.print_urls = false;
     }
-    else {
-        (range.from, range.to)
-    };
 
     let filter_re = match settings.filter.as_ref() {
         Some(filter_str) => Some(Regex::new(filter_str)?),
@@ -398,23 +392,58 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
     let mut first: bool = true;
     let fin = std::fs::File::open(http_storage)?;
     let fin_reader = std::io::BufReader::new(fin);
+    let lines: Vec<String> = fin_reader.lines().collect::<Result<_, _>>()?;
 
-    let mut count = left_idx.saturating_sub(1);
+    let requested_id = settings.index.or_else(|| match range.selection {
+        HTTPTableSelection::Id(index) => Some(index),
+        _ => None,
+    });
+
+    let selected_lines: Vec<&String> = if let Some(index) = requested_id {
+        // An explicit pair ID is searched in the complete storage and is not
+        // restricted by the positional range.
+        lines
+            .iter()
+            .filter(|line| {
+                json::from_str::<http_storage::serializable::SerializableProxyData>(line)
+                    .map(|data| data.index == index)
+                    .unwrap_or(false)
+            })
+            .collect()
+    }
+    else {
+        let (start, end) = match range.selection {
+            HTTPTableSelection::First(count) => (0, count.min(lines.len())),
+            HTTPTableSelection::Range(from, to) => {
+                let start = from.saturating_sub(1).min(lines.len());
+                let end = to.min(lines.len());
+                (start, end)
+            },
+            HTTPTableSelection::Last(count) => (lines.len().saturating_sub(count), lines.len()),
+            HTTPTableSelection::Id(_) => unreachable!("ID selections are handled before ranges"),
+            HTTPTableSelection::All => (0, lines.len()),
+        };
+
+        if start >= end {
+            Vec::new()
+        }
+        else {
+            lines[start..end].iter().collect()
+        }
+    };
+
+    if selected_lines.is_empty() {
+        return if let Some(index) = requested_id {
+            Err(CrusterCLIError::from(format!("HTTP pair with ID {} was not found", index)))
+        }
+        else {
+            Err(CrusterCLIError::from("The selected range contains no HTTP pairs"))
+        };
+    }
+
     let mut found = false;
-    for line in fin_reader.lines().skip(count) {
-        let line_ptr = &line?;
-
+    for line_ptr in selected_lines {
         if settings.raw {
-            if let Some(index) = settings.index {
-                let re_str = format!(r#"^."index":{},"#, index);
-                let re = Regex::new(&re_str)?;
-
-                if let None = re.find(line_ptr) {
-                    count += 1;
-                    continue;
-                }
-            }
-
             if let Some(re) = filter_re.as_ref() {
                 if re.find(line_ptr).is_some() {
                     found = true;
@@ -432,18 +461,6 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
 
             if let Some(attr) = settings.attribute.as_ref() {
                 if ! has_appropriate_attribute(&pair, attr) {
-                    count += 1;
-                    if count == right_idx {
-                        break;
-                    }
-
-                    continue;
-                }
-            }
-
-            if let Some(index) = settings.index {
-                if pair.index != index {
-                    count += 1;
                     continue;
                 }
             }
@@ -465,18 +482,6 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
                 }
             }
         }
-        
-        count += 1;
-        if count == right_idx {
-            break;
-        }
-    }
-
-    if count == left_idx.saturating_sub(1) {
-        return Err(CrusterCLIError::from("Left bound is out of range!"));
-    }
-    else if count < right_idx && !range.all {
-        return Err(CrusterCLIError::from(format!("Could print only records from {} to {}", left_idx.saturating_sub(1), count)));
     }
 
     if !found {
@@ -484,4 +489,30 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, settings: ShowS
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod range_tests {
+    use super::{parse_range, HTTPTableSelection};
+
+    fn selection(value: &str) -> HTTPTableSelection {
+        parse_range(value).unwrap().selection
+    }
+
+    #[test]
+    fn parses_supported_range_forms() {
+        assert_eq!(selection("100"), HTTPTableSelection::First(100));
+        assert_eq!(selection("a"), HTTPTableSelection::All);
+        assert_eq!(selection("10-20"), HTTPTableSelection::Range(10, 20));
+        assert_eq!(selection("-20"), HTTPTableSelection::Last(20));
+        assert_eq!(selection("i20"), HTTPTableSelection::Id(20));
+        assert_eq!(selection("20i"), HTTPTableSelection::Id(20));
+    }
+
+    #[test]
+    fn rejects_invalid_ranges() {
+        assert!(parse_range("20-10").is_err());
+        assert!(parse_range("0-10").is_err());
+        assert!(parse_range("something").is_err());
+    }
 }
