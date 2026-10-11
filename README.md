@@ -36,6 +36,8 @@ There are four ways to use Cruster, described below in the recommended order:
 
 CLI is the primary Cruster interface. Running `cruster` without a command is treated as `cruster cli`: it prints CLI help and reports that a CLI subcommand is required. Use `cruster cli <COMMAND>` to work with a project, or select another mode explicitly.
 
+On the first operational launch, Cruster creates its default configuration and uses the project named `default`, stored in `~/.cruster/default`. An explicit `--project` option or a configured project path overrides it.
+
 To use this proxy with browser you must import CA certificate of proxy (stored by default in `~/.cruster/cruster.cer`) into browser manually.
 
 ### Help output

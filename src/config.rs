@@ -131,7 +131,7 @@ impl Default for Config {
             address: "127.0.0.1".to_string(),
             port: 8080_u16,
             debug_file: None,
-            project: None,
+            project: Some("default".to_string()),
             scope: None,
             dump_mode: None,
             editor: None,
