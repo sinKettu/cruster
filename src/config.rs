@@ -696,6 +696,7 @@ fn parse_cmd() -> clap::ArgMatches {
         )
         .arg(
             clap::Arg::new("editor")
+                .short('e')
                 .long("editor")
                 .value_name("PATH_TO_EXECUTABLE")
                 .help(editor_help)
