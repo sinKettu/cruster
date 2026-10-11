@@ -15,6 +15,9 @@ pub(crate) async fn exec(_arg: &str, http_data_path: &str, aconf: &AuditConfig) 
             num_cpus::get()
         }
     };
+    if tasks == 0 {
+        return Err(CrusterCLIError::from("Audit workers count cannot be zero"));
+    }
 
     let mut storage = crate::http_storage::HTTPStorage::default();
     storage.load(http_data_path)?;

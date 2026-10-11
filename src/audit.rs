@@ -35,7 +35,7 @@ impl AuditRule {
         }
     }
 
-    pub(crate) async fn execute(&self, pair: std::sync::Arc<crate::http_storage::RequestResponsePair>) -> RuleFinalState {
+    pub(crate) async fn execute(&self, pair: std::sync::Arc<crate::http_storage::RequestResponsePair>) -> (RuleFinalState, Vec<python::PythonRuleLog>) {
         match self {
             Self::Yaml(_) => todo!("YAML audit rules are temporarily disabled while their design is being reconsidered"),
             Self::Python(rule) => rule.execute(pair).await,

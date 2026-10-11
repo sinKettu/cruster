@@ -80,3 +80,8 @@ def exchange(
 ) -> Exchange:
     """Attach an active request/response exchange as finding evidence."""
     ...
+
+
+def log(message: object, level: str = "info") -> None:
+    """Emit a rule log when audit verbose output is enabled."""
+    ...

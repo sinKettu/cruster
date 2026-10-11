@@ -28,6 +28,7 @@ from cruster import (
     Finding,
     exchange,
     finding,
+    log,
     send,
 )
 ```
@@ -222,6 +223,31 @@ Creates serializable evidence for an active finding.
 
 `exchange()` does not send a request and does not verify that its request and response correspond to each other. It only packages evidence for result output. Invalid Base64 or invalid headers in an exchange cannot be reconstructed by Rust; such malformed evidence should not be returned.
 
+### `log()`
+
+```python
+def log(message: object, level: str = "info") -> None: ...
+```
+
+Emits an informational or diagnostic message from a Python rule through Cruster's native audit logging channel.
+
+- `message` accepts any Python object. Cruster converts it with `str()` before passing it to Rust.
+- `level` is optional and defaults to `info`. Supported values are `debug`, `info`, `warning`, and `error`; any other value raises `ValueError`.
+- Calls are collected during rule execution and forwarded to the audit coordinator after the rule returns.
+- Rule logs are printed only when audit verbose output is enabled with `--verbose`/`-v`. Calling `log()` without verbose mode is valid, but produces no terminal output.
+- Every printed line is marked as a rule log and includes its level, worker number, rule ID, and HTTP pair ID. Example: `[rule log][DEBUG][worker 2][rule 'python-detect-google-host'][pair 7] checking hostname google.com`.
+- Logs are diagnostic output only. They are not findings and are not written to the audit findings JSONL file.
+- Logging is available to both passive and active rules and has no network side effects.
+
+Example:
+
+```python
+from cruster import log
+
+log("starting response analysis", level="debug")
+log(f"detected marker {marker}")
+```
+
 ### `Finding` and `Exchange` result shapes
 
 For reference, helper functions produce these dictionary shapes:
@@ -287,3 +313,9 @@ def scan(request: HttpRequest, response: HttpResponse):
         )
     ]
 ```
+
+## Included example rules
+
+- `rules/python/passive/security_headers.py` demonstrates passive response-header inspection.
+- `rules/python/passive/detect_google_host.py` demonstrates passive hostname detection and matches `google.com` plus its subdomains without matching look-alike domains such as `notgoogle.com`.
+- `rules/python/active/reflected_marker.py` demonstrates request cloning, native sending, response comparison, and exchange evidence.

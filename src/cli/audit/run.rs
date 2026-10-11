@@ -107,6 +107,9 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
             num_cpus::get()
         }
     };
+    if tasks == 0 {
+        return Err(CrusterCLIError::from("Audit workers count cannot be zero"));
+    }
 
     let mut storage = crate::http_storage::HTTPStorage::default();
     storage.load(http_data_path)?;
@@ -131,6 +134,23 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
     let (tx, rx) = spawn_threads(tasks).await;
 
     let rules = load_rule::load_rules(&audit_conf)?;
+
+    if audit_conf.verbose.unwrap_or(false) {
+        let jobs = rules.len().saturating_mul(pairs.len());
+        eprintln!(
+            "Audit plan: {} worker(s), {} rule(s), {} HTTP pair(s), {} scan job(s)",
+            tasks,
+            rules.len(),
+            pairs.len(),
+            jobs
+        );
+        if rules.is_empty() {
+            eprintln!("Warning: no Python audit rules were loaded");
+        }
+        if pairs.is_empty() {
+            eprintln!("Warning: project HTTP history is empty; there is nothing to scan");
+        }
+    }
 
     for rule in rules.iter() {
         for pair in pairs.iter() {

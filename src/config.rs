@@ -914,8 +914,15 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
         config.audit_config = Some(audit_conf.clone());
     }
 
-    if let Some(audit_conf) = config.audit_config {
-        config.audit_config = Some(resolve_path(&workplace, &audit_conf, false)?);
+    if let Some(audit_conf) = config.audit_config.as_ref() {
+        config.audit_config = Some(
+            find_file_or_dir(&workplace, audit_conf).map_err(|err| {
+                CrusterConfigError::from(format!(
+                    "Cannot resolve audit config '{}': {}",
+                    audit_conf, err
+                ))
+            })?
+        );
     }
 
     let audit_config = if config.audit {
@@ -941,14 +948,31 @@ fn load_audit_config(conf_path: Option<&String>, workplace: &str) -> Result<Audi
         return Ok(AuditConfig::default());
     }
 
+    let path = conf_path.unwrap();
     let conf_file = std::fs::OpenOptions::new()
         .read(true)
-        .open(conf_path.unwrap())?;
+        .open(path)
+        .map_err(|err| {
+            CrusterConfigError::from(format!(
+                "Cannot open audit config '{}': {}",
+                path, err
+            ))
+        })?;
 
-    let mut audit_conf: AuditConfig = yml::from_reader(&conf_file)?;
+    let mut audit_conf: AuditConfig = yml::from_reader(&conf_file).map_err(|err| {
+        CrusterConfigError::from(format!(
+            "Cannot parse audit config '{}': {}",
+            path, err
+        ))
+    })?;
     for i in 0..audit_conf.rules.len() {
         let rule_path_str = audit_conf.rules[i].as_str();
-        audit_conf.rules[i] = find_file_or_dir(workplace, rule_path_str)?;
+        audit_conf.rules[i] = find_file_or_dir(workplace, rule_path_str).map_err(|err| {
+            CrusterConfigError::from(format!(
+                "Cannot resolve rule path '{}' from audit config '{}': {}",
+                rule_path_str, path, err
+            ))
+        })?;
     }
 
     return Ok(audit_conf);
@@ -986,7 +1010,7 @@ fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError>
         }
     }
     else {
-        if fpath.starts_with("./") && fpath.exists() {
+        if fpath.exists() {
             return Ok(path.to_string());
         }
 
@@ -998,7 +1022,12 @@ fn find_file_or_dir(base_path: &str, path: &str) -> Result<String, CrusterError>
         else {
             return Err(
                 CrusterError::ConfigError(
-                    format!("Could not find file or dir at relative path '{}' neither in workplace nor working dir", path)
+                    format!(
+                        "Could not find file or directory '{}'; checked working-directory path '{}' and workplace path '{}'",
+                        path,
+                        fpath.display(),
+                        workspace_path
+                    )
                 )
             );
         }

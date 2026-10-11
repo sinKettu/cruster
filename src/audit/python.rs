@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, path::PathBuf, sync::{Arc, Mutex}};
 
 use base64;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
@@ -90,10 +90,21 @@ struct PythonExchange {
     payloads: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct PythonRuleLog {
+    pub(crate) level: String,
+    pub(crate) message: String,
+}
+
+struct PythonExecutionOutput {
+    value: String,
+    logs: Vec<PythonRuleLog>,
+}
+
 impl PythonRule {
     pub(crate) fn from_file(path: &str) -> Result<Self, AuditError> {
         let source = fs::read_to_string(path)?;
-        let metadata_json = run_python(path, &source, None, None, true, false)?;
+        let metadata_json = run_python(path, &source, None, None, true, false)?.value;
         let metadata: PythonMetadata = serde_json::from_str(&metadata_json).map_err(|err| {
             AuditError(format!(
                 "Invalid metadata in Python rule '{}': {}",
@@ -131,12 +142,12 @@ impl PythonRule {
         &self.rule_type
     }
 
-    pub(crate) async fn execute(&self, pair: Arc<RequestResponsePair>) -> RuleFinalState {
+    pub(crate) async fn execute(&self, pair: Arc<RequestResponsePair>) -> (RuleFinalState, Vec<PythonRuleLog>) {
         let Some(request) = pair.request.as_ref() else {
-            return RuleFinalState::Skipped(format!("Pair {} has no request", pair.index));
+            return (RuleFinalState::Skipped(format!("Pair {} has no request", pair.index)), vec![]);
         };
         let Some(response) = pair.response.as_ref() else {
-            return RuleFinalState::Skipped(format!("Pair {} has no response", pair.index));
+            return (RuleFinalState::Skipped(format!("Pair {} has no response", pair.index)), vec![]);
         };
 
         let request = PythonRequest::from(request);
@@ -144,11 +155,11 @@ impl PythonRule {
         let source = match fs::read_to_string(&self.path) {
             Ok(source) => source,
             Err(err) => {
-                return RuleFinalState::Failed(format!(
+                return (RuleFinalState::Failed(format!(
                     "Cannot read Python rule '{}': {}",
                     self.path.display(),
                     err
-                ))
+                )), vec![])
             }
         };
         let path = self.path.to_string_lossy().to_string();
@@ -158,24 +169,24 @@ impl PythonRule {
             run_python(&path, &source, Some(request), Some(response), false, active)
         })
         .await;
-        let json = match execution {
-            Ok(Ok(json)) => json,
-            Ok(Err(err)) => return RuleFinalState::Failed(err.to_string()),
+        let output = match execution {
+            Ok(Ok(output)) => output,
+            Ok(Err(err)) => return (RuleFinalState::Failed(err.to_string()), vec![]),
             Err(err) => {
-                return RuleFinalState::Failed(format!("Python rule worker failed: {}", err))
+                return (RuleFinalState::Failed(format!("Python rule worker failed: {}", err)), vec![])
             }
         };
-        let python_findings: Vec<PythonFinding> = match serde_json::from_str(&json) {
+        let python_findings: Vec<PythonFinding> = match serde_json::from_str(&output.value) {
             Ok(findings) => findings,
             Err(err) => {
-                return RuleFinalState::Failed(format!(
+                return (RuleFinalState::Failed(format!(
                     "Rule '{}' returned invalid findings: {}",
                     self.id, err
-                ))
+                )), output.logs)
             }
         };
         if python_findings.is_empty() {
-            return RuleFinalState::Finished(None);
+            return (RuleFinalState::Finished(None), output.logs);
         }
 
         let mut findings = HashMap::with_capacity(python_findings.len());
@@ -196,7 +207,7 @@ impl PythonRule {
             findings.insert(finding.name, (finding.extracted, exchanges));
         }
 
-        RuleFinalState::Finished(Some(RuleResult {
+        (RuleFinalState::Finished(Some(RuleResult {
             id: 0,
             rule_id: self.id.clone(),
             about: self.about.clone(),
@@ -211,7 +222,7 @@ impl PythonRule {
             findings,
             initial_request: pair.request.as_ref().unwrap().to_string(),
             initial_response: pair.response.as_ref().unwrap().to_string(),
-        }))
+        })), output.logs)
     }
 }
 
@@ -222,13 +233,32 @@ fn run_python(
     response: Option<PythonResponse>,
     metadata_only: bool,
     allow_send: bool,
-) -> Result<String, AuditError> {
+) -> Result<PythonExecutionOutput, AuditError> {
     let runtime = tokio::runtime::Handle::try_current().ok();
     let runtime_for_send = runtime.clone();
+    let logs = Arc::new(Mutex::new(Vec::<PythonRuleLog>::new()));
+    let native_logs = logs.clone();
     let interpreter = InterpreterConfig::new().init_stdlib().interpreter();
 
-    interpreter.enter(|vm| {
+    let value = interpreter.enter(|vm| {
         let scope = vm.new_scope_with_builtins();
+        let rule_log = vm.new_function(
+            "log",
+            move |message: PyStrRef, level: Option<PyStrRef>, vm: &VirtualMachine| {
+                let level = level.map(|value| value.as_str().to_lowercase()).unwrap_or_else(|| "info".to_string());
+                if !matches!(level.as_str(), "debug" | "info" | "warning" | "error") {
+                    return Err(vm.new_value_error(
+                        "log level must be one of: debug, info, warning, error".to_string(),
+                    ));
+                }
+                native_logs.lock()
+                    .map_err(|_| vm.new_runtime_error("rule log buffer lock poisoned".to_string()))?
+                    .push(PythonRuleLog { level, message: message.as_str().to_string() });
+                Ok(())
+            },
+        );
+        scope.globals.set_item("__cruster_log", rule_log.into(), vm)
+            .map_err(|err| python_error(vm, err))?;
         let send = vm.new_function(
             "send",
             move |request_json: PyStrRef, max_redirects: Option<usize>, vm: &VirtualMachine| {
@@ -280,7 +310,9 @@ fn run_python(
             .run_block_expr(scope, &expression)
             .map_err(|err| python_error(vm, err))?;
         String::try_from_object(vm, value).map_err(|err| python_error(vm, err))
-    })
+    })?;
+    let logs = logs.lock().map_err(|_| AuditError("Rule log buffer lock poisoned".to_string()))?.clone();
+    Ok(PythonExecutionOutput { value, logs })
 }
 
 fn python_error(
@@ -325,6 +357,8 @@ def finding(name, extracted=None, exchanges=None):
     return {'name': name, 'extracted': extracted or [], 'exchanges': exchanges or []}
 def exchange(request, response, payloads=None):
     return {'request': request.to_dict(), 'response': response.to_dict(), 'payloads': payloads or []}
+def log(message, level='info'):
+    __cruster_log(str(message), level)
 
 # Rules use a normal Python import. The module is supplied by Cruster at runtime;
 # its matching type declaration lives in python/cruster/__init__.pyi for editors.
@@ -334,6 +368,7 @@ __cruster_module.HttpResponse = HttpResponse
 __cruster_module.send = send
 __cruster_module.finding = finding
 __cruster_module.exchange = exchange
+__cruster_module.log = log
 __cruster_sys.modules['cruster'] = __cruster_module
 "#;
 
@@ -438,7 +473,7 @@ mod tests {
             timestamp: None,
         };
 
-        let RuleFinalState::Finished(Some(result)) = rule.execute(Arc::new(pair)).await else {
+        let (RuleFinalState::Finished(Some(result)), _) = rule.execute(Arc::new(pair)).await else {
             panic!("passive Python rule did not return a finding");
         };
         assert_eq!(result.get_rule_id(), "python-missing-security-headers");
