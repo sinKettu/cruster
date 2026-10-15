@@ -166,24 +166,51 @@ impl PythonRule {
         &self,
         pairs: Vec<Arc<RequestResponsePair>>,
     ) -> Result<Vec<(usize, RuleFinalState, Vec<PythonRuleLog>)>, String> {
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let execution = self.execute_many_stream(pairs, tx);
+        tokio::pin!(execution);
+        let mut results = Vec::new();
+        loop {
+            tokio::select! {
+                result = &mut execution => {
+                    result?;
+                    while let Ok(item) = rx.try_recv() {
+                        results.push(item);
+                    }
+                    return Ok(results);
+                }
+                item = rx.recv() => {
+                    if let Some(item) = item {
+                        results.push(item);
+                    }
+                }
+            }
+        }
+    }
+
+    pub(crate) async fn execute_many_stream(
+        &self,
+        pairs: Vec<Arc<RequestResponsePair>>,
+        result_tx: tokio::sync::mpsc::UnboundedSender<(usize, RuleFinalState, Vec<PythonRuleLog>)>,
+    ) -> Result<(), String> {
         if pairs.is_empty() {
-            return Ok(vec![]);
+            return Ok(());
         }
 
         let source = match fs::read_to_string(&self.path) {
             Ok(source) => source,
             Err(err) => {
                 let reason = format!("Cannot read Python rule '{}': {}", self.path.display(), err);
-                return Ok(pairs
-                    .into_iter()
-                    .map(|pair| (pair.index, RuleFinalState::Failed(reason.clone()), vec![]))
-                    .collect());
+                for pair in pairs {
+                    let _ = result_tx.send((pair.index, RuleFinalState::Failed(reason.clone()), vec![]));
+                }
+                return Ok(());
             }
         };
         let path = self.path.to_string_lossy().to_string();
         let rule = self.clone();
-        match tokio::task::spawn_blocking(move || rule.run_isolated_batch(&path, &source, pairs)).await {
-            Ok(results) => Ok(results),
+        match tokio::task::spawn_blocking(move || rule.run_isolated_batch(&path, &source, pairs, result_tx)).await {
+            Ok(()) => Ok(()),
             Err(err) => Err(format!("Python runtime thread crashed: {}", err)),
         }
     }
@@ -193,7 +220,8 @@ impl PythonRule {
         path: &str,
         source: &str,
         pairs: Vec<Arc<RequestResponsePair>>,
-    ) -> Vec<(usize, RuleFinalState, Vec<PythonRuleLog>)> {
+        result_tx: tokio::sync::mpsc::UnboundedSender<(usize, RuleFinalState, Vec<PythonRuleLog>)>,
+    ) {
         let runtime = None;
         let logs = Arc::new(Mutex::new(Vec::<PythonRuleLog>::new()));
         let interpreter = InterpreterConfig::new().init_stdlib().interpreter();
@@ -201,26 +229,26 @@ impl PythonRule {
         interpreter.enter(|vm| {
             let bootstrap = match compile_python(vm, BOOTSTRAP, "<cruster>") {
                 Ok(code) => code,
-                Err(err) => return failed_batch(pairs, err),
+                Err(err) => return send_failed_batch(pairs, err, &result_tx),
             };
             let rule = match compile_python(vm, source, path) {
                 Ok(code) => code,
-                Err(err) => return failed_batch(pairs, err),
+                Err(err) => return send_failed_batch(pairs, err, &result_tx),
             };
             let expression = match compile_python_mode(vm, SCAN_EXPRESSION, "<cruster-scan>", Mode::BlockExpr) {
                 Ok(code) => code,
-                Err(err) => return failed_batch(pairs, err),
+                Err(err) => return send_failed_batch(pairs, err, &result_tx),
             };
 
-            pairs
-                .into_iter()
-                .map(|pair| {
+            for pair in pairs {
                     let index = pair.index;
                     let Some(request) = pair.request.as_ref() else {
-                        return (index, RuleFinalState::Skipped(format!("Pair {} has no request", index)), vec![]);
+                        let _ = result_tx.send((index, RuleFinalState::Skipped(format!("Pair {} has no request", index)), vec![]));
+                        continue;
                     };
                     let Some(response) = pair.response.as_ref() else {
-                        return (index, RuleFinalState::Skipped(format!("Pair {} has no response", index)), vec![]);
+                        let _ = result_tx.send((index, RuleFinalState::Skipped(format!("Pair {} has no response", index)), vec![]));
+                        continue;
                     };
                     logs.lock().map(|mut entries| entries.clear()).ok();
                     let result = run_isolated_scan(
@@ -240,9 +268,10 @@ impl PythonRule {
                         Ok(value) => self.findings_to_state(&pair, &value),
                         Err(err) => RuleFinalState::Failed(err.to_string()),
                     };
-                    (index, state, pair_logs)
-                })
-                .collect()
+                    if result_tx.send((index, state, pair_logs)).is_err() {
+                        return;
+                    }
+            }
         })
     }
 
@@ -385,15 +414,15 @@ fn compile_python_mode(
         .map_err(|err| AuditError(format!("Python compilation failed in '{}': {}", path, err)))
 }
 
-fn failed_batch(
+fn send_failed_batch(
     pairs: Vec<Arc<RequestResponsePair>>,
     error: AuditError,
-) -> Vec<(usize, RuleFinalState, Vec<PythonRuleLog>)> {
+    tx: &tokio::sync::mpsc::UnboundedSender<(usize, RuleFinalState, Vec<PythonRuleLog>)>,
+) {
     let reason = error.to_string();
-    pairs
-        .into_iter()
-        .map(|pair| (pair.index, RuleFinalState::Failed(reason.clone()), vec![]))
-        .collect()
+    for pair in pairs {
+        let _ = tx.send((pair.index, RuleFinalState::Failed(reason.clone()), vec![]));
+    }
 }
 
 fn run_isolated_scan(

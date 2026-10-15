@@ -192,29 +192,82 @@ async fn execute_rule_with_runtime_retry(
     tx: &Sender<WorkerToMainMsg>,
 ) -> Vec<(usize, RuleFinalState, Vec<super::python::PythonRuleLog>)> {
     let rule_id = rule.get_id().to_string();
-    match rule.execute_many(pairs.clone()).await {
-        Ok(results) => results,
-        Err(first_crash) => {
+    match execute_rule_stream_once(worker, rule.clone(), pairs.clone(), tx).await {
+        Ok(_) => vec![],
+        Err((first_crash, delivered)) => {
             let _ = tx.send(WorkerToMainMsg::Log(format!(
                 "[worker {}] Python runtime thread crashed on rule '{}': {}; restarting from this rule",
                 worker, rule_id, first_crash
             )));
-            match rule.execute_many(pairs.clone()).await {
-                Ok(results) => results,
-                Err(second_crash) => {
+            let remaining: Vec<_> = pairs
+                .iter()
+                .filter(|pair| !delivered.contains(&pair.index))
+                .cloned()
+                .collect();
+            match execute_rule_stream_once(worker, rule, remaining.clone(), tx).await {
+                Ok(_) => vec![],
+                Err((second_crash, retry_delivered)) => {
                     let reason = format!(
                         "Rule '{}' crashed its Python runtime thread twice and was skipped: {}",
                         rule_id, second_crash
                     );
                     let _ = tx.send(WorkerToMainMsg::Log(format!("[worker {}] {}", worker, reason)));
-                    pairs
+                    remaining
                         .into_iter()
+                        .filter(|pair| !retry_delivered.contains(&pair.index))
                         .map(|pair| (pair.index, RuleFinalState::Failed(reason.clone()), vec![]))
                         .collect()
                 }
             }
         }
     }
+}
+
+async fn execute_rule_stream_once(
+    worker: usize,
+    rule: Arc<AuditRule>,
+    pairs: Vec<Arc<RequestResponsePair>>,
+    tx: &Sender<WorkerToMainMsg>,
+) -> Result<Vec<usize>, (String, Vec<usize>)> {
+    let rule_id = rule.get_id().to_string();
+    let (result_tx, mut result_rx) = tokio::sync::mpsc::unbounded_channel();
+    let execution = rule.execute_many_stream(pairs, result_tx);
+    tokio::pin!(execution);
+    let mut delivered = Vec::new();
+    loop {
+        tokio::select! {
+            result = &mut execution => {
+                while let Ok((pair_index, state, logs)) = result_rx.try_recv() {
+                    emit_pair_result(worker, &rule_id, pair_index, state, logs, tx);
+                    delivered.push(pair_index);
+                }
+                return result.map(|_| delivered).map_err(|reason| (reason, delivered));
+            }
+            item = result_rx.recv() => {
+                if let Some((pair_index, state, logs)) = item {
+                    emit_pair_result(worker, &rule_id, pair_index, state, logs, tx);
+                    delivered.push(pair_index);
+                }
+            }
+        }
+    }
+}
+
+fn emit_pair_result(
+    worker: usize,
+    rule_id: &str,
+    pair_index: usize,
+    state: RuleFinalState,
+    logs: Vec<super::python::PythonRuleLog>,
+    tx: &Sender<WorkerToMainMsg>,
+) {
+    for entry in logs {
+        let _ = tx.send(WorkerToMainMsg::Log(format!(
+            "[rule log][{}][worker {}][rule '{}'][pair {}] {}",
+            entry.level.to_uppercase(), worker, rule_id, pair_index, entry.message
+        )));
+    }
+    let _ = tx.send(WorkerToMainMsg::Result(state));
 }
 
 async fn execute_rule_job_with_retry(

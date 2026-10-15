@@ -155,7 +155,6 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
     for rule in rules.iter() {
         tx.send(MainToWorkerCmd::ScanRule((rule.clone(), pairs.clone())))?;
     }
-
     for _ in 0..tasks {
         tx.send(MainToWorkerCmd::Stop)?;
     }

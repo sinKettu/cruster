@@ -51,6 +51,17 @@ impl AuditRule {
             Self::Python(rule) => rule.execute_many(pairs).await,
         }
     }
+
+    pub(crate) async fn execute_many_stream(
+        &self,
+        pairs: Vec<std::sync::Arc<crate::http_storage::RequestResponsePair>>,
+        tx: tokio::sync::mpsc::UnboundedSender<(usize, RuleFinalState, Vec<python::PythonRuleLog>)>,
+    ) -> Result<(), String> {
+        match self {
+            Self::Yaml(_) => todo!("YAML audit rules are temporarily disabled while their design is being reconsidered"),
+            Self::Python(rule) => rule.execute_many_stream(pairs, tx).await,
+        }
+    }
 }
 
 pub(crate) struct AuditError(String);

@@ -73,6 +73,8 @@ def scan(request: HttpRequest, response: HttpResponse):
 
 Cruster batches all selected pairs for one rule. The RustPython interpreter, bootstrap, scan expression, and rule source are compiled once per batch, but every call to `scan()` receives a newly created module scope. The bootstrap and rule module bytecode are executed again in that fresh scope before each scan. Therefore mutable module globals remain isolated between HTTP pairs while Python parsing and bytecode compilation are not repeated for every pair.
 
+Findings, failures, skips, and collected rule logs are streamed to the audit coordinator immediately after each pair finishes; they are not held until the complete rule batch finishes. If a runtime retry is required, pairs whose results were already delivered are not executed again, preventing duplicate findings and logs.
+
 Python exceptions and invalid findings are rule failures and are not retried; processing continues with the remaining pairs and rules. If the blocking Python runtime task itself panics or is cancelled, Cruster retries the complete current rule once in a newly created runtime. The per-rule audit task also has the same one-retry boundary. If either task crashes again, the rule is reported as failed for its selected pairs and the persistent queue worker continues with the next queued rule. Cruster itself cannot recover from process aborts, segmentation faults, out-of-memory termination, or undefined behavior that terminates the whole process; those require process-level supervision outside Cruster.
 
 Passive rules may inspect the pair but cannot send requests. Calling `send()` from a passive rule raises `PermissionError`. Active rules may clone and modify requests and call `send()` multiple times.

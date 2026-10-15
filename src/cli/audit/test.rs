@@ -30,7 +30,6 @@ pub(crate) async fn exec(_arg: &str, http_data_path: &str, aconf: &AuditConfig) 
     for rule in rules.iter() {
         tx.send(MainToWorkerCmd::ScanRule((rule.clone(), pairs.clone())))?;
     }
-
     for _ in 0..tasks {
         tx.send(MainToWorkerCmd::Stop)?;
     }
