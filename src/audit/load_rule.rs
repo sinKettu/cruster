@@ -249,7 +249,7 @@ pub(crate) fn load_rules(audit_conf: &AuditConfig) -> Result<Vec<Arc<AuditRule>>
         let rule = match PythonRule::from_file(path) {
             Ok(rule) => rule,
             Err(err) => {
-                eprintln!("Warning: ignoring invalid Python audit rule '{}': {}", path, err);
+                eprintln!("Warning: ignoring invalid Python audit rule '{}': {:?}", path, err);
                 continue;
             }
         };

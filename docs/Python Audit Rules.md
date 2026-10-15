@@ -71,6 +71,10 @@ def scan(request: HttpRequest, response: HttpResponse):
 
 `scan(request, response)` is called once for every complete stored HTTP pair selected for the rule. Both arguments represent the original pair. The function must return a list of findings. Returning an empty list means that no issue was found. Returning `None`, a scalar value, or dictionaries that do not match the finding contract causes rule execution to fail with an invalid-findings error.
 
+Cruster batches all selected pairs for one rule. The RustPython interpreter, bootstrap, scan expression, and rule source are compiled once per batch, but every call to `scan()` receives a newly created module scope. The bootstrap and rule module bytecode are executed again in that fresh scope before each scan. Therefore mutable module globals remain isolated between HTTP pairs while Python parsing and bytecode compilation are not repeated for every pair.
+
+Python exceptions and invalid findings are rule failures and are not retried; processing continues with the remaining pairs and rules. If the blocking Python runtime task itself panics or is cancelled, Cruster retries the complete current rule once in a newly created runtime. The per-rule audit task also has the same one-retry boundary. If either task crashes again, the rule is reported as failed for its selected pairs and the persistent queue worker continues with the next queued rule. Cruster itself cannot recover from process aborts, segmentation faults, out-of-memory termination, or undefined behavior that terminates the whole process; those require process-level supervision outside Cruster.
+
 Passive rules may inspect the pair but cannot send requests. Calling `send()` from a passive rule raises `PermissionError`. Active rules may clone and modify requests and call `send()` multiple times.
 
 ### `HttpHeader`
@@ -271,7 +275,7 @@ Use `finding()` and `exchange()` instead of constructing these dictionaries manu
 
 ### Errors and lifecycle
 
-- Metadata is read statically from the leading JSON-compatible object and does not start RustPython. Each scan runs in a newly created RustPython interpreter, so module-level mutable state is not persistent between HTTP pairs.
+- Metadata is read statically from the leading JSON-compatible object and does not start RustPython. A rule batch uses one RustPython interpreter and cached compiled code, but each scan executes that code in a fresh scope, so module-level mutable state is not persistent between HTTP pairs.
 - The rule source is read again for each execution, so edits are observed by subsequent scans.
 - Syntax errors, import errors, uncaught rule exceptions, invalid return values, native send errors, and invalid serialized HTTP data produce a failed rule state rather than a finding.
 - Python exceptions are rendered with traceback information in Cruster's failure output.

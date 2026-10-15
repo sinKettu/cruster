@@ -174,7 +174,7 @@ impl Rule {
 
 
 pub(crate) enum MainToWorkerCmd {
-    Scan((Arc<AuditRule>, Arc<RequestResponsePair>)),
+    ScanRule((Arc<AuditRule>, Vec<Arc<RequestResponsePair>>)),
     Stop,
 }
 
@@ -183,6 +183,81 @@ pub(crate) enum WorkerToMainMsg {
     Error(AuditError),
     Log(String),
     Stopped
+}
+
+async fn execute_rule_with_runtime_retry(
+    worker: usize,
+    rule: Arc<AuditRule>,
+    pairs: Vec<Arc<RequestResponsePair>>,
+    tx: &Sender<WorkerToMainMsg>,
+) -> Vec<(usize, RuleFinalState, Vec<super::python::PythonRuleLog>)> {
+    let rule_id = rule.get_id().to_string();
+    match rule.execute_many(pairs.clone()).await {
+        Ok(results) => results,
+        Err(first_crash) => {
+            let _ = tx.send(WorkerToMainMsg::Log(format!(
+                "[worker {}] Python runtime thread crashed on rule '{}': {}; restarting from this rule",
+                worker, rule_id, first_crash
+            )));
+            match rule.execute_many(pairs.clone()).await {
+                Ok(results) => results,
+                Err(second_crash) => {
+                    let reason = format!(
+                        "Rule '{}' crashed its Python runtime thread twice and was skipped: {}",
+                        rule_id, second_crash
+                    );
+                    let _ = tx.send(WorkerToMainMsg::Log(format!("[worker {}] {}", worker, reason)));
+                    pairs
+                        .into_iter()
+                        .map(|pair| (pair.index, RuleFinalState::Failed(reason.clone()), vec![]))
+                        .collect()
+                }
+            }
+        }
+    }
+}
+
+async fn execute_rule_job_with_retry(
+    worker: usize,
+    rule: Arc<AuditRule>,
+    pairs: Vec<Arc<RequestResponsePair>>,
+    tx: Sender<WorkerToMainMsg>,
+) -> Vec<(usize, RuleFinalState, Vec<super::python::PythonRuleLog>)> {
+    let rule_id = rule.get_id().to_string();
+    let first_rule = rule.clone();
+    let first_pairs = pairs.clone();
+    let first_tx = tx.clone();
+    let first = tokio::spawn(async move {
+        execute_rule_with_runtime_retry(worker, first_rule, first_pairs, &first_tx).await
+    }).await;
+    match first {
+        Ok(results) => results,
+        Err(first_crash) => {
+            let _ = tx.send(WorkerToMainMsg::Log(format!(
+                "[worker {}] audit rule task crashed on rule '{}': {}; restarting from this rule",
+                worker, rule_id, first_crash
+            )));
+            let retry_pairs = pairs.clone();
+            let retry_tx = tx.clone();
+            match tokio::spawn(async move {
+                execute_rule_with_runtime_retry(worker, rule, retry_pairs, &retry_tx).await
+            }).await {
+                Ok(results) => results,
+                Err(second_crash) => {
+                    let reason = format!(
+                        "Rule '{}' crashed its audit task twice and was skipped: {}",
+                        rule_id, second_crash
+                    );
+                    let _ = tx.send(WorkerToMainMsg::Log(format!("[worker {}] {}", worker, reason)));
+                    pairs.into_iter().map(|pair| (
+                        pair.index,
+                        RuleFinalState::Failed(reason.clone()),
+                        vec![],
+                    )).collect()
+                }
+            }
+        }
+    }
 }
 
 
@@ -197,37 +272,40 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
 
         tokio::spawn(
             async move {
-                cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] spawned", _i + 1))).unwrap();
+                let _ = cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] spawned", _i + 1)));
                 loop {
                     match cloned_rx.try_recv() {
                         Ok(cmd) => {
                             match cmd {
-                                MainToWorkerCmd::Scan(data) => {
-                                    let (rule, pair) = (data.0, data.1);
-
-                                    let uri = if let Some(request) = pair.request.as_ref() {
-                                        request.uri.clone()
-                                    }
-                                    else {
-                                        "Request is missing".to_string()
-                                    };
-                                    cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] executing rule '{}' with pair {} - {}", _i + 1, rule.get_id(), pair.index, uri))).unwrap();
-
-                                    let pair_index = pair.index;
+                                MainToWorkerCmd::ScanRule(data) => {
+                                    let (rule, pairs) = (data.0, data.1);
                                     let rule_id = rule.get_id().to_string();
-                                    let (state, rule_logs) = rule.execute(pair).await;
-                                    for entry in rule_logs {
-                                        cloned_tx.send(WorkerToMainMsg::Log(format!(
-                                            "[rule log][{}][worker {}][rule '{}'][pair {}] {}",
-                                            entry.level.to_uppercase(), _i + 1, rule_id, pair_index, entry.message
-                                        ))).unwrap();
+                                    let _ = cloned_tx.send(WorkerToMainMsg::Log(format!(
+                                        "[worker {}] executing rule '{}' with {} pair(s)",
+                                        _i + 1, rule_id, pairs.len()
+                                    )));
+
+                                    let results = execute_rule_job_with_retry(
+                                        _i + 1,
+                                        rule,
+                                        pairs,
+                                        cloned_tx.clone(),
+                                    ).await;
+
+                                    for (pair_index, state, rule_logs) in results {
+                                        for entry in rule_logs {
+                                            let _ = cloned_tx.send(WorkerToMainMsg::Log(format!(
+                                                "[rule log][{}][worker {}][rule '{}'][pair {}] {}",
+                                                entry.level.to_uppercase(), _i + 1, rule_id, pair_index, entry.message
+                                            )));
+                                        }
+                                        let _ = cloned_tx.send(WorkerToMainMsg::Result(state));
                                     }
-                                    cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] finished executing rule", _i + 1))).unwrap();
-                                    cloned_tx.send(WorkerToMainMsg::Result(state)).unwrap();
+                                    let _ = cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] finished executing rule '{}'", _i + 1, rule_id)));
                                 },
                                 MainToWorkerCmd::Stop => {
-                                    cloned_tx.send(WorkerToMainMsg::Stopped).unwrap();
-                                    cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] stopped", _i + 1))).unwrap();
+                                    let _ = cloned_tx.send(WorkerToMainMsg::Stopped);
+                                    let _ = cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] stopped", _i + 1)));
                                     return;
                                 }
                             }
@@ -236,7 +314,7 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
                             if let TryRecvError::Empty = err { }
                             else {
                                 let audit_err = AuditError(err.to_string());
-                                cloned_tx.send(WorkerToMainMsg::Error(audit_err)).unwrap();
+                                let _ = cloned_tx.send(WorkerToMainMsg::Error(audit_err));
                             }
                         }
                     };

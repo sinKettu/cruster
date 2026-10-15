@@ -41,6 +41,16 @@ impl AuditRule {
             Self::Python(rule) => rule.execute(pair).await,
         }
     }
+
+    pub(crate) async fn execute_many(
+        &self,
+        pairs: Vec<std::sync::Arc<crate::http_storage::RequestResponsePair>>,
+    ) -> Result<Vec<(usize, RuleFinalState, Vec<python::PythonRuleLog>)>, String> {
+        match self {
+            Self::Yaml(_) => todo!("YAML audit rules are temporarily disabled while their design is being reconsidered"),
+            Self::Python(rule) => rule.execute_many(pairs).await,
+        }
+    }
 }
 
 pub(crate) struct AuditError(String);
@@ -140,7 +150,7 @@ pub(crate) struct RuleResult {
     r#type: String,
     pair_index: usize,
     severity: RuleSeverity,
-    findings: HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)>,
+    pub(crate) findings: HashMap<String, (Vec<String>, Vec<SerializableSendResultEntry>)>,
     initial_request: String,
     initial_response: String,
 }
