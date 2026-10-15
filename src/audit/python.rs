@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::{Arc, Mutex}};
+use std::{
+    collections::HashMap,
+    fs::{self, File},
+    io::{BufReader, Read},
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use base64;
 use http::{header::HeaderName, HeaderMap, HeaderValue};
@@ -103,14 +109,7 @@ struct PythonExecutionOutput {
 
 impl PythonRule {
     pub(crate) fn from_file(path: &str) -> Result<Self, AuditError> {
-        let source = fs::read_to_string(path)?;
-        let metadata_json = run_python(path, &source, None, None, true, false)?.value;
-        let metadata: PythonMetadata = serde_json::from_str(&metadata_json).map_err(|err| {
-            AuditError(format!(
-                "Invalid metadata in Python rule '{}': {}",
-                path, err
-            ))
-        })?;
+        let metadata = read_python_metadata(path)?;
         let rule_type = match metadata.rule_type.as_str() {
             "active" => PythonRuleType::Active,
             "passive" => PythonRuleType::Passive,
@@ -166,7 +165,7 @@ impl PythonRule {
         let active = self.rule_type == PythonRuleType::Active;
 
         let execution = tokio::task::spawn_blocking(move || {
-            run_python(&path, &source, Some(request), Some(response), false, active)
+            run_python(&path, &source, request, response, active)
         })
         .await;
         let output = match execution {
@@ -226,12 +225,97 @@ impl PythonRule {
     }
 }
 
+fn read_python_metadata(path: &str) -> Result<PythonMetadata, AuditError> {
+    const PREFIX: &[u8] = b"metadata = ";
+    const MAX_METADATA_BYTES: usize = 1024 * 1024;
+
+    let mut reader = BufReader::new(File::open(path)?);
+    let mut prefix = [0_u8; PREFIX.len()];
+    reader.read_exact(&mut prefix).map_err(|err| {
+        AuditError(format!(
+            "Python rule '{}' does not start with 'metadata = ': {}",
+            path, err
+        ))
+    })?;
+    if prefix != PREFIX {
+        return Err(AuditError(format!(
+            "Python rule '{}' must start at byte zero with 'metadata = '",
+            path
+        )));
+    }
+
+    let mut object = Vec::new();
+    let mut depth = 0_usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut started = false;
+
+    for byte in reader.bytes() {
+        let byte = byte?;
+        if !started {
+            if byte.is_ascii_whitespace() {
+                continue;
+            }
+            if byte != b'{' {
+                return Err(AuditError(format!(
+                    "Python rule '{}' metadata value must be a JSON object",
+                    path
+                )));
+            }
+            started = true;
+            depth = 1;
+            object.push(byte);
+            continue;
+        }
+
+        object.push(byte);
+        if object.len() > MAX_METADATA_BYTES {
+            return Err(AuditError(format!(
+                "Python rule '{}' metadata exceeds {} bytes",
+                path, MAX_METADATA_BYTES
+            )));
+        }
+
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match byte {
+            b'"' => in_string = true,
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return serde_json::from_slice(&object).map_err(|err| {
+                        AuditError(format!(
+                            "Invalid leading metadata JSON object in Python rule '{}': {}",
+                            path, err
+                        ))
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Err(AuditError(format!(
+        "Python rule '{}' has an incomplete metadata JSON object",
+        path
+    )))
+}
+
 fn run_python(
     path: &str,
     source: &str,
-    request: Option<PythonRequest>,
-    response: Option<PythonResponse>,
-    metadata_only: bool,
+    request: PythonRequest,
+    response: PythonResponse,
     allow_send: bool,
 ) -> Result<PythonExecutionOutput, AuditError> {
     let runtime = tokio::runtime::Handle::try_current().ok();
@@ -295,17 +379,13 @@ fn run_python(
         vm.run_code_string(scope.clone(), source, path.to_string())
             .map_err(|err| python_error(vm, err))?;
 
-        let expression = if metadata_only {
-            "__cruster_json.dumps(metadata)".to_string()
-        } else {
-            let request_json = serde_json::to_string(&request.unwrap())?;
-            let response_json = serde_json::to_string(&response.unwrap())?;
-            format!(
-                "__cruster_json.dumps(scan(__cruster_request({}), __cruster_response({})))",
-                python_literal(&request_json),
-                python_literal(&response_json)
-            )
-        };
+        let request_json = serde_json::to_string(&request)?;
+        let response_json = serde_json::to_string(&response)?;
+        let expression = format!(
+            "__cruster_json.dumps(scan(__cruster_request({}), __cruster_response({})))",
+            python_literal(&request_json),
+            python_literal(&response_json)
+        );
         let value = vm
             .run_block_expr(scope, &expression)
             .map_err(|err| python_error(vm, err))?;
@@ -444,17 +524,60 @@ fn headers_from_python(headers: Vec<PythonHeader>) -> Result<HeaderMap, AuditErr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{fs, time::{SystemTime, UNIX_EPOCH}};
+
+    fn temporary_rule(source: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("cruster-python-rule-{}-{}.py", std::process::id(), suffix));
+        fs::write(&path, source).unwrap();
+        path
+    }
 
     #[test]
     fn loads_python_metadata() {
-        let rule = PythonRule::from_file("rules/python/passive/security_headers.py").unwrap();
+        let rule = PythonRule::from_file("rules/example/http/passive/security_headers.py").unwrap();
         assert_eq!(rule.get_id(), "python-missing-security-headers");
         assert_eq!(rule.rule_type(), &PythonRuleType::Passive);
     }
 
+    #[test]
+    fn metadata_loading_does_not_execute_python() {
+        let path = temporary_rule(
+            r#"metadata = {"id":"static-metadata","severity":"info","type":"passive"}
+raise RuntimeError("must not run while loading metadata")
+"#,
+        );
+        let rule = PythonRule::from_file(path.to_str().unwrap()).unwrap();
+        fs::remove_file(path).unwrap();
+        assert_eq!(rule.get_id(), "static-metadata");
+    }
+
+    #[test]
+    fn rejects_content_before_metadata() {
+        let path = temporary_rule(
+            "# comment\nmetadata = {\"id\":\"late\",\"severity\":\"info\",\"type\":\"passive\"}\n",
+        );
+        let result = PythonRule::from_file(path.to_str().unwrap());
+        fs::remove_file(path).unwrap();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_non_json_metadata() {
+        let path = temporary_rule(
+            "metadata = {'id':'python-literal','severity':'info','type':'passive'}\n",
+        );
+        let result = PythonRule::from_file(path.to_str().unwrap());
+        fs::remove_file(path).unwrap();
+        assert!(result.is_err());
+    }
+
     #[tokio::test]
     async fn executes_passive_rule() {
-        let rule = PythonRule::from_file("rules/python/passive/security_headers.py").unwrap();
+        let rule = PythonRule::from_file("rules/example/http/passive/security_headers.py").unwrap();
         let pair = RequestResponsePair {
             request: Some(HyperRequestWrapper {
                 uri: "http://example.test/".to_string(),

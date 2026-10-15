@@ -2,7 +2,7 @@
 
 Cruster executes Python rules inside the RustPython interpreter embedded in the binary. Python is not installed or spawned on the host.
 
-Every rule is a `.py` file with a `metadata` dictionary and a `scan(request, response)` entry point. `metadata` contains `id`, `about`, `authors`, `references`, `tags`, `severity` (`info`, `low`, `medium`, or `high`) and `type` (`passive` or `active`).
+Every rule is a `.py` file that starts at byte zero with a JSON-compatible `metadata` dictionary assignment and provides a `scan(request, response)` entry point. `metadata` contains `id`, `about`, `authors`, `references`, `tags`, `severity` (`info`, `low`, `medium`, or `high`) and `type` (`passive` or `active`). Cruster reads this leading object directly without starting RustPython. Files with comments, imports, blank lines, a byte-order mark, or any other content before `metadata = ` are ignored during rule discovery.
 
 Rule API symbols use a regular import, for example `from cruster import HttpRequest, HttpResponse, finding`. Active rules additionally import `send` and `exchange`. Cruster creates this module inside RustPython before loading a rule. Editor declarations are provided by `python/cruster/__init__.pyi`, while `pyrightconfig.json` makes Pylance and Pyright discover them without ignored diagnostics or editor-specific exceptions. The declarations provide completion, signatures, documentation and request/response type checking.
 
@@ -37,7 +37,7 @@ The canonical editor-readable declarations are stored in `python/cruster/__init_
 
 ### Rule module contract
 
-Each rule file must define two module-level objects:
+Each rule file must define two module-level objects. The exact text `metadata = ` must be the first bytes of the file, and its value must use JSON syntax (including double-quoted keys and strings). Imports must follow the metadata object:
 
 ```python
 metadata = {
@@ -47,15 +47,17 @@ metadata = {
     "references": ["https://example.org/reference"],
     "tags": ["category", "technology"],
     "severity": "medium",
-    "type": "passive",
+    "type": "passive"
 }
 
+from cruster import HttpRequest, HttpResponse
 
-def scan(request: HttpRequest, response: HttpResponse) -> list[Finding]:
+
+def scan(request: HttpRequest, response: HttpResponse):
     return []
 ```
 
-`metadata` is read when the rule is loaded. Its fields have the following contracts:
+`metadata` is parsed statically when the rule is loaded; loading metadata does not compile or execute Python. Dynamic Python expressions, single-quoted strings, trailing commas, comments inside the object, `True`, `False`, and `None` are not valid in this block. Rules that do not follow this format are ignored with a warning. Its fields have the following contracts:
 
 | Field | Type | Required | Contract |
 | --- | --- | --- | --- |
@@ -269,7 +271,7 @@ Use `finding()` and `exchange()` instead of constructing these dictionaries manu
 
 ### Errors and lifecycle
 
-- Each metadata read and each scan runs in a newly created RustPython interpreter. Module-level mutable state is therefore not persistent between HTTP pairs.
+- Metadata is read statically from the leading JSON-compatible object and does not start RustPython. Each scan runs in a newly created RustPython interpreter, so module-level mutable state is not persistent between HTTP pairs.
 - The rule source is read again for each execution, so edits are observed by subsequent scans.
 - Syntax errors, import errors, uncaught rule exceptions, invalid return values, native send errors, and invalid serialized HTTP data produce a failed rule state rather than a finding.
 - Python exceptions are rendered with traceback information in Cruster's failure output.
@@ -279,10 +281,6 @@ Use `finding()` and `exchange()` instead of constructing these dictionaries manu
 ## Complete active rule example
 
 ```python
-import base64
-
-from cruster import HttpRequest, HttpResponse, exchange, finding, send
-
 metadata = {
     "id": "reflected-probe",
     "about": "Checks whether a query marker is reflected",
@@ -290,8 +288,12 @@ metadata = {
     "references": [],
     "tags": ["reflection", "active"],
     "severity": "medium",
-    "type": "active",
+    "type": "active"
 }
+
+import base64
+
+from cruster import HttpRequest, HttpResponse, exchange, finding, send
 
 
 def scan(request: HttpRequest, response: HttpResponse):
