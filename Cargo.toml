@@ -27,7 +27,7 @@ colored = "2.0.0"
 # ---------------------------------------------------------------------
 # Cursive
 # cursive = "0.20.0"
-cursive = { version = "0.20.0", default_features = false, optional = true }
+cursive = { version = "0.20.0", default-features = false, optional = true }
 cursive_table_view = "0.14.0"
 # crossbeam-channel = "0.5.6"
 cursive_buffered_backend = "0.6.1"

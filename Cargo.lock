@@ -5661,9 +5661,9 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "wl-clipboard-rs"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "981a303dfbb75d659f6612d05a14b2e363c103d24f676a2d44a00d18507a1ad9"
+checksum = "0e1b0451f89e40310b8ef524c068cadca8bf0c974cd31c384f210c4ba2095617"
 dependencies = [
  "derive-new",
  "libc",

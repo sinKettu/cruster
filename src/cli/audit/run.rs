@@ -1,7 +1,6 @@
 use std::{fs::File, sync::Arc};
 
 use clap::ArgMatches;
-use colored::Colorize;
 use crossbeam::channel::TryRecvError;
 use regex::Regex;
 

@@ -12,6 +12,7 @@ use crate::audit::contexts::ActiveRuleContext;
 use crate::http_storage::RequestResponsePair;
 
 
+#[allow(dead_code)] // Used by the frozen YAML executor.
 fn print_dbg_banner(label: &str) {
     debug!("\n");
     debug!("----------------------------------------");
@@ -21,6 +22,7 @@ fn print_dbg_banner(label: &str) {
 }
 
 
+#[allow(dead_code)] // YAML execution is temporarily disabled.
 impl Rule {
     pub(crate) async fn execute<'pair_lt, 'rule_lt>(&'rule_lt self, pair: Arc<RequestResponsePair>) -> RuleFinalState {
         match &self.rule {

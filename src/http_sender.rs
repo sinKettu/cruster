@@ -196,14 +196,6 @@ async fn follow_redirect(response: Response, client: &Client, mut redirects_coun
 }
 
 
-pub(crate) async fn send_reqwest(req: Request, max_redirects: usize) -> Result<(Response, bool), CrusterError> {
-    let client = Client::builder()
-        .use_rustls_tls()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
-    send_reqwest_with_client(req, max_redirects, &client).await
-}
-
 async fn send_reqwest_with_client(req: Request, max_redirects: usize, client: &Client) -> Result<(Response, bool), CrusterError> {
     let cookie = if let Some(cookie) = req.headers().get("cookie") {
         Some(cookie.to_owned())

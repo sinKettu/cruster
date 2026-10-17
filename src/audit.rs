@@ -1,7 +1,11 @@
+// YAML rules are frozen; keep their implementation until the redesign resumes.
+#[allow(dead_code)]
 pub(crate) mod actions;
 pub(crate) mod load_rule;
 pub(crate) mod execution;
+#[allow(dead_code)] // Frozen YAML rule validation and accessors.
 pub(crate) mod rules;
+#[allow(dead_code, unused_imports)] // Frozen YAML execution contexts.
 pub(crate) mod contexts;
 pub(crate) mod types;
 pub(crate) mod result;
@@ -23,6 +27,7 @@ use self::{rules::{active::ActiveRule, passive::PassiveRule}, types::Serializabl
 
 #[derive(Debug, Clone)]
 pub(crate) enum AuditRule {
+    #[allow(dead_code)] // YAML rule loading is temporarily disabled.
     Yaml(Rule),
     Python(python::PythonRule),
 }
@@ -39,16 +44,6 @@ impl AuditRule {
         match self {
             Self::Yaml(_) => todo!("YAML audit rules are temporarily disabled while their design is being reconsidered"),
             Self::Python(rule) => rule.execute(pair).await,
-        }
-    }
-
-    pub(crate) async fn execute_many(
-        &self,
-        pairs: Vec<std::sync::Arc<crate::http_storage::RequestResponsePair>>,
-    ) -> Result<Vec<(usize, RuleFinalState, Vec<python::PythonRuleLog>)>, String> {
-        match self {
-            Self::Yaml(_) => todo!("YAML audit rules are temporarily disabled while their design is being reconsidered"),
-            Self::Python(rule) => rule.execute_many(pairs).await,
         }
     }
 
@@ -113,6 +108,7 @@ pub(crate) struct RuleMetadata {
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
+#[allow(dead_code)] // Frozen YAML action schema.
 pub(crate) struct RuleActions {
     watch: Option<Vec<RuleWatchAction>>,
     change: Option<Vec<RuleChangeAction>>,

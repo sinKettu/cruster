@@ -1,3 +1,4 @@
+#[allow(dead_code, unused_imports)] // Regex extraction for frozen YAML rules.
 pub(crate) mod extract;
 
 use hudsucker::{
