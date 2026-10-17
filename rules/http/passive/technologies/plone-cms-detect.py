@@ -1,7 +1,3 @@
-import base64
-
-from cruster import HttpRequest, HttpResponse, finding
-
 metadata = {
     "id": "plone-cms-detect",
     "about": "Plone CMS detect (passive Nuclei technology fingerprint)",
@@ -11,8 +7,13 @@ metadata = {
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
+
+import base64
+
+from cruster import HttpRequest, HttpResponse, finding
+
 
 SIGNATURES = (
     '<meta name="generator" content="Plone - ',

@@ -1,19 +1,20 @@
-import base64
-import re
-
-from cruster import HttpRequest, HttpResponse, finding
-
 metadata = {
     "id": "powerdns-admin-detect",
     "about": "PowerDNS-Admin - Detect (passive Nuclei technology fingerprint)",
     "authors": ["ProjectDiscovery contributors", "Cruster"],
     "references": [
-        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies",
+        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies"
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
+
+import base64
+import re
+
+from cruster import HttpRequest, HttpResponse, finding
+
 
 
 def scan(request: HttpRequest, response: HttpResponse):

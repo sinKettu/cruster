@@ -1,8 +1,3 @@
-import base64
-import re
-
-from cruster import HttpRequest, HttpResponse, finding
-
 metadata = {
     "id": "proget-detect",
     "about": "ProGet - Detect (passive Nuclei technology fingerprint)",
@@ -12,8 +7,14 @@ metadata = {
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
+
+import base64
+import re
+
+from cruster import HttpRequest, HttpResponse, finding
+
 
 
 def scan(request: HttpRequest, response: HttpResponse):

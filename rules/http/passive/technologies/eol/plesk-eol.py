@@ -3,19 +3,19 @@ metadata = {
     "about": "Plesk End-of-Life - Detect (passive Nuclei technology fingerprint)",
     "authors": [
         "ProjectDiscovery contributors",
-        "Cruster",
+        "Cruster"
     ],
     "references": [
-        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies",
+        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies"
     ],
     "tags": [
         "technology",
         "discovery",
         "nuclei",
-        "passive",
+        "passive"
     ],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
 
 import base64

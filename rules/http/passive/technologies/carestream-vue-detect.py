@@ -7,7 +7,7 @@ metadata = {
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
 import base64
 import hashlib

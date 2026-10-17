@@ -1,6 +1,3 @@
-import base64
-from cruster import HttpRequest, HttpResponse, finding
-
 metadata = {
     "id": "plantumlserver-detect",
     "about": "PlantUMLServer - Detect (passive Nuclei technology fingerprint)",
@@ -10,8 +7,12 @@ metadata = {
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
+
+import base64
+from cruster import HttpRequest, HttpResponse, finding
+
 
 
 def scan(request: HttpRequest, response: HttpResponse):

@@ -1,4 +1,4 @@
-qmetadata = {
+metadata = {
     "id": "oneblog-detect",
     "about": "OneBlog Detect (passive Nuclei technology fingerprint)",
     "authors": ["ProjectDiscovery contributors", "Cruster"],
@@ -7,7 +7,7 @@ qmetadata = {
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
 import base64
 import re

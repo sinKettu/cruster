@@ -1,18 +1,19 @@
-import base64
-
-from cruster import HttpRequest, HttpResponse, finding
-
 metadata = {
     "id": "pi-hole-panel",
     "about": "Pi-hole Login Panel - Detect (passive Nuclei technology fingerprint)",
     "authors": ["ProjectDiscovery contributors", "Cruster"],
     "references": [
-        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies",
+        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies"
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
+
+import base64
+
+from cruster import HttpRequest, HttpResponse, finding
+
 
 
 SIGNATURES = (

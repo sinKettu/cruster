@@ -1,4 +1,4 @@
-armetadata = {
+metadata = {
     "id": "openshift-detect",
     "about": "OpenShift Monitoring Plugin - Detect (passive Nuclei technology fingerprint)",
     "authors": ["ProjectDiscovery contributors", "Cruster"],
@@ -7,7 +7,7 @@ armetadata = {
     ],
     "tags": ["technology", "discovery", "nuclei", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
 import base64
 import re
