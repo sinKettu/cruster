@@ -155,7 +155,7 @@ pub(crate) async fn launch(command: ArgMatches, config: config::Config, mut audi
                 Some(("print", _args)) => {
                     let conf = AuditPrintConfig::try_from(_args)?;
                     let audit_results = config.get_audit_results_file(&conf.audit_name);
-                    if let Err(err) = audit::print::exec(conf, audit_results).await {
+                    if let Err(err) = audit::print::exec(conf, audit_results, &http_data_path).await {
                         let err_str: String = err.into();
                         eprintln!("Error occured while audit::print executed: {}", err_str);
                         exit(10);

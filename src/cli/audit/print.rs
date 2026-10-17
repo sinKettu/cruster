@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs,
     io::{self, BufRead, BufReader, Write},
@@ -6,7 +7,33 @@ use std::{
 
 use clap::ArgMatches;
 
-use crate::{audit::RuleResult, cli::CrusterCLIError};
+use crate::{
+    audit::RuleResult, cli::CrusterCLIError, http_storage::serializable::SerializableProxyData,
+};
+
+fn read_request_urls(reader: impl BufRead) -> io::Result<HashMap<usize, String>> {
+    let mut urls = HashMap::new();
+    for line in reader.lines() {
+        let pair: SerializableProxyData = serde_json::from_str(&line?)
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
+        urls.insert(pair.index, pair.request.get_uri());
+    }
+    Ok(urls)
+}
+
+fn request_line_with_url(finding: &RuleResult, urls: &HashMap<usize, String>) -> String {
+    let first_line = finding.get_initial_request_first_line().trim_end();
+    match urls.get(&finding.get_pair_index()) {
+        Some(url) => {
+            let mut parts = first_line.split_whitespace();
+            let method = parts.next().unwrap_or_default();
+            let _target = parts.next();
+            let version = parts.next().unwrap_or_default();
+            format!("{} {} {}", method, url, version)
+        }
+        None => first_line.to_string(),
+    }
+}
 
 pub(crate) struct AuditPrintConfig {
     pub(crate) audit_name: String,
@@ -87,6 +114,7 @@ fn print_single_result(
     output: &mut impl Write,
     print_conf: &AuditPrintConfig,
     line: String,
+    urls: &HashMap<usize, String>,
 ) -> io::Result<bool> {
     let finding = serde_json::from_str::<RuleResult>(&line)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
@@ -96,6 +124,10 @@ fn print_single_result(
     }
 
     writeln!(output, "{:<10}  {:<}", "Rule ID:", finding.get_rule_id())?;
+    writeln!(output, "{:<10}  {:<}", "Pair ID:", finding.get_pair_index())?;
+    if let Some(url) = urls.get(&finding.get_pair_index()) {
+        writeln!(output, "{:<10}  {}", "URL:", url)?;
+    }
     writeln!(output, "{:<10}  {:<}", "Severity:", finding.get_severity())?;
     writeln!(output, "{:<10}  {:<}", "Protocol:", finding.get_protocol())?;
     writeln!(output, "{:<10}  {:<}", "Type:", finding.get_type())?;
@@ -158,7 +190,11 @@ fn print_single_result(
     Ok(true)
 }
 
-fn print_finding_briefly(output: &mut impl Write, finding: &RuleResult) -> io::Result<()> {
+fn print_finding_briefly(
+    output: &mut impl Write,
+    finding: &RuleResult,
+    urls: &HashMap<usize, String>,
+) -> io::Result<()> {
     let all_findings = finding.get_all_findings_as_str();
     let all_findings_cutted = if all_findings.len() > 69 {
         &all_findings[..69]
@@ -168,12 +204,13 @@ fn print_finding_briefly(output: &mut impl Write, finding: &RuleResult) -> io::R
 
     writeln!(
         output,
-        "{:>4}  {:<8} {:<30}  {:<70}  {:<}",
+        "{:>4}  {:>4}  {:<8} {:<30}  {:<70}  {:<}",
         finding.get_id(),
+        finding.get_pair_index(),
         finding.get_severity(),
         finding.get_rule_id(),
         all_findings_cutted,
-        finding.get_initial_request_first_line()
+        request_line_with_url(finding, urls)
     )
 }
 
@@ -181,6 +218,7 @@ fn print_all(
     output: &mut impl Write,
     print_conf: &AuditPrintConfig,
     reader: impl BufRead,
+    urls: &HashMap<usize, String>,
 ) -> io::Result<()> {
     let mut lines: Vec<RuleResult> = vec![];
     for possible_line in reader.lines() {
@@ -193,7 +231,7 @@ fn print_all(
                     lines.push(finding);
                     continue;
                 } else {
-                    print_finding_briefly(output, &finding)?;
+                    print_finding_briefly(output, &finding, urls)?;
                 }
             }
             Err(err) => {
@@ -212,7 +250,7 @@ fn print_all(
         }
 
         for line in lines.iter() {
-            print_finding_briefly(output, line)?;
+            print_finding_briefly(output, line, urls)?;
         }
     }
 
@@ -223,14 +261,15 @@ fn print_results(
     output: &mut impl Write,
     print_conf: &AuditPrintConfig,
     reader: impl BufRead,
+    urls: &HashMap<usize, String>,
 ) -> io::Result<()> {
     if print_conf.all {
-        print_all(output, print_conf, reader)?;
+        print_all(output, print_conf, reader, urls)?;
     } else {
         for possible_line in reader.lines() {
             match possible_line {
                 Ok(line) => {
-                    if print_single_result(output, print_conf, line)? {
+                    if print_single_result(output, print_conf, line, urls)? {
                         return Ok(());
                     }
                 }
@@ -254,10 +293,11 @@ fn write_results(
     output: &mut impl Write,
     print_conf: &AuditPrintConfig,
     reader: impl BufRead,
+    urls: &HashMap<usize, String>,
 ) -> Result<(), CrusterCLIError> {
     // A consumer such as `head` may close stdout before all results are written.
     // Stop immediately in that case, but preserve all other errors.
-    match print_results(output, print_conf, reader).and_then(|()| output.flush()) {
+    match print_results(output, print_conf, reader, urls).and_then(|()| output.flush()) {
         Err(err) if err.kind() == io::ErrorKind::BrokenPipe => Ok(()),
         result => result.map_err(CrusterCLIError::from),
     }
@@ -266,11 +306,17 @@ fn write_results(
 pub(crate) async fn exec(
     print_conf: AuditPrintConfig,
     results: String,
+    http_data_path: &str,
 ) -> Result<(), CrusterCLIError> {
     let fin = fs::OpenOptions::new().read(true).open(&results)?;
     let reader = BufReader::new(fin);
+    let urls = match fs::File::open(http_data_path) {
+        Ok(file) => read_request_urls(BufReader::new(file))?,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => HashMap::new(),
+        Err(err) => return Err(err.into()),
+    };
     let stdout = io::stdout();
-    write_results(&mut stdout.lock(), &print_conf, reader)
+    write_results(&mut stdout.lock(), &print_conf, reader, &urls)
 }
 
 #[cfg(test)]
@@ -326,7 +372,13 @@ mod tests {
                 } else {
                     format!("{}\n", FINDING)
                 };
-                assert!(write_results(&mut output, &config(all, sort), input.as_bytes()).is_ok());
+                assert!(write_results(
+                    &mut output,
+                    &config(all, sort),
+                    input.as_bytes(),
+                    &HashMap::new()
+                )
+                .is_ok());
             }
         }
     }
@@ -338,7 +390,13 @@ mod tests {
                 kind: io::ErrorKind::PermissionDenied,
                 fail_on_flush,
             };
-            assert!(write_results(&mut output, &config(true, false), FINDING.as_bytes()).is_err());
+            assert!(write_results(
+                &mut output,
+                &config(true, false),
+                FINDING.as_bytes(),
+                &HashMap::new()
+            )
+            .is_err());
         }
     }
 
@@ -347,7 +405,8 @@ mod tests {
         assert!(write_results(
             &mut Vec::new(),
             &config(true, false),
-            &b"invalid json\n"[..]
+            &b"invalid json\n"[..],
+            &HashMap::new()
         )
         .is_err());
     }
@@ -356,11 +415,52 @@ mod tests {
     fn normal_output_is_preserved() {
         for (all, sort) in [(true, false), (true, true), (false, false)] {
             let mut output = Vec::new();
-            write_results(&mut output, &config(all, sort), FINDING.as_bytes()).unwrap();
+            write_results(
+                &mut output,
+                &config(all, sort),
+                FINDING.as_bytes(),
+                &HashMap::new(),
+            )
+            .unwrap();
             let output = String::from_utf8(output).unwrap();
             assert!(output.contains("test-rule"));
             assert!(output.contains("GET / HTTP/1.1"));
             assert!(output.ends_with('\n'));
         }
+    }
+
+    #[test]
+    fn pair_id_and_full_url_are_printed_in_all_modes() {
+        let mut finding: serde_json::Value = serde_json::from_str(FINDING).unwrap();
+        finding["pair_index"] = 42.into();
+        finding["initial_request"] = "GET /search?q=test HTTP/1.1\r\n\r\n".into();
+        let input = serde_json::to_string(&finding).unwrap();
+        let urls = HashMap::from([(42, "https://example.com:8443/search?q=test".into())]);
+
+        for (all, sort) in [(true, false), (true, true), (false, false)] {
+            let mut output = Vec::new();
+            let mut conf = config(all, sort);
+            conf.no_data = true;
+            write_results(&mut output, &conf, input.as_bytes(), &urls).unwrap();
+            let output = String::from_utf8(output).unwrap();
+            assert!(output.contains("https://example.com:8443/search?q=test"));
+            if all {
+                let columns: Vec<_> = output.split_whitespace().collect();
+                assert_eq!(&columns[..2], &["0", "42"]);
+                assert!(output.contains("GET https://example.com:8443/search?q=test HTTP/1.1"));
+            } else {
+                assert!(output.contains("Pair ID:    42"));
+            }
+        }
+    }
+
+    #[test]
+    fn urls_are_loaded_by_pair_id_with_scheme_port_and_query() {
+        let input = r#"{"index":42,"request":{"method":"GET","scheme":"https://","host":"example.com:8443","path":"/search","query":"?q=test","version":"HTTP/1.1","headers":[],"body":null},"response":null}"#;
+        let urls = read_request_urls(input.as_bytes()).unwrap();
+        assert_eq!(
+            urls.get(&42).unwrap(),
+            "https://example.com:8443/search?q=test"
+        );
     }
 }
