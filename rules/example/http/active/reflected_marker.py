@@ -1,7 +1,3 @@
-import base64
-
-from cruster import HttpRequest, HttpResponse, exchange, finding, send
-
 metadata = {
     "id": "python-reflected-marker",
     "about": "Inject a marker into the query and detect reflection",
@@ -9,8 +5,13 @@ metadata = {
     "references": [],
     "tags": ["python", "reflection", "active"],
     "severity": "medium",
-    "type": "active",
+    "type": "active"
 }
+
+
+import base64
+
+from cruster import HttpRequest, HttpResponse, exchange, finding, send
 
 
 def scan(request: HttpRequest, response: HttpResponse):
