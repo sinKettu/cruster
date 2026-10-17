@@ -319,8 +319,8 @@ $ cd cruster && sudo docker build . -f docker/Dockerfile-openssl-ncurses -t loca
 - [X] Manual repeater for requests.
 - [X] Projects (like in Burp or ZAP), *this thing will be developing with further improvements of Cruster*.
 - [X] Store projects and history on drive.
-- [ ] **Scripting engine based on YAML syntax to write testcases and checks**.
-- [ ] **Scripting engine based on Python to write testcases and checks**.
+- [ ] ~~**Scripting engine based on YAML syntax to write testcases and checks**.~~
+- [X] **Scripting engine based on Python to write testcases and checks**.
 - [X] WS(S) support.
 - [ ] Improve documentation.
 - [ ] WS(S) proxy history visualization (like for HTTP(S)).
