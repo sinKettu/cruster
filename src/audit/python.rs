@@ -14,7 +14,7 @@ use rustpython_vm::{
     compiler::Mode,
     convert::TryFromObject,
     scope::Scope,
-    PyRef, VirtualMachine,
+    PyRef, Settings, VirtualMachine,
 };
 use serde::{Deserialize, Serialize};
 
@@ -224,7 +224,15 @@ impl PythonRule {
     ) {
         let runtime = None;
         let logs = Arc::new(Mutex::new(Vec::<PythonRuleLog>::new()));
-        let interpreter = InterpreterConfig::new().init_stdlib().interpreter();
+        let mut settings = Settings::default();
+        // Embedded rule interpreters must not replace the process-wide Ctrl+C
+        // handler with Python's KeyboardInterrupt handler. CLI audits should
+        // terminate the whole process, not just interrupt one rule worker.
+        settings.no_sig_int = true;
+        let interpreter = InterpreterConfig::new()
+            .settings(settings)
+            .init_stdlib()
+            .interpreter();
 
         interpreter.enter(|vm| {
             let bootstrap = match compile_python(vm, BOOTSTRAP, "<cruster>") {
@@ -657,6 +665,26 @@ mod tests {
         let rule = PythonRule::from_file("rules/example/http/passive/security_headers.py").unwrap();
         assert_eq!(rule.get_id(), "python-missing-security-headers");
         assert_eq!(rule.rule_type(), &PythonRuleType::Passive);
+    }
+
+    #[test]
+    fn loads_all_bundled_python_metadata() {
+        let mut directories = vec![PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rules")];
+        let mut count = 0;
+        while let Some(directory) = directories.pop() {
+            for entry in fs::read_dir(directory).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if entry.file_type().unwrap().is_dir() {
+                    directories.push(path);
+                } else if path.extension().is_some_and(|extension| extension == "py") {
+                    PythonRule::from_file(path.to_str().unwrap())
+                        .unwrap_or_else(|err| panic!("Invalid bundled rule '{}': {:?}", path.display(), err));
+                    count += 1;
+                }
+            }
+        }
+        assert!(count > 0, "No bundled Python rules found");
     }
 
     #[test]

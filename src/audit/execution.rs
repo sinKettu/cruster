@@ -241,7 +241,10 @@ async fn execute_rule_stream_once(
                     emit_pair_result(worker, &rule_id, pair_index, state, logs, tx);
                     delivered.push(pair_index);
                 }
-                return result.map(|_| delivered).map_err(|reason| (reason, delivered));
+                return match result {
+                    Ok(_) => Ok(delivered),
+                    Err(reason) => Err((reason, delivered)),
+                };
             }
             item = result_rx.recv() => {
                 if let Some((pair_index, state, logs)) = item {
