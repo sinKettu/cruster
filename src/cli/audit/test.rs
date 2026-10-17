@@ -28,11 +28,8 @@ pub(crate) async fn exec(_arg: &str, http_data_path: &str, aconf: &AuditConfig) 
     let rules = load_rule::load_rules(aconf)?;
     let pairs: Vec<Arc<RequestResponsePair>> = storage.into();
     for rule in rules.iter() {
-        for pair in pairs.iter() {
-            tx.send(MainToWorkerCmd::Scan((rule.clone(), pair.clone())))?;
-        }
+        tx.send(MainToWorkerCmd::ScanRule((rule.clone(), pairs.clone())))?;
     }
-
     for _ in 0..tasks {
         tx.send(MainToWorkerCmd::Stop)?;
     }

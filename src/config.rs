@@ -1,6 +1,7 @@
 use std::{fs, path};
 use clap::{self, ArgMatches};
 use serde_yaml as yml;
+#[cfg(not(windows))]
 use shellexpand::tilde;
 use serde::{Serialize, Deserialize};
 
@@ -73,6 +74,7 @@ pub(crate) struct AuditConfig {
     pub(crate) tasks: Option<usize>,
     pub(crate) exclude: Option<AuditEntities>,
     pub(crate) include: Option<AuditEntities>,
+    pub(crate) filter: Option<Vec<String>>,
     pub(crate) verbose: Option<bool>,
     pub(crate) name: Option<String>,
 }
@@ -117,6 +119,7 @@ impl Default for AuditConfig {
             tasks: Some(1),
             exclude: None,
             include: None,
+            filter: None,
             verbose: None,
             name: None,
         }
@@ -184,6 +187,10 @@ fn with_default_cli(mut args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsString
 }
 
 fn parse_cmd() -> clap::ArgMatches {
+    parse_cmd_from(std::env::args_os().collect())
+}
+
+pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches {
     let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.";
     let config_help = "Path to config with YAML format. Cannot be set by config file.";
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
@@ -454,6 +461,14 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .help("Name of the audit (used in files names)")
                                 )
                                 .arg(
+                                    clap::Arg::new("filter")
+                                        .long("filter")
+                                        .short('f')
+                                        .value_name("REGEX")
+                                        .action(clap::ArgAction::Append)
+                                        .help("Audit HTTP pairs matching any regex in request/response first lines, headers or bodies. Repeatable; appended to YAML filters")
+                                )
+                                .arg(
                                     clap::Arg::new("verbose")
                                         .long("verbose")
                                         .short('v')
@@ -713,7 +728,7 @@ fn parse_cmd() -> clap::ArgMatches {
                 .value_name("AUDIT_CONFIG_PATH")
                 .help(audit_conf_help)
         )
-        .get_matches_from(with_default_cli(std::env::args_os().collect()));
+        .get_matches_from(with_default_cli(args));
 
     return matches;
 }
@@ -760,12 +775,46 @@ mod command_line_tests {
     }
 }
 
+/// The Windows build keeps its workplace in the directory it was launched from,
+/// not in the user's home directory or alongside the executable.
+fn default_workplace() -> Result<String, CrusterConfigError> {
+    #[cfg(windows)]
+    {
+        let workplace = std::env::current_dir()?.join(".cruster");
+        workplace.into_os_string().into_string().map_err(|_| {
+            CrusterConfigError::from("The current working directory is not valid UTF-8")
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(tilde("~/.cruster").into_owned())
+    }
+}
+
+#[cfg(test)]
+mod workplace_tests {
+    use super::*;
+
+    #[test]
+    fn default_workplace_matches_build_mode() {
+        let workplace = default_workplace().unwrap_or_else(|err| panic!("{}", err.error));
+        #[cfg(windows)]
+        assert_eq!(path::Path::new(&workplace), std::env::current_dir().unwrap().join(".cruster"));
+        #[cfg(not(windows))]
+        assert_eq!(workplace, tilde("~/.cruster").as_ref());
+    }
+}
+
 // -----------------------------------------------------------------------------------------------//
 #[allow(dead_code)]
 pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), CrusterConfigError> {
     let matches = parse_cmd();
-    let default_workplace = tilde("~/.cruster");
-    let default_config = tilde("~/.cruster/config.yaml");
+    let default_workplace = default_workplace()?;
+    let default_config = path::Path::new(&default_workplace)
+        .join("config.yaml")
+        .to_str()
+        .ok_or_else(|| CrusterConfigError::from("The default config path is not valid UTF-8"))?
+        .to_string();
 
     let cmd = if let Some((subcmd, args)) = matches.subcommand() {
         match subcmd {
@@ -795,7 +844,7 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
 
     let (workplace, config_name) = match (workplace_possible, config_possible) {
         (None, None) => {
-            let workplace_path = path::Path::new(default_workplace.as_ref());
+            let workplace_path = path::Path::new(&default_workplace);
             if !workplace_path.exists() {
                 fs::create_dir_all(workplace_path)?;
             }
@@ -828,7 +877,7 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
                 );
             }
 
-            let workplace_path = path::Path::new(default_workplace.as_ref());
+            let workplace_path = path::Path::new(&default_workplace);
             if !workplace_path.exists() {
                 fs::create_dir_all(workplace_path)?;
             }

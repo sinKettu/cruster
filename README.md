@@ -1,6 +1,6 @@
 # Cruster
 
-`v0.8.3`
+`v0.8.4`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
 Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could be as useful as them.
@@ -17,6 +17,33 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 - CLI and `MCP` to work with traffic;
 - Python-based rules to check in HTTP traffic whatever you want (scan!);
 - ... *Coming soon*...
+
+## Building for Windows
+
+Install Rust with the Windows MSVC toolchain and the Visual Studio C++ Build
+Tools, then run in a Developer PowerShell:
+
+```powershell
+cargo build --release --target x86_64-pc-windows-msvc
+```
+
+The executable is `target/x86_64-pc-windows-msvc/release/cruster.exe`.
+The default features enable the cross-platform Crossterm terminal and Rust-based
+certificate authority backends. OpenSSL and ncurses are not required. Do not
+enable the Unix-only `termion` or `ncurses` features on Windows.
+
+On Windows, the default workplace is `.cruster` in the **current working
+directory from which Cruster is launched**, not the home directory or necessarily
+the executable's directory. Configuration, CA certificate/key, and projects
+(including the `default` project) are stored there. Starting Cruster from a
+different directory selects a different workplace.
+
+For example, launching `C:\tools\cruster.exe dump` from `C:\work\assessment`
+creates `C:\work\assessment\.cruster`. Explicit `--workplace`, `--config`, and
+`--project` options keep their existing behavior. Linux and macOS builds
+continue to use `~/.cruster` by default. The behavior is selected automatically
+at compile time using Rust's target-platform conditional compilation;
+no additional Cargo feature is needed.
 
 ## Usage
 
@@ -217,6 +244,26 @@ All features can be devided in two groups:
 
 To successfully compile `Cruster` one feature from each group must be defined (`default` feature do it by default).
 
+### Smaller release binaries
+
+To optimize a release binary for size without changing the project configuration,
+set Cargo's release-profile environment variables for a single build:
+
+```sh
+CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
+CARGO_PROFILE_RELEASE_LTO=fat \
+CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+CARGO_PROFILE_RELEASE_PANIC=abort \
+CARGO_PROFILE_RELEASE_STRIP=symbols \
+cargo build --release
+```
+
+This enables size optimization, full link-time optimization, a single codegen unit,
+abort-on-panic behavior, and symbol stripping. Builds may take longer, runtime
+performance may differ, and panics terminate the process without stack unwinding
+or recovery. Stripping symbols also makes debugging harder. The resulting size
+depends on the target and toolchain; compare with the default release build.
+
 ## Installation
 
 The only option for now is to install from source code with `git` and `cargo`. You can use the following command:
@@ -224,7 +271,7 @@ The only option for now is to install from source code with `git` and `cargo`. Y
 ### Fully Rust-Based Installation
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.3"
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.4"
 ```
 
 This command will install `Cruster` using `rcgen` library to build local certificate authority and `crossterm` as TUI backend. So, you are going to get full-rust package.
@@ -238,7 +285,7 @@ If, for some reason, you do not want to use `rcgen` to handle certificates, you 
 You can install `Cruster` and use `OpenSSL` to handle certificates. **In this case, you have to had `OpenSSL` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.3" --no-default-features --features openssl-ca,crossterm
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.4" --no-default-features --features openssl-ca,crossterm
 ```
 
 ### Using Ncurses as TUI Backend
@@ -246,7 +293,7 @@ cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.3" --no-defa
 `Ncurses` can be used as TUI backend instead of `Crossterm` (which is fully rust-written). **In this case, you have to had `Ncurses` installed on your computer.**
 
 ``` shell
-cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.3" --no-default-features --features ncurses,rcgen-ca
+cargo install --git https://github.com/sinKettu/cruster --tag "v0.8.4" --no-default-features --features ncurses,rcgen-ca
 ```
 
 ## With Docker

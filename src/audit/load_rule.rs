@@ -12,6 +12,7 @@ use crate::config::AuditConfig;
 use log::debug;
 use serde_yaml as yml;
 
+#[allow(dead_code)] // YAML rule loading is temporarily disabled.
 impl Rule {
     pub(crate) fn from_file(filename: &str) -> Result<Rule, AuditError> {
         let rule_file = match std::fs::OpenOptions::new().read(true).open(filename) {
@@ -69,6 +70,7 @@ impl AuditConfig {
         }
     }
 
+    #[allow(dead_code)] // Filtering for the frozen YAML rule loader.
     fn excludes_rule(&self, rule: &Rule) -> bool {
         let rule_id = rule.get_id();
         let rule_tags = rule.metadata.tags.as_slice();
@@ -246,7 +248,13 @@ pub(crate) fn load_rules(audit_conf: &AuditConfig) -> Result<Vec<Arc<AuditRule>>
             continue;
         }
 
-        let rule = PythonRule::from_file(path)?;
+        let rule = match PythonRule::from_file(path) {
+            Ok(rule) => rule,
+            Err(err) => {
+                eprintln!("Warning: ignoring invalid Python audit rule '{}': {:?}", path, err);
+                continue;
+            }
+        };
         if !audit_conf.excludes_python_rule(&rule) {
             result.push(Arc::new(AuditRule::Python(rule)));
         }

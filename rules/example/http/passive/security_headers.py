@@ -1,6 +1,3 @@
-from cruster import HttpRequest, HttpResponse, finding
-
-
 metadata = {
     "id": "python-missing-security-headers",
     "about": "Detect responses without basic browser security headers",
@@ -8,8 +5,11 @@ metadata = {
     "references": ["https://owasp.org/www-project-secure-headers/"],
     "tags": ["python", "headers", "passive"],
     "severity": "low",
-    "type": "passive",
+    "type": "passive"
 }
+
+
+from cruster import HttpRequest, HttpResponse, finding
 
 
 def scan(request: HttpRequest, response: HttpResponse):

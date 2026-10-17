@@ -64,6 +64,10 @@ impl RuleResult {
         self.id = new_id
     }
 
+    pub(crate) fn get_pair_index(&self) -> usize {
+        self.pair_index
+    }
+
     pub(crate) fn get_severity(&self) -> &str {
         return match self.severity {
             RuleSeverity::High => "high",

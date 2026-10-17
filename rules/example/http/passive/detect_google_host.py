@@ -1,6 +1,3 @@
-from cruster import HttpRequest, HttpResponse, finding, log
-
-
 metadata = {
     "id": "python-detect-google-host",
     "about": "Detect HTTP traffic sent to a Google host",
@@ -8,8 +5,11 @@ metadata = {
     "references": [],
     "tags": ["python", "host", "google", "passive"],
     "severity": "info",
-    "type": "passive",
+    "type": "passive"
 }
+
+
+from cruster import HttpRequest, HttpResponse, finding, log
 
 
 def scan(request: HttpRequest, response: HttpResponse):

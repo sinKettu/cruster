@@ -51,14 +51,14 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
 }
 
 fn open_editor(editor: &str, request: String) -> Result<String, CrusterCLIError> {
-    let tmp_path = format!(
-        "/tmp/cruster-repeater-{}.txt",
+    let tmp_path = std::env::temp_dir().join(format!(
+        "cruster-repeater-{}.txt",
         rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(7)
             .map(char::from)
             .collect::<String>()
-    );
+    ));
 
     let mut fout = std::fs::OpenOptions::new()
         .create(true)
@@ -74,6 +74,7 @@ fn open_editor(editor: &str, request: String) -> Result<String, CrusterCLIError>
     let mut fin = std::fs::File::open(&tmp_path)?;
     let mut edited_request = String::with_capacity(request.len() + 100);
     fin.read_to_string(&mut edited_request)?;
+    drop(fin);
 
     std::fs::remove_file(tmp_path)?;
 

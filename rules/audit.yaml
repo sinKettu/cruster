@@ -1,9 +1,10 @@
-active: true
-passive: false
+active: false
+passive: true
 rules:
   - rules/example
   - rules/http
 include: null
+filter: []
 exclude:
   tags: []
   paths: []

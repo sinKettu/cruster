@@ -63,6 +63,20 @@ $ cruster cli http show -e status=404 -u 3-5
 
 Use `-b` or `--no-body` with pretty output, including automatic pretty output for an exact ID, to print request/response lines and headers without their bodies.
 
+## Audit HTTP-pair filtering
+
+Use the repeatable `--filter` (`-f`) option when running an audit:
+
+```shell
+cruster audit run selected -f '^GET https?://example\.com/' -f '(?i)x-powered-by:.*php'
+```
+
+Only HTTP pairs matching at least one expression are passed to audit rules
+(logical OR). The search checks request and response first lines, headers, and
+bodies in sequence using the same matcher as HTTP history filtering. The patterns
+are appended to the `filter` list in the audit YAML configuration. With no patterns,
+all pairs remain eligible. Invalid regular expressions fail before scanning begins.
+
 ## repeater
 
 `repeater` has the following subcommands:

@@ -1,0 +1,43 @@
+metadata = {
+    "id": "mindsdb-detect",
+    "about": "MindsDB - Detect (passive Nuclei technology fingerprint)",
+    "authors": ["ProjectDiscovery contributors", "Cruster"],
+    "references": [
+        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies"
+    ],
+    "tags": ["technology", "discovery", "nuclei", "passive"],
+    "severity": "info",
+    "type": "passive"
+}
+
+import base64
+import re
+
+from cruster import HttpRequest, HttpResponse, finding
+
+
+def scan(request: HttpRequest, response: HttpResponse):
+    target = request.uri.split("://", 1)[-1]
+    target = target[target.find("/") :] if "/" in target else "/"
+    target = target.split("#", 1)[0].split("?", 1)[0] or "/"
+    if target != "/api/status":
+        return []
+    body = base64.b64decode(response.body).decode("latin-1")
+    content_types = [
+        base64.b64decode(item["value"]).decode("latin-1")
+        for item in response.headers
+        if item["name"].lower() == "content-type"
+    ]
+    status = re.match(r"\s*(\d+)", response.status)
+    if not (
+        status
+        and int(status.group(1)) == 200
+        and '"mindsdb_version"' in body
+        and any("application/json" in value for value in content_types)
+    ):
+        return []
+    versions = [
+        match.group(1)
+        for match in re.finditer(r'"mindsdb_version":\s*"([0-9]+(?:\.[0-9]+)+)"', body)
+    ]
+    return [finding("mindsdb-detect", extracted=versions)]

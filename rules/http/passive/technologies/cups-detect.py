@@ -1,0 +1,30 @@
+metadata = {
+    "id": "cups-detect",
+    "about": "CUPS - Detect (passive Nuclei technology fingerprint)",
+    "authors": ["ProjectDiscovery contributors", "Cruster"],
+    "references": [
+        "https://github.com/projectdiscovery/nuclei-templates/tree/main/http/technologies"
+    ],
+    "tags": ["technology", "discovery", "nuclei", "passive"],
+    "severity": "info",
+    "type": "passive"
+}
+import base64
+import re
+
+from cruster import HttpRequest, HttpResponse, finding
+
+
+def scan(request: HttpRequest, response: HttpResponse):
+    status = re.match(r"\s*(\d+)", response.status)
+    if not status or int(status.group(1)) not in (200, 404, 403):
+        return []
+    try:
+        body = base64.b64decode(response.body).decode("latin-1")
+    except Exception:
+        body = ""
+    markers = ("Web Interface is Disabled - CUPS", "Forbidden - CUPS", "Server: CUPS")
+    if not any(marker in body for marker in markers):
+        return []
+    extracted = [match.group(0) for match in re.finditer(r"CUPS v([0-9.]+)>", body)]
+    return [finding("cups-detect", extracted=extracted)]
