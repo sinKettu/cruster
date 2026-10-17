@@ -244,6 +244,26 @@ All features can be devided in two groups:
 
 To successfully compile `Cruster` one feature from each group must be defined (`default` feature do it by default).
 
+### Smaller release binaries
+
+To optimize a release binary for size without changing the project configuration,
+set Cargo's release-profile environment variables for a single build:
+
+```sh
+CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
+CARGO_PROFILE_RELEASE_LTO=fat \
+CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+CARGO_PROFILE_RELEASE_PANIC=abort \
+CARGO_PROFILE_RELEASE_STRIP=symbols \
+cargo build --release
+```
+
+This enables size optimization, full link-time optimization, a single codegen unit,
+abort-on-panic behavior, and symbol stripping. Builds may take longer, runtime
+performance may differ, and panics terminate the process without stack unwinding
+or recovery. Stripping symbols also makes debugging harder. The resulting size
+depends on the target and toolchain; compare with the default release build.
+
 ## Installation
 
 The only option for now is to install from source code with `git` and `cargo`. You can use the following command:
