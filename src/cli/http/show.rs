@@ -322,7 +322,7 @@ fn print_pair(pair: &http_storage::RequestResponsePair, settings: &ShowSettings,
     }
 }
 
-fn matches_the_filter(pair: &http_storage::RequestResponsePair, re: &Regex) -> bool {
+pub(crate) fn matches_the_filter(pair: &http_storage::RequestResponsePair, re: &Regex) -> bool {
     let request_matched = if let Some(request) = pair.request.as_ref() {
         request.serach_with_re(re)
     }

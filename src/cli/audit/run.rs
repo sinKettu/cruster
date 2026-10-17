@@ -3,6 +3,9 @@ use std::{fs::File, sync::Arc};
 use clap::ArgMatches;
 use colored::Colorize;
 use crossbeam::channel::TryRecvError;
+use regex::Regex;
+
+use crate::cli::http::show::matches_the_filter;
 
 use crate::{
     audit::{execution::{spawn_threads, MainToWorkerCmd, WorkerToMainMsg}, load_rule, result::{syntax_string, WriteResult}, RuleFinalState}, cli::CrusterCLIError, config::{AuditConfig, AuditEntities, Config}, http_storage::RequestResponsePair
@@ -23,6 +26,10 @@ pub(crate) fn modify_audit_config_with_cmd_args(mut config: AuditConfig, args: &
 
     if args.get_flag("verbose") {
         config.verbose = Some(true);
+    }
+
+    if let Some(filters) = args.get_many::<String>("filter") {
+        config.filter.get_or_insert_with(Vec::new).extend(filters.cloned());
     }
 
     if let Some(rule_paths) = args.get_many::<String>("add-path") {
@@ -98,7 +105,22 @@ pub(crate) fn modify_audit_config_with_cmd_args(mut config: AuditConfig, args: &
     Ok(config)
 }
 
+fn compile_pair_filters(config: &AuditConfig) -> Result<Vec<Regex>, CrusterCLIError> {
+    config.filter.as_deref().unwrap_or_default().iter().map(|pattern| {
+        Regex::new(pattern).map_err(|err| {
+            CrusterCLIError::from(format!("Invalid audit HTTP pair filter '{}': {}", pattern, err))
+        })
+    }).collect()
+}
+
+fn filter_pairs(pairs: &mut Vec<Arc<RequestResponsePair>>, filters: &[Regex]) {
+    if !filters.is_empty() {
+        pairs.retain(|pair| filters.iter().any(|re| matches_the_filter(pair, re)));
+    }
+}
+
 pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_path: &str) -> Result<(), CrusterCLIError> {
+    let filters = compile_pair_filters(audit_conf)?;
     let tasks = match &audit_conf.tasks {
         Some(number) => {
             *number
@@ -115,7 +137,8 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
     storage.load(http_data_path)?;
     println!("{}\n", syntax_string());
 
-    let pairs: Vec<Arc<RequestResponsePair>> = storage.into();
+    let mut pairs: Vec<Arc<RequestResponsePair>> = storage.into();
+    filter_pairs(&mut pairs, &filters);
 
     let audit_name = match &audit_conf.name {
         Some(name) => {
@@ -148,7 +171,7 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
             eprintln!("Warning: no Python audit rules were loaded");
         }
         if pairs.is_empty() {
-            eprintln!("Warning: project HTTP history is empty; there is nothing to scan");
+            eprintln!("Warning: no HTTP pairs selected for audit (history is empty or no pairs match the filters)");
         }
     }
 
@@ -222,4 +245,130 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper};
+
+    fn pair() -> Arc<RequestResponsePair> {
+        let mut request_headers = hyper::HeaderMap::new();
+        request_headers.insert("x-request-marker", "request-header".parse().unwrap());
+        let mut response_headers = hyper::HeaderMap::new();
+        response_headers.insert("x-response-marker", "response-header".parse().unwrap());
+        Arc::new(RequestResponsePair {
+            request: Some(HyperRequestWrapper {
+                method: "POST".into(),
+                uri: "https://example.com/target".into(),
+                version: "HTTP/1.1".into(),
+                headers: request_headers,
+                body: b"request-body".to_vec(),
+            }),
+            response: Some(HyperResponseWrapper {
+                version: "HTTP/1.1".into(),
+                status: "201 Created".into(),
+                headers: response_headers,
+                body: b"response-body".to_vec(),
+            }),
+            index: 7,
+            timestamp: None,
+        })
+    }
+
+    fn filters(patterns: &[&str]) -> Vec<Regex> {
+        let config = AuditConfig {
+            filter: Some(patterns.iter().map(|pattern| pattern.to_string()).collect()),
+            ..AuditConfig::default()
+        };
+        compile_pair_filters(&config).unwrap()
+    }
+
+    #[test]
+    fn audit_filter_searches_each_http_part_using_existing_matcher() {
+        for pattern in [
+            "^POST https://example.com/target HTTP/1.1",
+            "^x-request-marker: request-header$",
+            "^request-body$",
+            "^HTTP/1.1 201 Created",
+            "^x-response-marker: response-header$",
+            "^response-body$",
+        ] {
+            let mut pairs = vec![pair()];
+            filter_pairs(&mut pairs, &filters(&[pattern]));
+            assert_eq!(pairs.len(), 1, "Pattern should match: {}", pattern);
+        }
+    }
+
+    #[test]
+    fn audit_filters_are_or_combined_and_remove_only_nonmatching_pairs() {
+        let selected = pair();
+        let mut other = (*selected).clone();
+        other.index = 8;
+        other.request.as_mut().unwrap().body = b"other".to_vec();
+        let mut pairs = vec![selected.clone(), Arc::new(other)];
+        filter_pairs(&mut pairs, &filters(&["not-present", "^request-body$"]));
+        assert_eq!(pairs.len(), 1);
+        assert!(Arc::ptr_eq(&pairs[0], &selected));
+
+        filter_pairs(&mut pairs, &filters(&["not-present", "also-absent"]));
+        assert!(pairs.is_empty());
+    }
+
+    #[test]
+    fn audit_filters_handle_missing_request_or_response() {
+        let mut request_only = (*pair()).clone();
+        request_only.response = None;
+        let mut response_only = (*pair()).clone();
+        response_only.request = None;
+        let mut empty = response_only.clone();
+        empty.response = None;
+        let mut pairs = vec![Arc::new(request_only), Arc::new(response_only), Arc::new(empty)];
+        filter_pairs(&mut pairs, &filters(&["body"]));
+        assert_eq!(pairs.len(), 2);
+    }
+
+    #[test]
+    fn audit_filter_yaml_is_optional_and_round_trips() {
+        let yaml = "active: false\npassive: true\nrules: []\n";
+        for suffix in ["", "filter: null\n", "filter: []\n"] {
+            let config: AuditConfig = serde_yaml::from_str(&format!("{}{}", yaml, suffix)).unwrap();
+            let mut pairs = vec![pair()];
+            filter_pairs(&mut pairs, &compile_pair_filters(&config).unwrap());
+            assert_eq!(pairs.len(), 1);
+        }
+        let config: AuditConfig = serde_yaml::from_str(&format!(
+            "{}filter:\n  - '^POST '\n  - 'response-body'\n", yaml
+        )).unwrap();
+        assert_eq!(config.filter.as_ref().unwrap().len(), 2);
+        let serialized = serde_yaml::to_string(&config).unwrap();
+        assert_eq!(config, serde_yaml::from_str(&serialized).unwrap());
+    }
+
+    #[test]
+    fn audit_filter_rejects_invalid_regex_even_after_valid_pattern() {
+        let config = AuditConfig {
+            filter: Some(vec![".*".into(), "[".into()]),
+            ..AuditConfig::default()
+        };
+        let error: String = compile_pair_filters(&config).unwrap_err().into();
+        assert!(error.contains("Invalid audit HTTP pair filter '['"));
+    }
+
+    #[test]
+    fn audit_filter_cli_patterns_append_to_yaml_patterns() {
+        let matches = crate::config::parse_cmd_from([
+            "cruster", "audit", "run", "selected", "-f", "request-body",
+            "--filter", "response-body",
+        ].iter().map(std::ffi::OsString::from).collect());
+        let args = matches.subcommand_matches("cli").unwrap()
+            .subcommand_matches("audit").unwrap()
+            .subcommand_matches("run").unwrap();
+        let config = AuditConfig {
+            filter: Some(vec!["yaml-pattern".into()]),
+            ..AuditConfig::default()
+        };
+        let config = modify_audit_config_with_cmd_args(config, args).unwrap();
+        assert_eq!(config.filter.unwrap(), ["yaml-pattern", "request-body", "response-body"]);
+    }
 }

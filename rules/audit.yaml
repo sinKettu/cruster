@@ -4,6 +4,8 @@ rules:
   - rules/example
   - rules/http
 include: null
+# HTTP pair regexes (OR). Empty or null means no filtering.
+filter: []
 exclude:
   tags: []
   paths: []

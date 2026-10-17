@@ -73,6 +73,7 @@ pub(crate) struct AuditConfig {
     pub(crate) tasks: Option<usize>,
     pub(crate) exclude: Option<AuditEntities>,
     pub(crate) include: Option<AuditEntities>,
+    pub(crate) filter: Option<Vec<String>>,
     pub(crate) verbose: Option<bool>,
     pub(crate) name: Option<String>,
 }
@@ -117,6 +118,7 @@ impl Default for AuditConfig {
             tasks: Some(1),
             exclude: None,
             include: None,
+            filter: None,
             verbose: None,
             name: None,
         }
@@ -184,6 +186,10 @@ fn with_default_cli(mut args: Vec<std::ffi::OsString>) -> Vec<std::ffi::OsString
 }
 
 fn parse_cmd() -> clap::ArgMatches {
+    parse_cmd_from(std::env::args_os().collect())
+}
+
+pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches {
     let workplace_help = "Path to workplace, where data (configs, certs, projects, etc.) will be stored. Cannot be set by config file.";
     let config_help = "Path to config with YAML format. Cannot be set by config file.";
     let address_help = "Address for proxy to bind, default: 127.0.0.1";
@@ -454,6 +460,14 @@ fn parse_cmd() -> clap::ArgMatches {
                                         .help("Name of the audit (used in files names)")
                                 )
                                 .arg(
+                                    clap::Arg::new("filter")
+                                        .long("filter")
+                                        .short('f')
+                                        .value_name("REGEX")
+                                        .action(clap::ArgAction::Append)
+                                        .help("Audit HTTP pairs matching any regex in request/response first lines, headers or bodies. Repeatable; appended to YAML filters")
+                                )
+                                .arg(
                                     clap::Arg::new("verbose")
                                         .long("verbose")
                                         .short('v')
@@ -713,7 +727,7 @@ fn parse_cmd() -> clap::ArgMatches {
                 .value_name("AUDIT_CONFIG_PATH")
                 .help(audit_conf_help)
         )
-        .get_matches_from(with_default_cli(std::env::args_os().collect()));
+        .get_matches_from(with_default_cli(args));
 
     return matches;
 }
