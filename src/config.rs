@@ -1,6 +1,7 @@
 use std::{fs, path};
 use clap::{self, ArgMatches};
 use serde_yaml as yml;
+#[cfg(not(windows))]
 use shellexpand::tilde;
 use serde::{Serialize, Deserialize};
 
@@ -774,12 +775,46 @@ mod command_line_tests {
     }
 }
 
+/// The Windows build keeps its workplace in the directory it was launched from,
+/// not in the user's home directory or alongside the executable.
+fn default_workplace() -> Result<String, CrusterConfigError> {
+    #[cfg(windows)]
+    {
+        let workplace = std::env::current_dir()?.join(".cruster");
+        workplace.into_os_string().into_string().map_err(|_| {
+            CrusterConfigError::from("The current working directory is not valid UTF-8")
+        })
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(tilde("~/.cruster").into_owned())
+    }
+}
+
+#[cfg(test)]
+mod workplace_tests {
+    use super::*;
+
+    #[test]
+    fn default_workplace_matches_build_mode() {
+        let workplace = default_workplace().unwrap_or_else(|err| panic!("{}", err.error));
+        #[cfg(windows)]
+        assert_eq!(path::Path::new(&workplace), std::env::current_dir().unwrap().join(".cruster"));
+        #[cfg(not(windows))]
+        assert_eq!(workplace, tilde("~/.cruster").as_ref());
+    }
+}
+
 // -----------------------------------------------------------------------------------------------//
 #[allow(dead_code)]
 pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), CrusterConfigError> {
     let matches = parse_cmd();
-    let default_workplace = tilde("~/.cruster");
-    let default_config = tilde("~/.cruster/config.yaml");
+    let default_workplace = default_workplace()?;
+    let default_config = path::Path::new(&default_workplace)
+        .join("config.yaml")
+        .to_str()
+        .ok_or_else(|| CrusterConfigError::from("The default config path is not valid UTF-8"))?
+        .to_string();
 
     let cmd = if let Some((subcmd, args)) = matches.subcommand() {
         match subcmd {
@@ -809,7 +844,7 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
 
     let (workplace, config_name) = match (workplace_possible, config_possible) {
         (None, None) => {
-            let workplace_path = path::Path::new(default_workplace.as_ref());
+            let workplace_path = path::Path::new(&default_workplace);
             if !workplace_path.exists() {
                 fs::create_dir_all(workplace_path)?;
             }
@@ -842,7 +877,7 @@ pub(crate) fn handle_user_input() -> Result<(Config, AuditConfig, CrusterMode), 
                 );
             }
 
-            let workplace_path = path::Path::new(default_workplace.as_ref());
+            let workplace_path = path::Path::new(&default_workplace);
             if !workplace_path.exists() {
                 fs::create_dir_all(workplace_path)?;
             }

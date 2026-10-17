@@ -18,6 +18,33 @@ Inspired by `Burp Suite`, `OWASP ZAP`, `Mitmproxy` and `Nuclei`. Hope it could b
 - Python-based rules to check in HTTP traffic whatever you want (scan!);
 - ... *Coming soon*...
 
+## Building for Windows
+
+Install Rust with the Windows MSVC toolchain and the Visual Studio C++ Build
+Tools, then run in a Developer PowerShell:
+
+```powershell
+cargo build --release --target x86_64-pc-windows-msvc
+```
+
+The executable is `target/x86_64-pc-windows-msvc/release/cruster.exe`.
+The default features enable the cross-platform Crossterm terminal and Rust-based
+certificate authority backends. OpenSSL and ncurses are not required. Do not
+enable the Unix-only `termion` or `ncurses` features on Windows.
+
+On Windows, the default workplace is `.cruster` in the **current working
+directory from which Cruster is launched**, not the home directory or necessarily
+the executable's directory. Configuration, CA certificate/key, and projects
+(including the `default` project) are stored there. Starting Cruster from a
+different directory selects a different workplace.
+
+For example, launching `C:\tools\cruster.exe dump` from `C:\work\assessment`
+creates `C:\work\assessment\.cruster`. Explicit `--workplace`, `--config`, and
+`--project` options keep their existing behavior. Linux and macOS builds
+continue to use `~/.cruster` by default. The behavior is selected automatically
+at compile time using Rust's target-platform conditional compilation;
+no additional Cargo feature is needed.
+
 ## Usage
 
 For a short, scenario-based walkthrough of dump, CLI, and MCP modes, start with [Cruster Quick Start](docs/Quick%20Start.md).
