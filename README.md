@@ -219,11 +219,10 @@ To successfully compile `Cruster` one feature from each group must be defined (`
 
 ### Building for Windows
 
-Install Rust with the Windows MSVC toolchain and the Visual Studio C++ Build
-Tools, then run in a Developer PowerShell:
+You can build Cruster for Windows. It was tested only under linux from my side:
 
-```powershell
-cargo build --release --target x86_64-pc-windows-msvc
+```bash
+cargo build --release --target x86_64-pc-windows-gnu
 ```
 
 The executable is `target/x86_64-pc-windows-msvc/release/cruster.exe`.
