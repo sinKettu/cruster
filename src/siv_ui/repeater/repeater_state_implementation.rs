@@ -79,7 +79,7 @@ impl TryFrom<RepeaterStateSerializable> for RepeaterState {
 impl RepeaterState {
     pub(crate) fn make_reqwest(&self) -> Result<reqwest::Request, CrusterError> {
         let req_fl = self.request.splitn(2, "\n").collect::<Vec<&str>>()[0];
-        let fl_regex = Regex::new(r"^(?P<method>[\w]+) (?P<path>\S+) (?P<version>HTTP/(\d+\.)?\d+)\s?$").unwrap();
+        let fl_regex = Regex::new(r"^(?P<method>\S+) (?P<path>\S+) (?P<version>HTTP/(\d+\.)?\d+)\s?$").unwrap();
 
         let (method, uri, version) =  match fl_regex.captures(req_fl) {
             Some(captures) => {
@@ -134,33 +134,15 @@ impl RepeaterState {
             .version(version);
 
         let mut new_headers = HeaderMap::new();
-        let header_re = Regex::new(r"^(?P<name>[\d\w_\-]+): (?P<val>.*)$").unwrap();
-        let mut body = String::with_capacity(self.request.len());
-        let mut the_following_is_body = false;
-        let mut first_body_line = true;
-        for line in self.request.split("\n").skip(1) {
-            let trimmed_line = line.trim_end();
-            if trimmed_line.is_empty() {
-                the_following_is_body = true;
-                continue;
-            }
-
-            if the_following_is_body {
-                body.push_str(line);
-
-                if ! first_body_line {
-                    body.push_str("\r\n");
-                }
-                else {
-                    first_body_line = false;
-                }
-                
-                continue;
-            }
-
-            match header_re.captures(trimmed_line) {
-                Some(cap) => {
-                    let str_name = &cap["name"];
+        // Split only once: blank lines and trailing whitespace inside an edited
+        // body must survive replay exactly as entered (including MCP edits).
+        let (head, body) = self.request.split_once("\r\n\r\n")
+            .filter(|(head, _)| !head.contains("\n\n"))
+            .or_else(|| self.request.split_once("\n\n"))
+            .unwrap_or((self.request.as_str(), ""));
+        for line in head.split("\n").skip(1) {
+            match line.trim_end_matches('\r').split_once(':') {
+                Some((str_name, str_val)) => {
                     let name = match HeaderName::from_str(str_name) {
                         Ok(header_name) => {
                             header_name
@@ -171,7 +153,7 @@ impl RepeaterState {
                     };
 
                     // TODO: parse something like \x0e in headers
-                    let str_val = &cap["val"];
+                    let str_val = str_val.trim_matches([' ', '\t']);
                     let val = match HeaderValue::from_str(str_val) {
                         Ok(header_value) => {
                             header_value
@@ -181,7 +163,7 @@ impl RepeaterState {
                         }
                     };
 
-                    new_headers.insert(name, val);
+                    new_headers.append(name, val);
                 },
                 None => {
                     let err = CrusterError::RegexError(format!("Could not parse headers in repeater from {}", line));
@@ -196,7 +178,7 @@ impl RepeaterState {
 
         let request = request
             .headers(new_headers)
-            .body(body)
+            .body(body.to_owned())
             .build()?;
         
         Ok(request)
