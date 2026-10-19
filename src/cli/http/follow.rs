@@ -1,10 +1,8 @@
 use crate::cli::CrusterCLIError;
 use clap::ArgMatches;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::thread::sleep;
 use std::time::Duration;
-use serde_json as json;
-use crate::http_storage;
 
 
 pub(crate) struct HttpFollowSettings {
@@ -31,38 +29,28 @@ pub(crate) fn exec(settings: &HttpFollowSettings, path: &str) -> Result<(), Crus
     let fin = std::fs::File::open(path)?;
     let mut reader = BufReader::new(fin);
 
-    let mut buf = String::with_capacity(1000000);
-    while reader.read_line(&mut buf)? > 0 {
-        if ! settings.no_old_lines {
-            let line_ptr = &buf;
-            let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
-            let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
-
-            if settings.urls {
-                super::print_urls(&pair);
-            } else {
-                super::print_briefly(&pair, false);
-            }
+    let mut pending = Vec::with_capacity(1000000);
+    while let Some(line) = super::read_history_line(&mut reader, &mut pending, true)? {
+        if !settings.no_old_lines {
+            print_line(&line.raw, settings)?;
         }
-
-        buf.clear();
     }
 
     loop {
-        while reader.read_line(&mut buf)? == 0 {
+        if let Some(line) = super::read_history_line(&mut reader, &mut pending, true)? {
+            print_line(&line.raw, settings)?;
+        } else {
             sleep(Duration::from_millis(100));
         }
-
-        let line_ptr = &buf;
-        let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
-        let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
-        
-        if settings.urls {
-            super::print_urls(&pair);
-        } else {
-            super::print_briefly(&pair, false);
-        }
-        
-        buf.clear();
     }
+}
+
+fn print_line(raw: &str, settings: &HttpFollowSettings) -> Result<(), CrusterCLIError> {
+    let pair = super::parse_history_pair(raw)?;
+    if settings.urls {
+        super::print_urls(&pair);
+    } else {
+        super::print_briefly(&pair, false);
+    }
+    Ok(())
 }

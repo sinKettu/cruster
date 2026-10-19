@@ -1,5 +1,5 @@
-mod http;
-mod repeater;
+pub(crate) mod http;
+pub(crate) mod repeater;
 mod audit;
 
 use audit::print::AuditPrintConfig;

@@ -3,6 +3,7 @@
 pub(crate) mod actions;
 pub(crate) mod load_rule;
 pub(crate) mod execution;
+pub(crate) mod operations;
 #[allow(dead_code)] // Frozen YAML rule validation and accessors.
 pub(crate) mod rules;
 #[allow(dead_code, unused_imports)] // Frozen YAML execution contexts.

@@ -49,12 +49,12 @@ pub(crate) struct RepeaterState {
     pub(crate) parameters: RepeaterParameters,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct RepeaterStateSerializable {
-    name: String,
-    request: String,
-    response: Option<String>,
-    parameters: RepeaterParameters
+    pub(crate) name: String,
+    pub(crate) request: String,
+    pub(crate) response: Option<String>,
+    pub(crate) parameters: RepeaterParameters
 }
 
 pub(super) fn draw_repeater_select(siv: &mut Cursive) {

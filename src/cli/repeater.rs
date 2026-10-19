@@ -1,105 +1,114 @@
-use std::fs::File;
-use serde_json as json;
 use super::CrusterCLIError;
-use std::io::{BufReader, BufRead, Write};
 use crate::siv_ui::repeater::{RepeaterState, RepeaterStateSerializable};
+use std::{
+    fs::{self, File, OpenOptions},
+    io::{BufRead, BufReader, Write},
+    path::Path,
+};
 
-pub(crate) mod list;
-pub(crate) mod show;
-pub(crate) mod exec;
-pub(crate) mod edit;
 pub(crate) mod add;
-
+pub(crate) mod edit;
+pub(crate) mod exec;
+pub(crate) mod list;
+pub(crate) mod operations;
+pub(crate) mod parsing;
+pub(crate) mod show;
 
 pub(crate) struct RepeaterIterator {
-    reader: BufReader<File>
+    reader: std::io::Lines<BufReader<File>>,
+    line: usize,
 }
 
 impl RepeaterIterator {
-    pub(crate) fn new(path: &str) -> Result<RepeaterIterator, CrusterCLIError> {
-        let file = File::open(path).map_err(|error| {
-            CrusterCLIError::from(format!(
-                "Cannot open repeater state file '{}': {}. No saved repeaters may exist",
-                path, error
-            ))
-        })?;
-        let iter = RepeaterIterator {
-            reader: BufReader::new(file)
-        };
-
-        Ok(iter)
+    pub(crate) fn new(path: &str) -> Result<Self, CrusterCLIError> {
+        Ok(Self {
+            reader: BufReader::new(File::open(path)?).lines(),
+            line: 0,
+        })
     }
 }
 
 impl Iterator for RepeaterIterator {
-    type Item = RepeaterState;
+    type Item = Result<RepeaterState, CrusterCLIError>;
     fn next(&mut self) -> Option<Self::Item> {
-        let mut buf = String::default();
-        while buf.trim().len() == 0 {
-            let len = self.reader.read_line(&mut buf).unwrap();
-            if len == 0 {
-                return None
+        loop {
+            let line = self.reader.next()?;
+            self.line += 1;
+            match line {
+                Ok(line) if line.trim().is_empty() => continue,
+                Ok(line) => {
+                    return Some(
+                        decode_record(&line, self.line)
+                            .and_then(|r| RepeaterState::try_from(r).map_err(Into::into)),
+                    )
+                }
+                Err(error) => return Some(Err(error.into())),
             }
         }
-
-        let ser_repeater = json::from_str::<RepeaterStateSerializable>(&buf).unwrap();
-        let repeater = RepeaterState::try_from(ser_repeater).unwrap();
-
-        return Some(repeater);
     }
 }
 
-pub(crate) fn update_repeaters(path: &str, repeater: &RepeaterState, number: usize) -> Result<(), CrusterCLIError> {
-    let buf = if std::path::Path::new(path).is_file() {
-        let file = File::open(path)?;
-        let fin = BufReader::with_capacity(4000000, file);
-        let mut buf: Vec<Option<String>> = Vec::with_capacity(20);
+fn decode_record(line: &str, number: usize) -> Result<RepeaterStateSerializable, CrusterCLIError> {
+    serde_json::from_str(line)
+        .map_err(|e| format!("Cannot parse repeater line {}: {}", number, e).into())
+}
 
-        for (i, line) in fin.lines().enumerate() {
-            if let Ok(repeater_str) = line {
-                if repeater_str.trim().len() == 0 {
-                    continue;
-                }
-
-                if i != number {
-                    buf.push(Some(repeater_str));
-                }
-                else {
-                    buf.push(None);
-                }
-            }
-        }
-
-        buf
-    }
-    else {
-        vec![None]
+pub(crate) fn read_repeaters(
+    path: &Path,
+) -> Result<Vec<RepeaterStateSerializable>, CrusterCLIError> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(e.into()),
     };
-
-    let mut found_flag: bool = false;
-    let mut fout = std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(path)?;
-    for possible_repeater_str in buf {
-        if let Some(repeater_str) = possible_repeater_str {
-            let line = format!("{}\n", repeater_str);
-            let _ = fout.write(line.as_bytes())?;
-        }
-        else {
-            let repeater_ser = RepeaterStateSerializable::from(repeater);
-            let repeater_str = json::to_string(&repeater_ser)?;
-            let line = format!("{}\n", repeater_str);
-            let _ = fout.write(line.as_bytes())?;
-            found_flag = true;
+    let mut records = Vec::new();
+    for (i, line) in BufReader::new(file).lines().enumerate() {
+        let line = line?;
+        if !line.trim().is_empty() {
+            records.push(decode_record(&line, i + 1)?);
         }
     }
+    Ok(records)
+}
 
-    if !found_flag {
-        let repeater_ser = RepeaterStateSerializable::from(repeater);
-        let repeater_str = json::to_string(&repeater_ser)?;
-        let line = format!("{}\n", repeater_str);
-        let _ = fout.write(line.as_bytes())?;
+/// The one persistence algorithm used by CLI and MCP. Never truncate the live file.
+pub(crate) fn write_repeaters(
+    path: &Path,
+    records: &[RepeaterStateSerializable],
+) -> Result<(), CrusterCLIError> {
+    let temp = path.with_file_name(format!(".repeater-{:016x}.tmp", rand::random::<u64>()));
+    let result = (|| {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temp)?;
+        for record in records {
+            serde_json::to_writer(&mut file, record)?;
+            file.write_all(b"\n")?;
+        }
+        file.sync_all()?;
+        fs::rename(&temp, path)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp);
     }
+    result
+}
 
-    Ok(())
+pub(crate) fn update_repeaters(
+    path: &Path,
+    repeater: &RepeaterStateSerializable,
+    number: usize,
+) -> Result<(), CrusterCLIError> {
+    let mut records = read_repeaters(path)?;
+    let record = repeater.clone();
+    if number < records.len() {
+        records[number] = record;
+    } else {
+        records.push(record);
+    }
+    write_repeaters(path, &records)
 }
 
 pub(crate) fn trim_body(req_or_res: &str) -> String {
@@ -108,7 +117,7 @@ pub(crate) fn trim_body(req_or_res: &str) -> String {
         if line.trim().is_empty() {
             result_wout_body.push_str(line);
             result_wout_body.push_str("\n");
-            break
+            break;
         }
 
         result_wout_body.push_str(line);

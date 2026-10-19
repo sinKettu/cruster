@@ -175,16 +175,89 @@ impl Rule {
 }
 
 
+/// Domain result shared by terminal and protocol adapters.
+pub(crate) struct ExecutionResult {
+    pub(crate) pair_id: usize,
+    pub(crate) rule_id: String,
+    pub(crate) state: RuleFinalState,
+    pub(crate) logs: Vec<super::python::PythonRuleLog>,
+}
+
+pub(crate) async fn execute_one(
+    rule: &AuditRule,
+    pair: Arc<RequestResponsePair>,
+) -> ExecutionResult {
+    let pair_id = pair.index;
+    let (state, logs) = rule.execute(pair).await;
+    ExecutionResult {
+        pair_id,
+        rule_id: rule.get_id().to_owned(),
+        state,
+        logs,
+    }
+}
+
+/// Run the CLI worker pipeline without printing or choosing a persistence policy.
+/// The sink is streamed so bounded protocol output does not retain the whole scan.
+pub(crate) async fn execute_scan<E: From<AuditError>>(
+    rules: Vec<Arc<AuditRule>>,
+    pairs: Vec<Arc<RequestResponsePair>>,
+    tasks: usize,
+    mut sink: impl FnMut(WorkerToMainMsg) -> Result<(), E>,
+) -> Result<(), E> {
+    if tasks == 0 {
+        return Err(AuditError::from("Audit workers count cannot be zero").into());
+    }
+    let (tx, rx) = spawn_threads(tasks).await;
+    for rule in rules {
+        tx.send(MainToWorkerCmd::ScanRule((rule, pairs.clone())))
+            .map_err(|err| E::from(AuditError::from(err)))?;
+    }
+    for _ in 0..tasks {
+        tx.send(MainToWorkerCmd::Stop)
+            .map_err(|err| E::from(AuditError::from(err)))?;
+    }
+    let mut stopped = 0;
+    // Drain workers even if an adapter fails; returning early must not implicitly
+    // cancel/resend active requests or leave detached busy workers behind.
+    let mut sink_error = None;
+    while stopped != tasks {
+        match rx.try_recv() {
+            Ok(WorkerToMainMsg::Stopped) => stopped += 1,
+            Ok(WorkerToMainMsg::Error(err)) => {
+                if sink_error.is_none() {
+                    sink_error = Some(E::from(err));
+                }
+            }
+            Ok(message) => {
+                if sink_error.is_none() {
+                    if let Err(err) = sink(message) {
+                        sink_error = Some(err);
+                    }
+                }
+            }
+            Err(TryRecvError::Empty) => {
+                tokio::time::sleep(std::time::Duration::from_millis(1)).await
+            }
+            Err(err) => return Err(E::from(AuditError::from(err))),
+        }
+    }
+    match sink_error {
+        Some(err) => Err(err),
+        None => Ok(()),
+    }
+}
+
 pub(crate) enum MainToWorkerCmd {
     ScanRule((Arc<AuditRule>, Vec<Arc<RequestResponsePair>>)),
     Stop,
 }
 
 pub(crate) enum WorkerToMainMsg {
-    Result(RuleFinalState),
+    Result(ExecutionResult),
     Error(AuditError),
     Log(String),
-    Stopped
+    Stopped,
 }
 
 async fn execute_rule_with_runtime_retry(
@@ -266,13 +339,22 @@ fn emit_pair_result(
     logs: Vec<super::python::PythonRuleLog>,
     tx: &Sender<WorkerToMainMsg>,
 ) {
-    for entry in logs {
+    for entry in &logs {
         let _ = tx.send(WorkerToMainMsg::Log(format!(
             "[rule log][{}][worker {}][rule '{}'][pair {}] {}",
-            entry.level.to_uppercase(), worker, rule_id, pair_index, entry.message
+            entry.level.to_uppercase(),
+            worker,
+            rule_id,
+            pair_index,
+            entry.message
         )));
     }
-    let _ = tx.send(WorkerToMainMsg::Result(state));
+    let _ = tx.send(WorkerToMainMsg::Result(ExecutionResult {
+        pair_id: pair_index,
+        rule_id: rule_id.to_owned(),
+        state,
+        logs,
+    }));
 }
 
 async fn execute_rule_job_with_retry(
@@ -351,13 +433,7 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
                                     ).await;
 
                                     for (pair_index, state, rule_logs) in results {
-                                        for entry in rule_logs {
-                                            let _ = cloned_tx.send(WorkerToMainMsg::Log(format!(
-                                                "[rule log][{}][worker {}][rule '{}'][pair {}] {}",
-                                                entry.level.to_uppercase(), _i + 1, rule_id, pair_index, entry.message
-                                            )));
-                                        }
-                                        let _ = cloned_tx.send(WorkerToMainMsg::Result(state));
+                                        emit_pair_result(_i + 1, &rule_id, pair_index, state, rule_logs, &cloned_tx);
                                     }
                                     let _ = cloned_tx.send(WorkerToMainMsg::Log(format!("[worker {}] finished executing rule '{}'", _i + 1, rule_id)));
                                 },
@@ -369,7 +445,7 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
                             }
                         },
                         Err(err) => {
-                            if let TryRecvError::Empty = err { }
+                            if let TryRecvError::Empty = err { tokio::task::yield_now().await; }
                             else {
                                 let audit_err = AuditError(err.to_string());
                                 let _ = cloned_tx.send(WorkerToMainMsg::Error(audit_err));
@@ -382,4 +458,35 @@ pub(crate) async fn spawn_threads(num: usize) -> (Sender<MainToWorkerCmd>, Recei
     }
 
     return (main_to_workers_tx, workers_to_main_rx);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn shared_scan_handles_empty_jobs_and_rejects_zero_workers() {
+        execute_scan(Vec::new(), Vec::new(), 2, |_| Ok::<_, AuditError>(()))
+            .await
+            .unwrap();
+        assert!(
+            execute_scan(Vec::new(), Vec::new(), 0, |_| Ok::<_, AuditError>(()))
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn shared_scan_drains_workers_after_sink_error() {
+        let mut calls = 0;
+        let error = execute_scan(Vec::new(), Vec::new(), 2, |_| {
+            calls += 1;
+            Err::<(), _>(AuditError::from("sink failure"))
+        })
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(error.to_string(), "sink failure");
+    }
 }
