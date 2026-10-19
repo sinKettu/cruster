@@ -1,21 +1,28 @@
-use std::{
-    fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, Write},
-};
+#[cfg(test)]
+use std::fs;
 
 use http::{header::HeaderName, HeaderMap, HeaderValue};
 use rmcp::{handler::server::wrapper::Json, schemars, ErrorData as McpError};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::{internal_error, CrusterMcpServer, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE};
 use crate::{
+    cli::repeater as shared,
     cruster_proxy::request_response::{HyperRequestWrapper, HyperResponseWrapper},
     http_storage::serializable::{SerializableHTTPRequest, SerializableHTTPResponse},
-    siv_ui::repeater::RepeaterParameters,
+    siv_ui::repeater::{RepeaterParameters, RepeaterStateSerializable},
 };
 
 fn invalid(error: impl ToString) -> McpError {
     McpError::invalid_params(error.to_string(), None)
+}
+
+fn operation_error(error: crate::cli::CrusterCLIError) -> McpError {
+    internal_error(Into::<String>::into(error))
+}
+
+fn selection_error(error: crate::cli::CrusterCLIError) -> McpError {
+    invalid(Into::<String>::into(error))
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -115,98 +122,18 @@ fn append_headers(headers: &mut HeaderMap, values: Vec<RequestHeader>) -> Result
 }
 
 fn validate(request: &HyperRequestWrapper) -> Result<(), McpError> {
-    request.method.parse::<http::Method>().map_err(invalid)?;
-    let url = reqwest::Url::parse(&request.uri).map_err(invalid)?;
-    if !matches!(url.scheme(), "http" | "https")
-        || url.host_str().is_none()
-        || url.fragment().is_some()
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return Err(invalid(
-            "Use an absolute HTTP(S) URL without credentials or fragment",
-        ));
-    }
-    if !matches!(
-        request.version.as_str(),
-        "HTTP/0.9" | "HTTP/1.0" | "HTTP/1.1" | "HTTP/2" | "HTTP/2.0"
-    ) {
-        return Err(invalid(
-            "Supported HTTP versions: HTTP/0.9, HTTP/1.0, HTTP/1.1, HTTP/2",
-        ));
-    }
-    Ok(())
+    shared::parsing::validate(request).map_err(invalid)
 }
 
-// Split only the header section: do not normalize or trim body whitespace.
 fn parse_raw(raw: &str, target: &str) -> Result<HyperRequestWrapper, McpError> {
-    let (head, body) = split_raw(raw)
-        .ok_or_else(|| invalid("Raw request must contain a blank line between headers and body"))?;
-    let mut lines = head.lines();
-    let parts: Vec<_> = lines
-        .next()
-        .unwrap_or_default()
-        .split_whitespace()
-        .collect();
-    if parts.len() != 3 || !parts[1].starts_with('/') {
-        return Err(invalid(
-            "Expected request line: METHOD /path?query HTTP/1.1 (origin-form target)",
-        ));
-    }
-    let mut url = reqwest::Url::parse(target).map_err(invalid)?;
-    let (path, query) = parts[1]
-        .split_once('?')
-        .map_or((parts[1], None), |(p, q)| (p, Some(q)));
-    url.set_path(path);
-    url.set_query(query);
-    let mut headers = HeaderMap::new();
-    for line in lines {
-        let (name, value) = line
-            .split_once(':')
-            .ok_or_else(|| invalid(format!("Invalid header: {}", line)))?;
-        headers.append(
-            name.parse::<HeaderName>().map_err(invalid)?,
-            HeaderValue::from_str(value.trim_matches([' ', '\t'])).map_err(invalid)?,
-        );
-    }
-    let request = HyperRequestWrapper {
-        uri: url.to_string(),
-        method: parts[0].into(),
-        version: parts[2].into(),
-        headers,
-        body: body.as_bytes().to_vec(),
-    };
-    validate(&request)?;
-    Ok(request)
-}
-
-fn split_raw(raw: &str) -> Option<(&str, &str)> {
-    raw.split_once("\r\n\r\n")
-        .filter(|(head, _)| !head.contains("\n\n"))
-        .or_else(|| raw.split_once("\n\n"))
+    shared::parsing::parse_raw(raw, target).map_err(invalid)
 }
 
 fn render_raw(request: &HyperRequestWrapper) -> Result<String, McpError> {
-    let body = std::str::from_utf8(&request.body).map_err(|_| invalid("Saved CLI/TUI repeaters require a UTF-8 body; use http_request_send with body_base64 for binary requests"))?;
-    let url = reqwest::Url::parse(&request.uri).map_err(invalid)?;
-    let mut raw = format!(
-        "{} {}{} {}\r\n",
-        request.method,
-        url.path(),
-        url.query().map(|q| format!("?{}", q)).unwrap_or_default(),
-        request.version
-    );
-    for (name, value) in &request.headers {
-        raw.push_str(&format!(
-            "{}: {}\r\n",
-            name,
-            value.to_str().map_err(invalid)?
-        ));
-    }
-    raw.push_str("\r\n");
-    raw.push_str(body);
-    Ok(raw)
+    shared::parsing::render_raw(request).map_err(invalid)
 }
+
+use shared::parsing::split_raw;
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -220,7 +147,9 @@ pub(super) struct RepeaterListInput {
 #[serde(deny_unknown_fields)]
 pub(super) struct RepeaterGetInput {
     /// One-based position, compatible with CLI numbering. Deletion renumbers later entries.
-    pub(super) id: usize,
+    id: Option<usize>,
+    /// Exact saved name instead of id. If names repeat, selects the first, like CLI.
+    name: Option<String>,
     #[serde(default = "super::default_true")]
     include_bodies: bool,
 }
@@ -235,7 +164,8 @@ enum ContentPart {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct RepeaterContentInput {
-    id: usize,
+    id: Option<usize>,
+    name: Option<String>,
     part: ContentPart,
     /// Byte offset, not a character offset.
     #[serde(default)]
@@ -269,67 +199,34 @@ pub(super) struct RepeaterCreateInput {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct RepeaterEditInput {
-    id: usize,
+    id: Option<usize>,
+    name: Option<String>,
     changes: RepeaterChanges,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct RepeaterSendInput {
-    id: usize,
+    id: Option<usize>,
+    name: Option<String>,
     /// Applied and saved before sending; omitted fields keep their current values.
     changes: Option<RepeaterChanges>,
     #[serde(default = "super::default_true")]
     include_bodies: bool,
 }
 
-// Same on-disk format as RepeaterStateSerializable; avoid UI state and lossy Display conversion.
-#[derive(Clone, Serialize, Deserialize)]
-struct SavedRepeater {
-    name: String,
-    request: String,
-    response: Option<String>,
-    parameters: RepeaterParameters,
-}
-
-impl SavedRepeater {
-    fn raw(&self) -> Result<String, McpError> {
-        String::from_utf8(base64::decode(&self.request).map_err(internal_error)?)
-            .map_err(internal_error)
-    }
-
-    fn request(&self) -> Result<HyperRequestWrapper, McpError> {
-        parse_raw(
-            &self.raw()?,
-            &format!(
-                "{}://{}/",
-                if self.parameters.https {
-                    "https"
-                } else {
-                    "http"
-                },
-                self.parameters.address
-            ),
-        )
-    }
-
+impl RepeaterStateSerializable {
     fn apply(&mut self, changes: RepeaterChanges) -> Result<(), McpError> {
-        if let Some(name) = changes.name {
-            self.name = name;
+        shared::edit::RepeaterEditSettings {
+            name: changes.name,
+            address: changes.address,
+            https: changes.https,
+            redirects: changes.redirects,
+            max_redirects: changes.max_redirects,
+            ..Default::default()
         }
-        if let Some(address) = changes.address {
-            self.parameters.address = address;
-        }
-        if let Some(https) = changes.https {
-            self.parameters.https = https;
-        }
-        if let Some(redirects) = changes.redirects {
-            self.parameters.redirects = redirects;
-        }
-        if let Some(max) = changes.max_redirects {
-            self.parameters.max_redirects = max;
-        }
-        let mut request = self.request()?;
+        .apply(self);
+        let mut request = self.parsed_request().map_err(selection_error)?;
         if let Some(edits) = changes.edits {
             edits.apply(&mut request)?;
         }
@@ -347,23 +244,25 @@ impl SavedRepeater {
     }
 
     fn view(&self, id: usize, bodies: bool) -> Result<serde_json::Value, McpError> {
-        let raw = self.raw()?;
+        let raw = self.raw().map_err(operation_error)?;
         let request = if bodies {
             raw
         } else {
             split_raw(&raw).map_or(raw.clone(), |(head, _)| format!("{}\r\n\r\n", head))
         };
-        let response = if bodies {
-            self.response
-                .as_ref()
-                .map(|r| -> Result<String, McpError> {
-                    String::from_utf8(base64::decode(r).map_err(internal_error)?)
-                        .map_err(internal_error)
+        let response = self
+            .response
+            .as_ref()
+            .map(|encoded| -> Result<String, McpError> {
+                let raw = String::from_utf8(base64::decode(encoded).map_err(internal_error)?)
+                    .map_err(internal_error)?;
+                Ok(if bodies {
+                    raw
+                } else {
+                    split_raw(&raw).map_or(raw.clone(), |(head, _)| format!("{}\r\n\r\n", head))
                 })
-                .transpose()?
-        } else {
-            None
-        };
+            })
+            .transpose()?;
         Ok(
             serde_json::json!({"id": id, "name": self.name, "request": request, "response": response, "parameters": self.parameters}),
         )
@@ -380,62 +279,25 @@ impl CrusterMcpServer {
         Ok(())
     }
 
-    fn read_repeaters(&self) -> Result<Vec<SavedRepeater>, McpError> {
-        let path = self.project.join("repeater.jsonl");
-        let file = match File::open(path) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(internal_error(error)),
-        };
-        let mut records = Vec::new();
-        for (line_number, line) in BufReader::new(file).lines().enumerate() {
-            let line = line.map_err(internal_error)?;
-            if line.trim().is_empty() {
-                continue;
-            }
-            records.push(serde_json::from_str(&line).map_err(|e| {
-                internal_error(format!(
-                    "Cannot parse repeater line {}: {}",
-                    line_number + 1,
-                    e
-                ))
-            })?);
-        }
-        Ok(records)
+    fn read_repeaters(&self) -> Result<Vec<RepeaterStateSerializable>, McpError> {
+        shared::read_repeaters(&self.project.join("repeater.jsonl")).map_err(operation_error)
     }
 
-    fn write_repeaters(&self, records: &[SavedRepeater]) -> Result<(), McpError> {
-        let temp = self
-            .project
-            .join(format!(".repeater-{:016x}.tmp", rand::random::<u64>()));
-        let result = (|| {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp)
-                .map_err(internal_error)?;
-            for record in records {
-                serde_json::to_writer(&mut file, record).map_err(internal_error)?;
-                file.write_all(b"\n").map_err(internal_error)?;
-            }
-            file.sync_all().map_err(internal_error)?;
-            fs::rename(&temp, self.project.join("repeater.jsonl")).map_err(internal_error)
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&temp);
-        }
-        result
+    fn write_repeaters(&self, records: &[RepeaterStateSerializable]) -> Result<(), McpError> {
+        shared::write_repeaters(&self.project.join("repeater.jsonl"), records)
+            .map_err(operation_error)
     }
 
-    fn repeater_index(records: &[SavedRepeater], id: usize) -> Result<usize, McpError> {
-        id.checked_sub(1)
-            .filter(|&i| i < records.len())
-            .ok_or_else(|| {
-                invalid(format!(
-                    "Repeater {} was not found; use repeater_list for current IDs",
-                    id
-                ))
-            })
+    fn repeater_index(records: &[RepeaterStateSerializable], id: usize) -> Result<usize, McpError> {
+        Self::select_repeater(records, Some(id), None)
+    }
+
+    fn select_repeater(
+        records: &[RepeaterStateSerializable],
+        id: Option<usize>,
+        name: Option<&str>,
+    ) -> Result<usize, McpError> {
+        shared::operations::select_repeater(records, id, name).map_err(selection_error)
     }
 
     pub(super) fn list_repeaters(
@@ -457,8 +319,8 @@ impl CrusterMcpServer {
         input: RepeaterGetInput,
     ) -> Result<Json<serde_json::Value>, McpError> {
         let records = self.read_repeaters()?;
-        let index = Self::repeater_index(&records, input.id)?;
-        self.bounded_json(&records[index].view(input.id, input.include_bodies)?)
+        let index = Self::select_repeater(&records, input.id, input.name.as_deref())?;
+        self.bounded_json(&records[index].view(index + 1, input.include_bodies)?)
     }
 
     pub(super) fn get_repeater_content(
@@ -466,7 +328,7 @@ impl CrusterMcpServer {
         input: RepeaterContentInput,
     ) -> Result<Json<serde_json::Value>, McpError> {
         let records = self.read_repeaters()?;
-        let index = Self::repeater_index(&records, input.id)?;
+        let index = Self::select_repeater(&records, input.id, input.name.as_deref())?;
         let encoded = match input.part {
             ContentPart::Request => &records[index].request,
             ContentPart::Response => records[index]
@@ -486,7 +348,7 @@ impl CrusterMcpServer {
         loop {
             let end = input.offset + length;
             let chunk = &bytes[input.offset..end];
-            let value = serde_json::json!({"id": input.id, "offset": input.offset, "total_bytes": bytes.len(), "data_base64": base64::encode(chunk), "text": std::str::from_utf8(chunk).ok(), "next_offset": (end < bytes.len()).then_some(end)});
+            let value = serde_json::json!({"id": index + 1, "offset": input.offset, "total_bytes": bytes.len(), "data_base64": base64::encode(chunk), "text": std::str::from_utf8(chunk).ok(), "next_offset": (end < bytes.len()).then_some(end)});
             if serde_json::to_vec(&value).map_err(internal_error)?.len()
                 <= self.settings.max_result_bytes
                 || length <= 1
@@ -502,7 +364,7 @@ impl CrusterMcpServer {
         input: RepeaterCreateInput,
     ) -> Result<Json<serde_json::Value>, McpError> {
         self.require_repeater_write()?;
-        let mut records = self.read_repeaters()?;
+        let records = self.read_repeaters()?;
         let id = records.len() + 1;
         let mut record = if let Some(history_id) = input.history_id {
             let pair = self
@@ -512,17 +374,8 @@ impl CrusterMcpServer {
                 .ok_or_else(|| invalid(format!("HTTP pair {} was not found", history_id)))?;
             let request: HyperRequestWrapper = pair.request.try_into().map_err(internal_error)?;
             validate(&request)?;
-            SavedRepeater {
-                name: format!("Repeater #{}", id),
-                request: base64::encode(render_raw(&request)?),
-                response: None,
-                parameters: RepeaterParameters {
-                    address: request.get_hostname(),
-                    https: request.get_scheme() == "https://",
-                    redirects: true,
-                    max_redirects: 5,
-                },
-            }
+            shared::operations::from_history(&request, None, format!("Repeater #{}", id), 5)
+                .map_err(selection_error)?
         } else {
             if input.raw_request.is_none()
                 || input.changes.address.is_none()
@@ -532,7 +385,7 @@ impl CrusterMcpServer {
                     "Supply history_id or raw_request with changes.address and changes.https",
                 ));
             }
-            SavedRepeater {
+            RepeaterStateSerializable {
                 name: format!("Repeater #{}", id),
                 request: String::new(),
                 response: None,
@@ -549,8 +402,8 @@ impl CrusterMcpServer {
         }
         record.apply(input.changes)?;
         let result = self.bounded_json(&record.view(id, true)?)?;
-        records.push(record);
-        self.write_repeaters(&records)?;
+        shared::update_repeaters(&self.project.join("repeater.jsonl"), &record, usize::MAX)
+            .map_err(operation_error)?;
         Ok(result)
     }
 
@@ -560,10 +413,11 @@ impl CrusterMcpServer {
     ) -> Result<Json<serde_json::Value>, McpError> {
         self.require_repeater_write()?;
         let mut records = self.read_repeaters()?;
-        let index = Self::repeater_index(&records, input.id)?;
+        let index = Self::select_repeater(&records, input.id, input.name.as_deref())?;
         records[index].apply(input.changes)?;
-        let result = self.bounded_json(&records[index].view(input.id, true)?)?;
-        self.write_repeaters(&records)?;
+        let result = self.bounded_json(&records[index].view(index + 1, true)?)?;
+        shared::update_repeaters(&self.project.join("repeater.jsonl"), &records[index], index)
+            .map_err(operation_error)?;
         Ok(result)
     }
 
@@ -576,6 +430,16 @@ impl CrusterMcpServer {
         self.bounded_json(&serde_json::json!({"deleted_id": id, "remaining": records.len()}))
     }
 
+    pub(super) fn delete_repeater_selected(
+        &self,
+        input: RepeaterGetInput,
+    ) -> Result<Json<serde_json::Value>, McpError> {
+        self.require_repeater_write()?;
+        let records = self.read_repeaters()?;
+        let index = Self::select_repeater(&records, input.id, input.name.as_deref())?;
+        self.delete_repeater(index + 1)
+    }
+
     pub(super) async fn send_repeater_request(
         &self,
         request: &HyperRequestWrapper,
@@ -583,15 +447,15 @@ impl CrusterMcpServer {
     ) -> Result<(HyperResponseWrapper, bool), McpError> {
         self.require_repeater_write()?;
         validate(request)?;
-        tokio::time::timeout(
-            std::time::Duration::from_secs(self.settings.request_timeout_seconds),
-            crate::http_sender::send_request_from_wrapper(request, max_redirects),
+        shared::operations::send_request(
+            request,
+            max_redirects,
+            Some(std::time::Duration::from_secs(
+                self.settings.request_timeout_seconds,
+            )),
         )
         .await
-        .map_err(|_| {
-            internal_error("HTTP request timed out; the target may already have received it")
-        })?
-        .map_err(internal_error)
+        .map_err(operation_error)
     }
 
     pub(super) fn send_result(
@@ -621,30 +485,26 @@ impl CrusterMcpServer {
     ) -> Result<Json<serde_json::Value>, McpError> {
         self.require_repeater_write()?;
         let mut records = self.read_repeaters()?;
-        let index = Self::repeater_index(&records, input.id)?;
+        let index = Self::select_repeater(&records, input.id, input.name.as_deref())?;
+        let id = index + 1;
         if let Some(changes) = input.changes {
             records[index].apply(changes)?;
         }
-        let request = records[index].request()?;
-        // Clear stale results and save edits even if the network call fails.
-        records[index].response = None;
-        self.write_repeaters(&records)?;
-        let parameters = &records[index].parameters;
-        let (response, reached) = self
-            .send_repeater_request(
-                &request,
-                if parameters.redirects {
-                    parameters.max_redirects
-                } else {
-                    0
-                },
-            )
-            .await?;
-        records[index].response = Some(base64::encode(response.to_string()));
-        self.write_repeaters(&records)?;
+        let request = records[index].parsed_request().map_err(selection_error)?;
+        let (response, reached) = shared::operations::execute_repeater(
+            &self.project.join("repeater.jsonl"),
+            &mut records[index],
+            index,
+            &request,
+            Some(std::time::Duration::from_secs(
+                self.settings.request_timeout_seconds,
+            )),
+        )
+        .await
+        .map_err(operation_error)?;
         // Persist before checking the output limit: retrying get never resends a request.
-        let mut result = self.send_result(&request, &response, reached, input.include_bodies).map_err(|e| invalid(format!("Request was sent and response saved in repeater {}. Use repeater_get with include_bodies=false. Result error: {}", input.id, e)))?;
-        result.0["repeater_id"] = serde_json::json!(input.id);
+        let mut result = self.send_result(&request, &response, reached, input.include_bodies).map_err(|e| invalid(format!("Request was sent and response saved in repeater {}. Use repeater_get with include_bodies=false. Result error: {}", id, e)))?;
+        result.0["repeater_id"] = serde_json::json!(id);
         self.bounded_json(&result.0)
     }
 }
@@ -658,8 +518,317 @@ mod tests {
     use serde_json::json;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    #[tokio::test]
+    async fn cli_name_selection_supports_all_repeater_operations() {
+        let project = Project::new(true);
+        project.capture();
+        project.create();
+        assert_eq!(
+            project
+                .0
+                .get_repeater(input(json!({"name":"agent test"})))
+                .unwrap()
+                .0["id"],
+            1
+        );
+        assert!(project
+            .0
+            .get_repeater(input(json!({"id":1,"name":"agent test"})))
+            .is_err());
+        assert!(project.0.get_repeater(input(json!({}))).is_err());
+        project
+            .0
+            .update_repeater(input(
+                json!({"name":"agent test","changes":{"name":"renamed"}}),
+            ))
+            .unwrap();
+        let (address, received) = local_server(b"response body".to_vec()).await;
+        let sent = project
+            .0
+            .execute_repeater(input(
+                json!({"name":"renamed","changes":{"address":address}}),
+            ))
+            .await
+            .unwrap()
+            .0;
+        assert_eq!(sent["repeater_id"], 1);
+        received.await.unwrap();
+        let headers = project
+            .0
+            .get_repeater(input(json!({"name":"renamed","include_bodies":false})))
+            .unwrap()
+            .0;
+        assert!(headers["response"]
+            .as_str()
+            .unwrap()
+            .starts_with("HTTP/1.1 200"));
+        assert!(!headers["response"]
+            .as_str()
+            .unwrap()
+            .contains("response body"));
+        let content = project
+            .0
+            .get_repeater_content(input(json!({"name":"renamed","part":"response"})))
+            .unwrap()
+            .0;
+        assert!(content["text"].as_str().unwrap().contains("response body"));
+        project
+            .0
+            .delete_repeater_selected(input(json!({"name":"renamed"})))
+            .unwrap();
+        assert!(project.0.read_repeaters().unwrap().is_empty());
+    }
+
     fn input<T: DeserializeOwned>(value: serde_json::Value) -> T {
         serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn cli_add_edit_and_mcp_share_persistence_and_first_name_selection() {
+        let project = Project::new(true);
+        project.capture();
+        let path = project.0.project.join("repeater.jsonl");
+        shared::add::exec(
+            &shared::add::RepeaterAddSettings { index: 42 },
+            project.0.history_path().to_str().unwrap(),
+            path.to_str().unwrap(),
+        )
+        .unwrap();
+        let created = project.0.get_repeater(input(json!({"id":1}))).unwrap().0;
+        assert_eq!(created["name"], "Repeater #0");
+        assert_eq!(created["parameters"]["max_redirects"], 10);
+        project.create();
+        for id in [1, 2] {
+            shared::edit::execute(
+                &shared::edit::RepeaterEditSettings {
+                    number_to_get: Some(id),
+                    name: Some("duplicate".into()),
+                    ..Default::default()
+                },
+                path.to_str().unwrap(),
+            )
+            .unwrap();
+        }
+        shared::edit::execute(
+            &shared::edit::RepeaterEditSettings {
+                name_to_get: Some("duplicate".into()),
+                address: Some("localhost:9000".into()),
+                redirects: Some(false),
+                max_redirects: Some(0),
+                ..Default::default()
+            },
+            path.to_str().unwrap(),
+        )
+        .unwrap();
+        let first = project
+            .0
+            .get_repeater(input(json!({"name":"duplicate"})))
+            .unwrap()
+            .0;
+        assert_eq!(first["id"], 1);
+        assert_eq!(first["parameters"]["address"], "localhost:9000");
+        assert_eq!(first["parameters"]["redirects"], false);
+        assert_eq!(first["parameters"]["max_redirects"], 0);
+        assert_ne!(
+            project.0.get_repeater(input(json!({"id":2}))).unwrap().0["parameters"]["address"],
+            "localhost:9000"
+        );
+        project
+            .0
+            .update_repeater(input(json!({"id":2,"changes":{"name":"MCP → CLI"}})))
+            .unwrap();
+        let states = shared::RepeaterIterator::new(path.to_str().unwrap())
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(states[1].name, "MCP → CLI");
+    }
+
+    #[tokio::test]
+    async fn cli_send_saves_response_for_mcp_and_preserves_utf8_duplicate_headers_and_body() {
+        let project = Project::new(true);
+        let body = "Привет\r\n\r\nlast\n\n  \n";
+        let (address, received) = local_server("Ответ".as_bytes().to_vec()).await;
+        project.0.create_repeater(input(json!({"raw_request":format!("POST /cli HTTP/1.1\nHost: virtual.test\nX-Dup: one\nX-Dup: two\nContent-Length: 1\n\n{body}"),"changes":{"address":address,"https":false}}))).unwrap();
+        let path = project.0.project.join("repeater.jsonl");
+        shared::exec::execute(
+            &shared::exec::RepeaterExecSettings {
+                name: None,
+                number: Some(1),
+                force: true,
+                no_body: true,
+            },
+            path.to_str().unwrap(),
+            "unused-editor",
+        )
+        .await
+        .unwrap();
+        let wire = received.await.unwrap();
+        assert!(wire.ends_with(body.as_bytes()));
+        let wire = String::from_utf8(wire).unwrap();
+        assert!(wire.contains("x-dup: one\r\n"));
+        assert!(wire.contains("x-dup: two\r\n"));
+        assert!(
+            project.0.get_repeater(input(json!({"id":1}))).unwrap().0["response"]
+                .as_str()
+                .unwrap()
+                .ends_with("Ответ")
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_send_saves_edits_and_clears_stale_response_for_cli_and_mcp() {
+        let project = Project::new(true);
+        project.capture();
+        project.create();
+        let path = project.0.project.join("repeater.jsonl");
+        for cli in [false, true] {
+            let mut records = project.0.read_repeaters().unwrap();
+            records[0].response = Some(base64::encode("stale response"));
+            project.0.write_repeaters(&records).unwrap();
+            if cli {
+                assert!(shared::exec::execute(
+                    &shared::exec::RepeaterExecSettings {
+                        name: None,
+                        number: Some(1),
+                        force: true,
+                        no_body: true
+                    },
+                    path.to_str().unwrap(),
+                    "unused-editor"
+                )
+                .await
+                .is_err());
+            } else {
+                assert!(project.0.execute_repeater(input(json!({"id":1,"changes":{"name":"saved before send","address":"127.0.0.1:0"}}))).await.is_err());
+            }
+            let saved = project.0.get_repeater(input(json!({"id":1}))).unwrap().0;
+            assert!(saved["response"].is_null());
+            assert_eq!(saved["name"], "saved before send");
+        }
+    }
+
+    #[test]
+    fn fallible_iterator_and_atomic_updates_handle_blank_and_corrupt_lines() {
+        let project = Project::new(true);
+        project.capture();
+        project.create();
+        let path = project.0.project.join("repeater.jsonl");
+        let original = fs::read_to_string(&path).unwrap();
+        fs::write(&path, format!("\n \n{original}\n{original}")).unwrap();
+        shared::edit::execute(
+            &shared::edit::RepeaterEditSettings {
+                number_to_get: Some(2),
+                name: Some("second".into()),
+                ..Default::default()
+            },
+            path.to_str().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            project.0.get_repeater(input(json!({"id":1}))).unwrap().0["name"],
+            "agent test"
+        );
+        assert_eq!(
+            project.0.get_repeater(input(json!({"id":2}))).unwrap().0["name"],
+            "second"
+        );
+        let record = project.0.read_repeaters().unwrap().remove(0);
+        let broken = format!("{original}not JSON\n");
+        fs::write(&path, &broken).unwrap();
+        let mut iter = shared::RepeaterIterator::new(path.to_str().unwrap()).unwrap();
+        assert!(iter.next().unwrap().is_ok());
+        assert!(iter.next().unwrap().is_err());
+        assert!(iter.next().is_none());
+        assert!(shared::update_repeaters(&path, &record, 0).is_err());
+        assert_eq!(fs::read_to_string(&path).unwrap(), broken);
+        assert!(project.0.get_repeater(input(json!({"id":1}))).is_err());
+        for response in ["!".to_owned(), base64::encode([0xff])] {
+            let mut corrupt = record.clone();
+            corrupt.response = Some(response);
+            project.0.write_repeaters(&[corrupt]).unwrap();
+            assert!(shared::RepeaterIterator::new(path.to_str().unwrap())
+                .unwrap()
+                .next()
+                .unwrap()
+                .is_err());
+        }
+        let directory_target = project.0.project.join("directory");
+        fs::create_dir(&directory_target).unwrap();
+        assert!(shared::write_repeaters(&directory_target, &[record]).is_err());
+        assert!(directory_target.is_dir());
+        assert!(!fs::read_dir(project.0.project.as_ref())
+            .unwrap()
+            .any(|entry| entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")));
+    }
+
+    #[tokio::test]
+    async fn one_shot_binary_body_is_exact_and_never_persisted_as_saved_repeater() {
+        let project = Project::new(true);
+        project.capture();
+        let (address, received) = local_server(b"done".to_vec()).await;
+        let bytes = [0, 255, 128, 13, 10, 13, 10];
+        project.0.http_request_send(Parameters(input(json!({"id":42,"edits":{"url":format!("http://{address}/binary"),"body_base64":base64::encode(bytes)}})))).await.unwrap();
+        assert!(received.await.unwrap().ends_with(&bytes));
+        assert!(!project.0.project.join("repeater.jsonl").exists());
+        assert!(project
+            .0
+            .create_repeater(input(
+                json!({"history_id":42,"changes":{"edits":{"body_base64":base64::encode(bytes)}}})
+            ))
+            .is_err());
+        assert!(!project.0.project.join("repeater.jsonl").exists());
+    }
+
+    #[tokio::test]
+    async fn timeout_clears_stale_response_and_keeps_saved_edits() {
+        let project = Project::new(true);
+        project.capture();
+        project.create();
+        let mut records = project.0.read_repeaters().unwrap();
+        records[0].response = Some(base64::encode("stale"));
+        project.0.write_repeaters(&records).unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap().to_string();
+        let task = tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let error = project
+            .0
+            .execute_repeater(input(
+                json!({"id":1,"changes":{"address":address,"name":"timed out"}}),
+            ))
+            .await
+            .err()
+            .unwrap();
+        task.abort();
+        assert!(error.message.contains("timed out"));
+        let saved = project.0.get_repeater(input(json!({"id":1}))).unwrap().0;
+        assert_eq!(saved["name"], "timed out");
+        assert!(saved["response"].is_null());
+    }
+
+    #[tokio::test]
+    async fn output_limit_error_after_send_does_not_discard_response() {
+        let mut project = Project::new(true);
+        project.capture();
+        project.create();
+        project.0.settings.max_result_bytes = 1024;
+        let (address, received) = local_server(vec![b'x'; 5000]).await;
+        let error = project
+            .0
+            .execute_repeater(input(json!({"id":1,"changes":{"address":address}})))
+            .await
+            .err()
+            .unwrap();
+        assert!(error.message.contains("response saved"));
+        received.await.unwrap();
+        assert!(project.0.read_repeaters().unwrap()[0].response.is_some());
     }
 
     struct Project(CrusterMcpServer);

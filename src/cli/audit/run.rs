@@ -1,13 +1,13 @@
 use std::{fs::File, sync::Arc};
 
 use clap::ArgMatches;
-use crossbeam::channel::TryRecvError;
+#[cfg(test)]
 use regex::Regex;
 
-use crate::cli::http::show::matches_the_filter;
+use crate::audit::operations::{compile_pair_filters, filter_pairs};
 
 use crate::{
-    audit::{execution::{spawn_threads, MainToWorkerCmd, WorkerToMainMsg}, load_rule, result::{syntax_string, WriteResult}, RuleFinalState}, cli::CrusterCLIError, config::{AuditConfig, AuditEntities, Config}, http_storage::RequestResponsePair
+    audit::{execution::{execute_scan, WorkerToMainMsg}, load_rule, result::{syntax_string, WriteResult}, RuleFinalState}, cli::CrusterCLIError, config::{AuditConfig, AuditEntities, Config}, http_storage::RequestResponsePair
 };
 
 pub(crate) fn modify_audit_config_with_cmd_args(mut config: AuditConfig, args: &ArgMatches) -> Result<AuditConfig, CrusterCLIError> {
@@ -104,29 +104,15 @@ pub(crate) fn modify_audit_config_with_cmd_args(mut config: AuditConfig, args: &
     Ok(config)
 }
 
-fn compile_pair_filters(config: &AuditConfig) -> Result<Vec<Regex>, CrusterCLIError> {
-    config.filter.as_deref().unwrap_or_default().iter().map(|pattern| {
-        Regex::new(pattern).map_err(|err| {
-            CrusterCLIError::from(format!("Invalid audit HTTP pair filter '{}': {}", pattern, err))
-        })
-    }).collect()
-}
-
-fn filter_pairs(pairs: &mut Vec<Arc<RequestResponsePair>>, filters: &[Regex]) {
-    if !filters.is_empty() {
-        pairs.retain(|pair| filters.iter().any(|re| matches_the_filter(pair, re)));
-    }
-}
-
-pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_path: &str) -> Result<(), CrusterCLIError> {
+pub(crate) async fn exec(
+    config: &Config,
+    audit_conf: &AuditConfig,
+    http_data_path: &str,
+) -> Result<(), CrusterCLIError> {
     let filters = compile_pair_filters(audit_conf)?;
     let tasks = match &audit_conf.tasks {
-        Some(number) => {
-            *number
-        }
-        None => {
-            num_cpus::get()
-        }
+        Some(number) => *number,
+        None => num_cpus::get(),
     };
     if tasks == 0 {
         return Err(CrusterCLIError::from("Audit workers count cannot be zero"));
@@ -140,20 +126,21 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
     filter_pairs(&mut pairs, &filters);
 
     let audit_name = match &audit_conf.name {
-        Some(name) => {
-            name
-        },
+        Some(name) => name,
         None => {
-            return Err(CrusterCLIError::from("Current audit does not have any name, so cannot be launched"));
+            return Err(CrusterCLIError::from(
+                "Current audit does not have any name, so cannot be launched",
+            ));
         }
     };
 
     let audit_file = config.get_audit_results_file(audit_name);
     if let Err(err) = File::create(&audit_file) {
-        return Err(CrusterCLIError::from(format!("Cannot open file to write result: {}", err)));
+        return Err(CrusterCLIError::from(format!(
+            "Cannot open file to write result: {}",
+            err
+        )));
     }
-
-    let (tx, rx) = spawn_threads(tasks).await;
 
     let rules = load_rule::load_rules(&audit_conf)?;
 
@@ -174,76 +161,50 @@ pub(crate) async fn exec(config: &Config, audit_conf: &AuditConfig, http_data_pa
         }
     }
 
-    for rule in rules.iter() {
-        tx.send(MainToWorkerCmd::ScanRule((rule.clone(), pairs.clone())))?;
-    }
-    for _ in 0..tasks {
-        tx.send(MainToWorkerCmd::Stop)?;
-    }
-
-    let mut stopped_workers = 0;
     let mut finding_index = 0;
-    while stopped_workers != tasks {
-        match rx.try_recv() {
-            Ok(msg) => {
-                match msg {
-                    WorkerToMainMsg::Result(res) => {
-                        match res {
-                            RuleFinalState::Failed(reason) => {
-                                eprintln!("[{}] {}", "FAILED", reason);
-                            },
-                            RuleFinalState::Skipped(reason) => {
-                                if let Some(verbose) = audit_conf.verbose {
-                                    if verbose {
-                                        eprintln!("Skiped: {}", reason);
-                                    }
-                                }
-                            },
-                            RuleFinalState::Finished(possible_result) => {
-                                match possible_result {
-                                    Some(res) => {
-                                        let mut res = res;
-                                        res.set_id(finding_index);
-                                        finding_index += 1;
-                                        
-                                        println!("{}", res);
-                                        
-                                        if let Err(err) = res.write_result(&audit_file) {
-                                            eprintln!("could not save last audit result: {}", err.to_string());
-                                        }
-                                    },
-                                    None => {
-
-                                    }
-                                }
-                            }
+    execute_scan(rules, pairs, tasks, |msg| {
+        match msg {
+            WorkerToMainMsg::Result(res) => match res.state {
+                RuleFinalState::Failed(reason) => {
+                    eprintln!("[{}] {}", "FAILED", reason);
+                }
+                RuleFinalState::Skipped(reason) => {
+                    if let Some(verbose) = audit_conf.verbose {
+                        if verbose {
+                            eprintln!("Skiped: {}", reason);
                         }
-                    },
-                    WorkerToMainMsg::Error(err) => {
-                        return Err(err.into());
-                    },
-                    WorkerToMainMsg::Log(message) => {
-                        if let Some(verbose) = audit_conf.verbose {
-                            if verbose {
-                                eprintln!("{}", message);
-                            }
-                        }
-                    },
-                    WorkerToMainMsg::Stopped => {
-                        stopped_workers += 1;
                     }
                 }
+                RuleFinalState::Finished(possible_result) => match possible_result {
+                    Some(res) => {
+                        let mut res = res;
+                        res.set_id(finding_index);
+                        finding_index += 1;
+
+                        println!("{}", res);
+
+                        if let Err(err) = res.write_result(&audit_file) {
+                            eprintln!("could not save last audit result: {}", err.to_string());
+                        }
+                    }
+                    None => {}
+                },
             },
-            Err(err) => {
-                if let TryRecvError::Empty = err { }
-                else {
-                    return Err(err.into());
+            WorkerToMainMsg::Error(err) => {
+                return Err(err.into());
+            }
+            WorkerToMainMsg::Log(message) => {
+                if let Some(verbose) = audit_conf.verbose {
+                    if verbose {
+                        eprintln!("{}", message);
+                    }
                 }
             }
+            WorkerToMainMsg::Stopped => {}
         }
-    }
-
-    Ok(())
+        Ok::<_, CrusterCLIError>(())
+    })
+    .await
 }
 
 #[cfg(test)]

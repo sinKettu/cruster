@@ -1,15 +1,13 @@
-use std::io::Write;
-use std::{process, io::Read};
 use rand::{distributions::Alphanumeric, Rng};
+use std::io::Write;
+use std::{io::Read, process};
 
 use clap::ArgMatches;
 use cursive::views::TextContent;
 use reqwest::Request;
 
-use super::RepeaterIterator;
 use crate::cli::CrusterCLIError;
 use crate::siv_ui::repeater::RepeaterState;
-
 
 pub(crate) struct RepeaterExecSettings {
     pub(crate) name: Option<String>,
@@ -25,23 +23,22 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
             name: None,
             number: None,
             force: false,
-            no_body: false
+            no_body: false,
         };
 
         let mark = args.get_one::<String>("mark").unwrap().to_string();
         if let Ok(number) = mark.parse::<usize>() {
             settings.number = Some(number);
-        }
-        else {
+        } else {
             settings.name = Some(mark);
         }
 
         settings.force = args.get_flag("force");
 
         if settings.name.is_none() && settings.number.is_none() {
-            return Err(
-                CrusterCLIError::from("Use must specify number or name of repeater to work with")
-            )
+            return Err(CrusterCLIError::from(
+                "Use must specify number or name of repeater to work with",
+            ));
         }
 
         settings.no_body = args.get_flag("no-body");
@@ -83,20 +80,29 @@ fn open_editor(editor: &str, request: String) -> Result<String, CrusterCLIError>
         edited_request = edited_request.trim_end().to_string();
     }
 
-    return  Ok(edited_request);
+    return Ok(edited_request);
 }
 
-fn get_ready_request(repeater: &mut RepeaterState, editor: &str, force: bool) -> Result<Request, CrusterCLIError> {
+fn get_ready_request(
+    repeater: &mut RepeaterState,
+    editor: &str,
+    force: bool,
+) -> Result<Request, CrusterCLIError> {
     if force {
         return Ok(repeater.make_reqwest()?);
-    }
-    else {
+    } else {
         repeater.request = open_editor(editor, repeater.request.clone())?;
         return Ok(repeater.make_reqwest()?);
     };
 }
 
-async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: &str, editor: &str, settings: &RepeaterExecSettings) -> Result<(), CrusterCLIError> {
+async fn handle_repeater(
+    mut repeater: &mut RepeaterState,
+    number: usize,
+    path: &str,
+    editor: &str,
+    settings: &RepeaterExecSettings,
+) -> Result<(), CrusterCLIError> {
     // TODO: update repeater after changing content-length
     let request = get_ready_request(&mut repeater, editor, settings.force)?;
 
@@ -105,26 +111,23 @@ async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: 
     } else {
         println!("\n{}\n", repeater.request.as_str());
     }
-    
+
     print!("{}\r", "Sending...");
     std::io::stdout().flush()?;
-    
-    super::update_repeaters(path, &repeater, number.to_owned())?;
 
-    let request_wrapper = crate::cruster_proxy::request_response::HyperRequestWrapper::from_reqwest(request).await?;
-    let max_redirects = if repeater.parameters.redirects {
-        repeater.parameters.max_redirects
-    } else {
-        0
-    };
-    let (wrapper, redirects_exceeded) = crate::http_sender::send_request_from_wrapper(
+    let request_wrapper =
+        crate::cruster_proxy::request_response::HyperRequestWrapper::from_reqwest(request).await?;
+    let mut record = crate::siv_ui::repeater::RepeaterStateSerializable::from(&*repeater);
+    let (wrapper, redirects_exceeded) = super::operations::execute_repeater(
+        std::path::Path::new(path),
+        &mut record,
+        number,
         &request_wrapper,
-        max_redirects,
-    ).await?;
+        None,
+    )
+    .await?;
     let response_str = wrapper.to_string();
     repeater.response = TextContent::new(response_str.clone());
-
-    super::update_repeaters(path, &repeater, number.to_owned())?;
 
     if redirects_exceeded {
         eprintln!("REDIRECTS COUNT EXCEEDED\n");
@@ -136,30 +139,16 @@ async fn handle_repeater(mut repeater: &mut RepeaterState, number: usize, path: 
         println!("{}\n", response_str);
     }
 
-    return Ok(())
+    return Ok(());
 }
 
-pub(crate) async fn execute(settings: &RepeaterExecSettings, path: &str, editor: &str) -> Result<(), CrusterCLIError> {
-    let repeater_iter = RepeaterIterator::new(path)?;
-    for (i, mut repeater) in repeater_iter.enumerate() {
-        if let Some(number) = settings.number.as_ref() {
-            if &(i + 1) == number {
-                return handle_repeater(&mut repeater, i, path, editor, settings).await;
-            }
-
-            continue;
-        }
-
-        if let Some(name) = settings.name.as_ref() {
-            if &repeater.name == name {
-                return handle_repeater(&mut repeater, i, path, editor, settings).await;
-            }
-
-            continue;
-        }
-    }
-
-    Err(
-        CrusterCLIError::from("Cannot find repeater by specified mark (number/name)")
-    )
+pub(crate) async fn execute(
+    settings: &RepeaterExecSettings,
+    path: &str,
+    editor: &str,
+) -> Result<(), CrusterCLIError> {
+    let (index, records) =
+        super::operations::load_selected(path, settings.number, settings.name.as_deref())?;
+    let mut repeater = RepeaterState::try_from(records[index].clone())?;
+    handle_repeater(&mut repeater, index, path, editor, settings).await
 }

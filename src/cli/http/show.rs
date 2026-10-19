@@ -2,7 +2,6 @@ use crate::http_storage;
 use crate::cli::CrusterCLIError;
 
 use serde_json as json;
-use std::io::BufRead;
 use std::{borrow::Cow, ffi::CString};
 use regex::Regex;
 use bstr::ByteSlice;
@@ -18,7 +17,7 @@ pub(super) enum ExtractionKey {
     STATUS,
 }
 
-pub(super) struct ExtractionAttribute {
+pub(crate) struct ExtractionAttribute {
     key: ExtractionKey,
     value: String,
 }
@@ -80,13 +79,47 @@ enum HTTPTableSelection {
 }
 
 pub(crate) struct ShowSettings {
-    pub(super) print_urls: bool,
-    pub(super) pretty: bool,
-    pub(super) no_body: bool,
-    pub(super) raw: bool,
-    pub(super) filter: Option<String>,
-    pub(super) attribute: Option<ExtractionAttribute>,
-    pub(super) index: Option<usize>
+    pub(crate) print_urls: bool,
+    pub(crate) pretty: bool,
+    pub(crate) no_body: bool,
+    pub(crate) raw: bool,
+    pub(crate) filter: Option<String>,
+    pub(crate) attribute: Option<ExtractionAttribute>,
+    pub(crate) index: Option<usize>
+}
+
+impl HTTPTableRange {
+    pub(crate) fn selects_id(&self, index: Option<usize>) -> bool {
+        index.is_some() || matches!(self.selection, HTTPTableSelection::Id(_))
+    }
+
+    /// Shared positional selection for history queries and audit snapshots.
+    /// The ID lookup is lazy: unselected/malformed JSON is not decoded for ranges.
+    pub(crate) fn select_positions(
+        &self,
+        len: usize,
+        index: Option<usize>,
+        mut id_at: impl FnMut(usize) -> Option<usize>,
+    ) -> Vec<usize> {
+        if let Some(id) = self.requested_id(index) {
+            return (0..len).filter(|&position| id_at(position) == Some(id)).collect();
+        }
+        let (start, end) = match self.selection {
+            HTTPTableSelection::First(count) => (0, count.min(len)),
+            HTTPTableSelection::Range(from, to) => (from.saturating_sub(1).min(len), to.min(len)),
+            HTTPTableSelection::Last(count) => (len.saturating_sub(count), len),
+            HTTPTableSelection::All => (0, len),
+            HTTPTableSelection::Id(_) => unreachable!("ID selections are handled before ranges"),
+        };
+        (start..end).collect()
+    }
+
+    fn requested_id(&self, index: Option<usize>) -> Option<usize> {
+        index.or(match self.selection {
+            HTTPTableSelection::Id(id) => Some(id),
+            _ => None,
+        })
+    }
 }
 
 impl Default for ShowSettings {
@@ -388,8 +421,7 @@ fn has_appropriate_attribute(pair: &http_storage::RequestResponsePair, attribute
 }
 
 pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, mut settings: ShowSettings) -> Result<(), CrusterCLIError> {
-    let selects_single_id = settings.index.is_some()
-        || matches!(range.selection, HTTPTableSelection::Id(_));
+    let selects_single_id = range.selects_id(settings.index);
 
     // Selecting an exact pair is a detail-oriented operation, so it always
     // uses the full pretty representation regardless of presentation flags.
@@ -399,53 +431,39 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, mut settings: S
         settings.print_urls = false;
     }
 
-    let filter_re = match settings.filter.as_ref() {
-        Some(filter_str) => Some(Regex::new(filter_str)?),
-        None => None
-    };
+    let mut first = true;
+    query(&range, http_storage, &settings, |raw, pair| {
+        if let Some(pair) = pair {
+            print_pair(pair, &settings, first);
+            first = false;
+        } else {
+            println!("{}", raw);
+        }
+        Ok(())
+    })
+}
 
-    let mut first: bool = true;
-    let fin = std::fs::File::open(http_storage)?;
-    let fin_reader = std::io::BufReader::new(fin);
-    let lines: Vec<String> = fin_reader.lines().collect::<Result<_, _>>()?;
-
-    let requested_id = settings.index.or_else(|| match range.selection {
-        HTTPTableSelection::Id(index) => Some(index),
-        _ => None,
-    });
-
-    let selected_lines: Vec<&String> = if let Some(index) = requested_id {
-        // An explicit pair ID is searched in the complete storage and is not
-        // restricted by the positional range.
-        lines
-            .iter()
-            .filter(|line| {
-                json::from_str::<http_storage::serializable::SerializableProxyData>(line)
-                    .map(|data| data.index == index)
-                    .unwrap_or(false)
-            })
-            .collect()
+/// CLI history selection and filtering, independent of presentation and stdout.
+/// The visitor keeps CLI output incremental even if a later selected row fails.
+/// Raw rows deliberately bypass JSON/domain decoding, as in CLI show.
+pub(crate) fn query(
+    range: &HTTPTableRange,
+    path: impl AsRef<std::path::Path>,
+    settings: &ShowSettings,
+    mut visit: impl FnMut(&str, Option<&http_storage::RequestResponsePair>) -> Result<(), CrusterCLIError>,
+) -> Result<(), CrusterCLIError> {
+    let filter_re = settings.filter.as_deref().map(Regex::new).transpose()?;
+    let mut reader = std::io::BufReader::new(std::fs::File::open(path)?);
+    let mut pending = Vec::new();
+    let mut lines = Vec::new();
+    while let Some(line) = super::read_history_line(&mut reader, &mut pending, false)? {
+        lines.push(line.raw);
     }
-    else {
-        let (start, end) = match range.selection {
-            HTTPTableSelection::First(count) => (0, count.min(lines.len())),
-            HTTPTableSelection::Range(from, to) => {
-                let start = from.saturating_sub(1).min(lines.len());
-                let end = to.min(lines.len());
-                (start, end)
-            },
-            HTTPTableSelection::Last(count) => (lines.len().saturating_sub(count), lines.len()),
-            HTTPTableSelection::Id(_) => unreachable!("ID selections are handled before ranges"),
-            HTTPTableSelection::All => (0, lines.len()),
-        };
-
-        if start >= end {
-            Vec::new()
-        }
-        else {
-            lines[start..end].iter().collect()
-        }
-    };
+    let requested_id = range.requested_id(settings.index);
+    let selected_lines: Vec<_> = range.select_positions(lines.len(), settings.index, |position| {
+        json::from_str::<http_storage::serializable::SerializableProxyData>(&lines[position])
+            .ok().map(|data| data.index)
+    }).into_iter().map(|position| &lines[position]).collect();
 
     if selected_lines.is_empty() {
         return if let Some(index) = requested_id {
@@ -457,45 +475,23 @@ pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, mut settings: S
     }
 
     let mut found = false;
-    for line_ptr in selected_lines {
-        if settings.raw {
-            if let Some(re) = filter_re.as_ref() {
-                if re.find(line_ptr).is_some() {
-                    found = true;
-                    println!("{}", line_ptr);
-                }
-            }
-            else {
+    let raw_mode = settings.raw && !range.selects_id(settings.index);
+    for line in selected_lines {
+        if raw_mode {
+            if filter_re.as_ref().map_or(true, |re| re.is_match(line)) {
+                visit(line, None)?;
                 found = true;
-                println!("{}", line_ptr);
             }
-        }
-        else {
-            let serializable_data: http_storage::serializable::SerializableProxyData = json::from_str(line_ptr)?;
-            let pair: http_storage::RequestResponsePair = serializable_data.try_into()?;
-
-            if let Some(attr) = settings.attribute.as_ref() {
-                if ! has_appropriate_attribute(&pair, attr) {
-                    continue;
-                }
+        } else {
+            let pair = super::parse_history_pair(line)?;
+            if settings.attribute.as_ref().map_or(false, |attr| !has_appropriate_attribute(&pair, attr)) {
+                continue;
             }
-
-            if let Some(re) = filter_re.as_ref() {
-                if matches_the_filter(&pair, re) {
-                    found = true;
-                    print_pair(&pair, &settings, first);
-                    if first {
-                        first = false;
-                    }        
-                }
+            if filter_re.as_ref().map_or(false, |re| !matches_the_filter(&pair, re)) {
+                continue;
             }
-            else {
-                found = true;
-                print_pair(&pair, &settings, first);
-                if first {
-                    first = false;
-                }
-            }
+            visit(line, Some(&pair))?;
+            found = true;
         }
     }
 

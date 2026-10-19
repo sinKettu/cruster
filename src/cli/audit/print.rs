@@ -8,18 +8,12 @@ use std::{
 use clap::ArgMatches;
 
 use crate::{
-    audit::RuleResult, cli::CrusterCLIError, http_storage::serializable::SerializableProxyData,
+    audit::{
+        operations::{query_findings, read_request_urls, FindingQuery},
+        RuleResult,
+    },
+    cli::CrusterCLIError,
 };
-
-fn read_request_urls(reader: impl BufRead) -> io::Result<HashMap<usize, String>> {
-    let mut urls = HashMap::new();
-    for line in reader.lines() {
-        let pair: SerializableProxyData = serde_json::from_str(&line?)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-        urls.insert(pair.index, pair.request.get_uri());
-    }
-    Ok(urls)
-}
 
 fn request_line_with_url(finding: &RuleResult, urls: &HashMap<usize, String>) -> String {
     let first_line = finding.get_initial_request_first_line().trim_end();
@@ -113,12 +107,9 @@ fn print_http_message<T: Display>(
 fn print_single_result(
     output: &mut impl Write,
     print_conf: &AuditPrintConfig,
-    line: String,
+    finding: RuleResult,
     urls: &HashMap<usize, String>,
 ) -> io::Result<bool> {
-    let finding = serde_json::from_str::<RuleResult>(&line)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-
     if finding.get_id() != print_conf.index {
         return Ok(false);
     }
@@ -220,38 +211,13 @@ fn print_all(
     reader: impl BufRead,
     urls: &HashMap<usize, String>,
 ) -> io::Result<()> {
-    let mut lines: Vec<RuleResult> = vec![];
-    for possible_line in reader.lines() {
-        match possible_line {
-            Ok(line) => {
-                let finding = serde_json::from_str::<RuleResult>(&line)
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-
-                if print_conf.sort {
-                    lines.push(finding);
-                    continue;
-                } else {
-                    print_finding_briefly(output, &finding, urls)?;
-                }
-            }
-            Err(err) => {
-                return Err(err);
-            }
-        }
-    }
-
-    if !lines.is_empty() {
-        if print_conf.sort_ruleid {
-            lines.sort_by(|a, b| a.get_rule_id().cmp(b.get_rule_id()));
-        }
-
-        if print_conf.sort_severity {
-            lines.sort_by(|a, b| a.get_num_severity().cmp(&b.get_num_severity()));
-        }
-
-        for line in lines.iter() {
-            print_finding_briefly(output, line, urls)?;
-        }
+    let query = FindingQuery {
+        sort_ruleid: print_conf.sort && print_conf.sort_ruleid,
+        sort_severity: print_conf.sort && print_conf.sort_severity,
+        ..Default::default()
+    };
+    for finding in query_findings(reader, query)? {
+        print_finding_briefly(output, &finding?, urls)?;
     }
 
     Ok(())
@@ -266,17 +232,13 @@ fn print_results(
     if print_conf.all {
         print_all(output, print_conf, reader, urls)?;
     } else {
-        for possible_line in reader.lines() {
-            match possible_line {
-                Ok(line) => {
-                    if print_single_result(output, print_conf, line, urls)? {
-                        return Ok(());
-                    }
-                }
-                Err(err) => {
-                    return Err(err);
-                }
-            }
+        let query = FindingQuery {
+            id: Some(print_conf.index),
+            ..Default::default()
+        };
+        if let Some(finding) = query_findings(reader, query)?.next() {
+            print_single_result(output, print_conf, finding?, urls)?;
+            return Ok(());
         }
 
         writeln!(

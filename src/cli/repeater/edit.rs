@@ -1,7 +1,7 @@
-use clap::ArgMatches;
 use super::CrusterCLIError;
-use crate::siv_ui::repeater::RepeaterState;
+use clap::ArgMatches;
 
+#[derive(Default)]
 pub(crate) struct RepeaterEditSettings {
     pub(crate) name_to_get: Option<String>,
     pub(crate) number_to_get: Option<usize>,
@@ -9,7 +9,7 @@ pub(crate) struct RepeaterEditSettings {
     pub(crate) address: Option<String>,
     pub(crate) redirects: Option<bool>,
     pub(crate) max_redirects: Option<usize>,
-    pub(crate) https: Option<bool>
+    pub(crate) https: Option<bool>,
 }
 
 impl TryFrom<&ArgMatches> for RepeaterEditSettings {
@@ -28,11 +28,10 @@ impl TryFrom<&ArgMatches> for RepeaterEditSettings {
         let mark = args.get_one::<String>("mark").unwrap().to_string();
         if let Ok(number) = mark.parse::<usize>() {
             settings.number_to_get = Some(number);
-        }
-        else {
+        } else {
             settings.name_to_get = Some(mark);
         }
-        
+
         if let Some(name) = args.get_one::<String>("name") {
             settings.name = Some(name.clone());
         }
@@ -46,8 +45,7 @@ impl TryFrom<&ArgMatches> for RepeaterEditSettings {
                 settings.redirects = Some(true)
             } else if redirects == "false" {
                 settings.redirects = Some(false)
-            }
-            else {
+            } else {
                 unreachable!()
             }
         }
@@ -71,62 +69,32 @@ impl TryFrom<&ArgMatches> for RepeaterEditSettings {
     }
 }
 
-pub(crate) fn execute(settings: &RepeaterEditSettings, path: &str) -> Result<(), CrusterCLIError> {
-    let update_closure = |settings: &RepeaterEditSettings, rep: &mut RepeaterState | {
-        if let Some(name) = settings.name.as_ref() {
-            rep.name = name.to_string();
+impl RepeaterEditSettings {
+    pub(crate) fn apply(&self, rep: &mut crate::siv_ui::repeater::RepeaterStateSerializable) {
+        if let Some(name) = &self.name {
+            rep.name = name.clone();
         }
-
-        if let Some(https) = settings.https.as_ref() {
-            rep.parameters.https = https.clone();
-        }
-
-        if let Some(redirects) = settings.redirects.as_ref() {
-            rep.parameters.redirects = redirects.clone();
-        }
-
-        if let Some(max_redirects) = settings.max_redirects.as_ref() {
-            rep.parameters.max_redirects = max_redirects.clone();
-        }
-
-        if let Some(address) = settings.address.as_ref() {
+        if let Some(address) = &self.address {
             rep.parameters.address = address.clone();
         }
-    };
-
-    let repeater_iter = super::RepeaterIterator::new(path)?;
-    let mut number_to_update: usize = 0;
-    let mut repeater_to_update: Option<RepeaterState> = None;
-
-    for (i, mut repeater) in repeater_iter.enumerate() {
-        if let Some(number) = settings.number_to_get {
-            if number == (i + 1) {
-                number_to_update = i;
-                update_closure(settings, &mut repeater);
-                repeater_to_update = Some(repeater);
-                break;
-            }
-
-            continue;
+        if let Some(https) = self.https {
+            rep.parameters.https = https;
         }
-
-        if let Some(name) = settings.name_to_get.as_ref() {
-            if name == &repeater.name {
-                number_to_update = i;
-                update_closure(settings, &mut repeater);
-                repeater_to_update = Some(repeater);
-                break;
-            }
-
-            continue;
+        if let Some(redirects) = self.redirects {
+            rep.parameters.redirects = redirects;
+        }
+        if let Some(max) = self.max_redirects {
+            rep.parameters.max_redirects = max;
         }
     }
+}
 
-    if let Some(repeater) = repeater_to_update {
-        super::update_repeaters(path, &repeater, number_to_update)
-    } else {
-        Err(
-            CrusterCLIError::from("Could not find apropriate repeater to edit")
-        )
-    }
+pub(crate) fn execute(settings: &RepeaterEditSettings, path: &str) -> Result<(), CrusterCLIError> {
+    let (index, mut records) = super::operations::load_selected(
+        path,
+        settings.number_to_get,
+        settings.name_to_get.as_deref(),
+    )?;
+    settings.apply(&mut records[index]);
+    super::update_repeaters(std::path::Path::new(path), &records[index], index)
 }

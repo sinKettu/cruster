@@ -37,11 +37,12 @@ Example client configuration:
 
 ## Security model
 
-MCP starts in read-only/passive mode. The following operations are denied by default:
+MCP starts in passive mode. Reading project data and executing configured passive rules are allowed; passive audit findings may also be saved locally with `audit_run`. The following operations are denied by default:
 
 - sending HTTP requests;
 - creating, editing, or deleting saved repeaters;
 - running active Python audit rules;
+- executing agent-supplied inline Python;
 - any operation that can change remote state.
 
 They can be enabled explicitly:
@@ -151,7 +152,7 @@ ID репитера — **позиция, начиная с 1**, как в CLI, 
 
 #### `repeater_get`
 
-Поля: `id`, `include_bodies` (по умолчанию `true`). Возвращает `name`, текстовый `request`, последний текстовый `response` и `parameters`: `address`, `https`, `redirects`, `max_redirects`. При `include_bodies=false` возвращаются заголовки запроса, а ответ опускается.
+Поля: `id` или `name`, `include_bodies` (по умолчанию `true`). Возвращает `name`, текстовый `request`, последний текстовый `response` и `parameters`: `address`, `https`, `redirects`, `max_redirects`. При `include_bodies=false` возвращаются только заголовки запроса и ответа.
 
 #### `repeater_create`
 
@@ -202,7 +203,135 @@ ID репитера — **позиция, начиная с 1**, как в CLI, 
 
 #### `repeater_delete`
 
-Поле: `id`. Удаляет репитер, возвращает `deleted_id` и число `remaining`. Последующие ID перенумеровываются.
+Поля выбора: `id` **или** `name`. Удаляет репитер, возвращает `deleted_id` и число `remaining`. Последующие ID перенумеровываются.
+
+Во всех инструментах выбора сохранённого репитера (`repeater_get`, `repeater_update`, `repeater_send`, `repeater_delete`, `repeater_content_get`) вместо `id` допускается точное `name`. Нужно передать ровно одно поле выбора. При совпадающих именах выбирается первый репитер, как в CLI. Для переименования используйте `changes.name`.
+
+При `repeater_get` с `include_bodies=false` сохраняются заголовки **и запроса, и ответа**, но тела исключаются.
+
+## Соответствие команд и опций CLI
+
+MCP предоставляет те же действия над данными, не запуская CLI как дочерний процесс. Названия и представление параметров адаптированы к структурированным вызовам инструментов.
+
+### Общая реализация CLI и MCP
+
+MCP использует операции CLI напрямую или общий код, выделенный из существующих CLI-обработчиков:
+
+- [HTTP query](../src/cli/http/show.rs) — единые разбор диапазонов, выбор по позициям/ID, extraction и regex-фильтрация. Разбор диапазонов также используется при выборе пар для аудита.
+- [Чтение истории](../src/cli/http.rs) — единая обработка JSONL-строк для CLI и MCP, включая незавершённую запись в режиме follow.
+- [Операции репитера](../src/cli/repeater/operations.rs) — общий выбор по номеру/имени, создание из истории и цикл сохранения → отправки → сохранения ответа. [Чтение и атомарная запись](../src/cli/repeater.rs) используют единственный формат хранения CLI/TUI, без отдельной MCP-модели файла.
+- [Исполнение аудита](../src/audit/execution.rs) — общий запуск существующих CLI workers и выполнение одного правила. [Операции аудита](../src/audit/operations.rs) объединяют фильтрацию пар и чтение/сортировку находок.
+
+Только адаптация интерфейса остаётся раздельной: CLI печатает результат и при необходимости открывает редактор; MCP проверяет разрешения, возвращает JSON, ограничивает размер ответа и поддерживает пагинацию/курсоры. Изменение общего алгоритма выбора, исполнения или сохранения применяется к обоим интерфейсам.
+
+| CLI | MCP | Опции и особенности |
+| --- | --- | --- |
+| `http show` | `http_history_query` | Все диапазоны INDEX, точный ID, regex, extraction, URL, summary, raw JSONL, pretty, исключение тел |
+| `http follow` | `http_history_follow` | Новые записи с курсором, `no_old_lines`, URL; вместо бесконечного вывода — ограниченное ожидание |
+| `repeater list` | `repeater_list` | Имена, параметры и пагинация |
+| `repeater show` | `repeater_get` | Номер или имя, заголовки без тел |
+| `repeater add` | `repeater_create` | ID захваченной пары; дополнительно можно создать новый запрос |
+| `repeater edit` | `repeater_update` | Имя, адрес, HTTPS, redirects, max_redirects; дополнительно изменения самого запроса |
+| `repeater exec` | `repeater_send` | Номер или имя, изменения перед отправкой, режим без тел. Внешний редактор не нужен |
+| `audit run` | `audit_run` | Имя и сохранение, regex-фильтры HTTP, пути правил, include/exclude по ID и тегам, active/passive, подробности и параллелизм |
+| `audit test` | `audit_run` без сохранения | Тестовый запуск настроенных правил на выбранной истории. Неиспользуемый CLI-аргумент ARG не переносится |
+| Проверка одного правила | `audit_test` | Настроенное правило, файл или inline Python; сохранённая пара либо явно заданные request/response |
+| `audit debug-rule` | `audit_debug_rule` | Правило, конкретная пара или вся история; состояния и Python-логи вместо терминального debug-вывода |
+| `audit print` | `audit_results_list` | Одна находка или все, сортировка severity/rule ID, начальные данные, данные отправок, исключение тел/данных |
+| `help`, `--help` | MCP `tools/list` | Описания инструментов и типизированные схемы параметров |
+
+Не переносятся только способы взаимодействия с терминалом: цвета/ANSI, ширина таблиц, внешний редактор, глобальная настройка консольного логгера, бесконечный вывод и повторяющие команды короткие aliases. Опция `--force` не нужна: MCP не открывает редактор вообще. Данные, которые CLI показывает в этих режимах, доступны структурированно.
+
+Глобальные параметры проекта, workplace, основного конфига и audit-конфига задаются при запуске MCP тем же Cruster. Опции прослушивания прокси, TLS-сертификатов и интерактивного TUI не являются командами CLI работы с сохранённым проектом и не добавляют управления работающим прокси.
+
+### `http_history_query`
+
+- `range`: CLI INDEX — `n` (первые n, по умолчанию `100`), `a` (все), `n-m` (позиции от 1, включительно), `-n` (последние n), `iN`/`Ni` (ID пары).
+- `id`: точный ID независимо от диапазона. Как в CLI, точный ID включает pretty-представление; для структурированной пары используйте прежний `http_history_get`.
+- `format`: `summary` (по умолчанию), `urls`, `structured`, `raw` или `pretty`. Pretty не содержит ANSI; raw возвращает исходные строки JSONL.
+- `filter`: regex по первой строке, заголовкам и телу запроса/ответа через общий HTTP matcher. В raw-режиме regex применяется к исходной JSONL-строке, как в CLI.
+- `extract`: `method=…`, `status=…`, `host=…`, `path=…`, с той же prefix-семантикой, что CLI.
+- `include_bodies` (по умолчанию `true`), `no_body` (по умолчанию `false`). Raw несовместим с extraction и исключением тел.
+- `offset`, `limit`: пагинация выбранного результата (по умолчанию 20, максимум 100); `content_offset` — продолжение одной большой записи.
+
+Результат содержит `items`, `next_offset`, `next_content_offset`. Если одна запись не помещается, она представляется Base64-фрагментом её JSON-кодировки с полями `encoding`, `media_type`, `data`, `offset`, `total_bytes`. Передавайте оба возвращённых смещения, сохраняя остальные параметры. Соберите байты большой записи и затем декодируйте JSON; это сохраняет и Unicode, и бинарные тела в структурированном формате.
+
+```json
+{
+  "range": "-50",
+  "format": "urls",
+  "extract": "status=4",
+  "filter": "(?i)token|authorization",
+  "limit": 20
+}
+```
+
+### `http_history_follow`
+
+Поля: `cursor` (байтовый курсор, не ID пары), `no_old_lines`, `urls`, `wait_ms` (по умолчанию 1000, максимум 30000), `limit` (20, максимум 100), `content_offset`.
+
+Первый вызов без курсора читает историю с начала; `no_old_lines=true` начинает с конца завершённых записей. Ответ: `items`, `next_cursor`, `next_content_offset`, `has_more`. Для продолжения передайте `cursor=next_cursor` и `content_offset=next_content_offset`. Незавершённая последняя JSONL-строка ожидает дописывания и не теряется. Курсор нужно использовать только с тем же проектом и неусечённым файлом истории.
+
+### `http_history_content_get`
+
+Поля: `id`, `part` (`request`, `response`, `record`), `offset` в байтах, `length`. Для request/response возвращаются точные декодированные **байты тела**, для record — исходная JSONL-запись. Ответ содержит Base64 `data`, `total_bytes`, `next_offset`. Размер автоматически подстраивается под лимит результата.
+
+### `audit_run`
+
+- `selection.pair_ids`: ID HTTP-пар; `selection.range`: диапазон; `selection.filters`: дополнительные regex. Выбор ID пересекается с диапазоном и фильтрами. Несколько regex объединяются через OR и дополняют фильтры audit-конфига.
+- `options.passive`, `options.active`: переопределение типов правил. Active требует разрешения опасных инструментов.
+- `options.include`, `options.exclude`: объекты с массивами `ids`, `tags`, `paths` (regex по путям правил). Значения дополняют настроенные selectors; `options.reset_selectors=true` сначала очищает их.
+- `options.rule_paths`: заменить пути загрузки правил; `options.add_paths`: добавить пути. Доступ разрешён внутри выбранного проекта и настроенных корней правил; выход за них, в том числе через symlink, отклоняется. Чтобы использовать другой каталог, укажите его в конфиге запуска MCP либо передайте правило inline в тестировании.
+- `tasks`: параллелизм от 1 до 256, по умолчанию из audit-конфига/числа CPU.
+- `verbose`: включать состояния выполнения и Python-логи, по умолчанию из конфига.
+- `name`: имя запуска, по умолчанию из конфига; допустим безопасный basename без `audit_` и `.jsonl`.
+- `persist`: сохранять находки в совместимый с CLI `audit_NAME.jsonl`, по умолчанию `false`. Для аналога CLI run передавайте `true`, для CLI test — `false`.
+
+Результат содержит счётчики правил, пар, выполнений, находок, ошибок и пропусков, массив `entries` и число `omitted_entries`. Подробности, не поместившиеся в лимит, опускаются, но сохранённые находки остаются доступны через инструменты чтения. Существующие файлы результатов не перезаписываются. Прерванный запуск может оставить частичный файл с уже записанными находками.
+
+```json
+{
+  "name": "selected",
+  "persist": true,
+  "selection": {"filters": ["^GET https?://example\\.com/"]},
+  "options": {
+    "passive": true,
+    "active": false,
+    "include": {"tags": ["technologies"]}
+  },
+  "tasks": 4,
+  "verbose": true
+}
+```
+
+### `audit_test` и `audit_debug_rule`
+
+Поле `rule` выбирает правило:
+
+- `{"source":"configured","id":"rule-id"}`;
+- `{"source":"file","path":"rule.py"}` внутри проекта/настроенных корней;
+- `{"source":"inline","python":"…"}` — код с обычными Python-метаданными Cruster. Требует разрешения опасных инструментов независимо от типа правила.
+
+Поле `pair`:
+
+- `{"source":"saved","id":42}`;
+- `{"source":"raw","request":"GET / HTTP/1.1\r\nHost: example.test\r\n\r\n","url":"https://example.test/","response":"HTTP/1.1 200 OK\r\n\r\nbody"}`.
+
+В raw-режиме вместо `response` можно явно передать `fetch_response=true`: запрос будет отправлен, что требует разрешения опасных инструментов. Неявных сетевых запросов нет.
+
+Возвращаются `pair_id`, `rule_id`, `state`, `logs`. Для `audit_debug_rule` поле `pair` необязательно: без него правило проверяется на всех сохранённых парах с пагинацией `offset`/`limit`; ответ содержит `items`, `total`, `next_offset`, `output_truncated`. Повторный вызов на той же странице снова выполняет правило, поэтому для активных правил не повторяйте уже выполненные страницы автоматически.
+
+Тайм-аут прямой HTTP-отправки применяется к `fetch_response`, но не является ограничением времени произвольного Python-кода: текущий общий исполнитель Python не поддерживает принудительную безопасную отмену. Выполняйте только доверенные правила.
+
+### `audit_results_list`
+
+Обязательное `name`; необязательные `id` находки, `pair_ids`, `rule_ids`, `severities`, regex `filter`. `sort`: `file` (по умолчанию), `rule_id`, `severity`, `severity_rule_id`. Сортировка выполняется до пагинации `offset`/`limit`.
+
+`include_data` включает данные отправок/ответов находки, `include_initial` — исходную пару, `include_bodies` — тела. По умолчанию все три поля `false`. Это эквиваленты CLI no-data, initial-data и without-body без зависимости от форматирования вывода. Для каждой находки добавляется URL исходной пары. Возвращаются `items`, `total`, `next_offset`.
+
+### `audit_result_content_get`
+
+Поля: `name`, `id` находки, `offset`, `length`. Читает полную находку в JSON независимо от размера, возвращая UTF-8 `content`, `next_offset` и размер. Смещения измеряются в байтах; граница фрагмента не разрезает Unicode-символ.
 
 ### Ограничения репитера
 
@@ -215,7 +344,7 @@ ID репитера — **позиция, начиная с 1**, как в CLI, 
 - `--max-result-bytes <BYTES>` controls the maximum serialized tool result. Default: 1 MiB; accepted range: 1 KiB through 16 MiB.
 - `--request-timeout-seconds <SECONDS>` controls direct-send timeout. Default: 30 seconds; accepted range: 1 through 600 seconds.
 - History list pages are capped at 100 records.
-- MCP inputs never accept arbitrary filesystem paths. History and repeaters use only the selected project's `http.jsonl` and `repeater.jsonl`; rules come only from the resolved audit configuration.
+- History and repeaters use only the selected project's `http.jsonl` and `repeater.jsonl`. Audit rule paths are confined to the project and configured rule roots; result names are validated basenames.
 
 If a result exceeds the configured limit, request fewer records or omit bodies.
 

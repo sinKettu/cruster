@@ -65,7 +65,7 @@ pub(crate) async fn exec(conf: &DebugRuleConfig, http_data_path: &str) -> Result
 
     if let Some(index) = conf.pair_index {
         if let Some(pair) = storage.get_by_id(index) {
-            let (execution_state, _) = rule.execute(Arc::new(pair.clone())).await;
+            let execution_state = crate::audit::execution::execute_one(&rule, Arc::new(pair.clone())).await.state;
             println!("{:#?}", execution_state);
         }
         else {
@@ -74,7 +74,7 @@ pub(crate) async fn exec(conf: &DebugRuleConfig, http_data_path: &str) -> Result
     }
     else {
         for pair in storage.into_iter() {
-            let (execution_state, _) = rule.execute(Arc::new(pair.clone())).await;
+            let execution_state = crate::audit::execution::execute_one(&rule, Arc::new(pair.clone())).await.state;
             println!("{:#?}", execution_state);
         }
     }
