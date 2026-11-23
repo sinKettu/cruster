@@ -1,6 +1,7 @@
 pub(crate) mod http;
 pub(crate) mod repeater;
 mod audit;
+mod output;
 
 use audit::print::AuditPrintConfig;
 use clap::{self, ArgMatches};

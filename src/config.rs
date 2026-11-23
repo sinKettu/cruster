@@ -264,7 +264,7 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                     clap::Arg::new("INDEX")
                                         .default_value("100")
                                         .allow_hyphen_values(true)
-                                        .help("Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N in pretty mode")
+                                        .help("Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N (pretty by default)")
                                 )
                                 .arg(
                                     clap::Arg::new("urls")
@@ -286,6 +286,13 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .long("no-body")
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Do not print request and response bodies in pretty mode")
+                                )
+                                .arg(
+                                    clap::Arg::new("no-cookie")
+                                        .short('c')
+                                        .long("no-cookie")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Replace Cookie and Set-Cookie header values with 'stripped' in pretty output")
                                 )
                                 .arg(
                                     clap::Arg::new("raw")
@@ -312,7 +319,7 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .short('i')
                                         .long("index")
                                         .value_name("NUMBER")
-                                        .help("Get pair with specific ID in pretty mode")
+                                        .help("Get pair with specific ID (pretty by default; supports --raw and --urls)")
                                 )
                         )
                         .subcommand(
@@ -360,6 +367,13 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Print request/response without body")
                                 )
+                                .arg(
+                                    clap::Arg::new("no-cookie")
+                                        .short('c')
+                                        .long("no-cookie")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Replace Cookie and Set-Cookie header values with 'stripped' in output")
+                                )
                         )
                         .subcommand(
                             clap::Command::new("exec")
@@ -384,6 +398,13 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .long("no-body")
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Print request/response without body")
+                                )
+                                .arg(
+                                    clap::Arg::new("no-cookie")
+                                        .short('c')
+                                        .long("no-cookie")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Replace Cookie and Set-Cookie header values with 'stripped' in output")
                                 )
                         )
                         .subcommand(

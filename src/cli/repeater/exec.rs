@@ -14,6 +14,7 @@ pub(crate) struct RepeaterExecSettings {
     pub(crate) number: Option<usize>,
     pub(crate) force: bool,
     pub(crate) no_body: bool,
+    pub(crate) no_cookie: bool,
 }
 
 impl TryFrom<&ArgMatches> for RepeaterExecSettings {
@@ -24,6 +25,7 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
             number: None,
             force: false,
             no_body: false,
+            no_cookie: false,
         };
 
         let mark = args.get_one::<String>("mark").unwrap().to_string();
@@ -42,6 +44,7 @@ impl TryFrom<&ArgMatches> for RepeaterExecSettings {
         }
 
         settings.no_body = args.get_flag("no-body");
+        settings.no_cookie = args.get_flag("no-cookie");
 
         return Ok(settings);
     }
@@ -106,11 +109,7 @@ async fn handle_repeater(
     // TODO: update repeater after changing content-length
     let request = get_ready_request(&mut repeater, editor, settings.force)?;
 
-    if settings.no_body {
-        println!("\n{}\n", super::trim_body(repeater.request.as_str()));
-    } else {
-        println!("\n{}\n", repeater.request.as_str());
-    }
+    println!("\n{}\n", super::format_output(&repeater.request, settings.no_body, settings.no_cookie));
 
     print!("{}\r", "Sending...");
     std::io::stdout().flush()?;
@@ -133,11 +132,7 @@ async fn handle_repeater(
         eprintln!("REDIRECTS COUNT EXCEEDED\n");
     }
 
-    if settings.no_body {
-        println!("{}\n", super::trim_body(&response_str));
-    } else {
-        println!("{}\n", response_str);
-    }
+    println!("{}\n", super::format_output(&response_str, settings.no_body, settings.no_cookie));
 
     return Ok(());
 }

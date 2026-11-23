@@ -1,0 +1,8 @@
+target/
+# rules/
+tools/
+pyrightconfig.json
+PYTHON_AUDIT_OPTIMIZATION.md
+.vscode/
+rules/http/passive/__pycache__/nuclei_technologies.cpython-312.pyc
+.release-check-*
