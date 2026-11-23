@@ -1,5 +1,7 @@
 # Cruster
 
+![Cruster logo](static/big_logo.png)
+
 `v0.8.5`
 
 Intercepting HTTP(S)/WS(S) proxy for penetration tests' and DevSecOps purposes.
