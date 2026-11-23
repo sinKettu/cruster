@@ -525,19 +525,25 @@ mod range_tests {
         fn command() -> clap::Command {
             let mut command = clap::Command::new("show");
             for flag in ["urls", "pretty", "no-body", "no-cookie", "raw"] {
-                command = command.arg(clap::Arg::new(flag).long(flag).action(clap::ArgAction::SetTrue));
+                let mut arg = clap::Arg::new(flag).long(flag).action(clap::ArgAction::SetTrue);
+                if flag == "no-cookie" {
+                    arg = arg.short('c');
+                }
+                command = command.arg(arg);
             }
             for option in ["filter", "extract", "index"] {
                 command = command.arg(clap::Arg::new(option).long(option));
             }
             command
         }
-        let args = command().try_get_matches_from(["show", "--no-cookie", "--no-body", "--index", "2"]).unwrap();
-        let mut settings = parse_settings(&args).unwrap();
-        settings.apply_selection_defaults(&parse_range("a").unwrap());
-        assert!(settings.no_cookie && settings.no_body && settings.pretty);
-        let args = command().try_get_matches_from(["show", "--no-cookie", "--raw"]).unwrap();
-        assert!(parse_settings(&args).is_err());
+        for flag in ["--no-cookie", "-c"] {
+            let args = command().try_get_matches_from(["show", flag, "--no-body", "--index", "2"]).unwrap();
+            let mut settings = parse_settings(&args).unwrap();
+            settings.apply_selection_defaults(&parse_range("a").unwrap());
+            assert!(settings.no_cookie && settings.no_body && settings.pretty);
+            let args = command().try_get_matches_from(["show", flag, "--raw"]).unwrap();
+            assert!(parse_settings(&args).is_err());
+        }
         assert!(!parse_settings(&command().try_get_matches_from(["show"]).unwrap()).unwrap().no_cookie);
     }
 

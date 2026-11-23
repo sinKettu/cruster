@@ -289,6 +289,7 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                 )
                                 .arg(
                                     clap::Arg::new("no-cookie")
+                                        .short('c')
                                         .long("no-cookie")
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Replace Cookie and Set-Cookie header values with 'stripped' in pretty output")
@@ -368,6 +369,7 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                 )
                                 .arg(
                                     clap::Arg::new("no-cookie")
+                                        .short('c')
                                         .long("no-cookie")
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Replace Cookie and Set-Cookie header values with 'stripped' in output")
@@ -399,6 +401,7 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                 )
                                 .arg(
                                     clap::Arg::new("no-cookie")
+                                        .short('c')
                                         .long("no-cookie")
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Replace Cookie and Set-Cookie header values with 'stripped' in output")

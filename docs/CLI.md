@@ -32,7 +32,7 @@ Available arguments and options:
     -u, --urls                 Print only indexes and full URLs
     -p, --pretty               Print full formated requests and responses (if any)
     -b, --no-body              Do not print request and response bodies in pretty mode
-        --no-cookie            Replace Cookie and Set-Cookie header values with 'stripped' in pretty output
+    -c, --no-cookie            Replace Cookie and Set-Cookie header values with 'stripped' in pretty output
     -r, --raw                  Print raw data as it was dumped in project (JSONLines)
     -f, --filter <filter>      Filter pairs in specifyied bounds with regular expression in format of 're2'
     -e, --extract <ATTRIBUTE>  Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>
@@ -72,10 +72,11 @@ Raw output returns the original JSONL records; `--filter` searches those records
 
 Use `-b` or `--no-body` with pretty output, including automatic pretty output for an exact ID, to print request/response lines and headers without their bodies.
 
-Use `--no-cookie` to keep `Cookie` and `Set-Cookie` headers visible while replacing their values with `stripped`. It works with every selection syntax in pretty output and can be combined with `--no-body`:
+Use `-c` or `--no-cookie` to keep `Cookie` and `Set-Cookie` headers visible while replacing their values with `stripped`. It works with every selection syntax in pretty output and can be combined with `--no-body`:
 
 ```shell
 cruster cli http show 2i --no-cookie
+cruster cli http show 2i -c
 cruster cli http show a --pretty --no-body --no-cookie
 ```
 
@@ -113,7 +114,7 @@ all pairs remain eligible. Invalid regular expressions fail before scanning begi
 
     Options:
     -b, --no-body  Print request/response without body
-        --no-cookie  Replace Cookie and Set-Cookie header values with 'stripped' in output
+    -c, --no-cookie  Replace Cookie and Set-Cookie header values with 'stripped' in output
     -h, --help     Print help
     ```
 
@@ -131,7 +132,7 @@ all pairs remain eligible. Invalid regular expressions fail before scanning begi
     Options:
     -f, --force    Execute repeater without editing
     -b, --no-body  Print request/response without body
-        --no-cookie  Replace Cookie and Set-Cookie header values with 'stripped' in output
+    -c, --no-cookie  Replace Cookie and Set-Cookie header values with 'stripped' in output
     -h, --help     Print help
     ```
 
@@ -159,7 +160,7 @@ all pairs remain eligible. Invalid regular expressions fail before scanning begi
 
 Usage of every comand is pretty simple, just follow arguments described in help output.
 
-Both `repeater show` and `repeater exec` support `--no-cookie`, optionally together with `--no-body`. Cookie headers are shown as `Cookie: stripped` / `Set-Cookie: stripped`; saved repeaters and the requests sent over the network retain their original cookies.
+Both `repeater show` and `repeater exec` support `-c` / `--no-cookie`, optionally together with `--no-body`. Cookie headers are shown as `Cookie: stripped` / `Set-Cookie: stripped`; saved repeaters and the requests sent over the network retain their original cookies.
 
 ### Editing request in repeater via external editor
 
