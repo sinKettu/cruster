@@ -649,7 +649,7 @@ mod tests {
         let project = Project::new(true);
         let body = "Привет\r\n\r\nlast\n\n  \n";
         let (address, received) = local_server("Ответ".as_bytes().to_vec()).await;
-        project.0.create_repeater(input(json!({"raw_request":format!("POST /cli HTTP/1.1\nHost: virtual.test\nX-Dup: one\nX-Dup: two\nContent-Length: 1\n\n{body}"),"changes":{"address":address,"https":false}}))).unwrap();
+        project.0.create_repeater(input(json!({"raw_request":format!("POST /cli HTTP/1.1\nHost: virtual.test\nX-Dup: one\nX-Dup: two\nCookie: session=keep-on-wire\nContent-Length: 1\n\n{body}"),"changes":{"address":address,"https":false}}))).unwrap();
         let path = project.0.project.join("repeater.jsonl");
         shared::exec::execute(
             &shared::exec::RepeaterExecSettings {
@@ -657,6 +657,7 @@ mod tests {
                 number: Some(1),
                 force: true,
                 no_body: true,
+                no_cookie: true,
             },
             path.to_str().unwrap(),
             "unused-editor",
@@ -668,6 +669,9 @@ mod tests {
         let wire = String::from_utf8(wire).unwrap();
         assert!(wire.contains("x-dup: one\r\n"));
         assert!(wire.contains("x-dup: two\r\n"));
+        assert!(wire.contains("cookie: session=keep-on-wire\r\n"));
+        assert!(project.0.get_repeater(input(json!({"id":1}))).unwrap().0["request"]
+            .as_str().unwrap().contains("cookie: session=keep-on-wire"));
         assert!(
             project.0.get_repeater(input(json!({"id":1}))).unwrap().0["response"]
                 .as_str()
@@ -692,7 +696,8 @@ mod tests {
                         name: None,
                         number: Some(1),
                         force: true,
-                        no_body: true
+                        no_body: true,
+                        no_cookie: true,
                     },
                     path.to_str().unwrap(),
                     "unused-editor"

@@ -82,6 +82,7 @@ pub(crate) struct ShowSettings {
     pub(crate) print_urls: bool,
     pub(crate) pretty: bool,
     pub(crate) no_body: bool,
+    pub(crate) no_cookie: bool,
     pub(crate) raw: bool,
     pub(crate) filter: Option<String>,
     pub(crate) attribute: Option<ExtractionAttribute>,
@@ -128,6 +129,7 @@ impl Default for ShowSettings {
             print_urls: false,
             pretty: false,
             no_body: false,
+            no_cookie: false,
             raw: false,
             filter: None,
             attribute: None,
@@ -151,6 +153,7 @@ pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterC
     settings.print_urls = args.get_flag("urls");
     settings.pretty = args.get_flag("pretty");
     settings.no_body = args.get_flag("no-body");
+    settings.no_cookie = args.get_flag("no-cookie");
     settings.raw = args.get_flag("raw");
     settings.filter = match args.get_one::<String>("filter") {
         Some(filter) => Some(filter.clone()),
@@ -187,6 +190,10 @@ pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterC
         return Err(
             CrusterCLIError::from("Parameters '-b' and '-r' cannot be used at the same time")
         )
+    }
+
+    if settings.no_cookie && settings.raw {
+        return Err(CrusterCLIError::from("Parameters '--no-cookie' and '--raw' cannot be used at the same time"));
     }
 
     if settings.attribute.is_some() && settings.raw {
@@ -255,17 +262,22 @@ fn pretty_query(query: &str) -> String {
         .join(&"&".bright_black().to_string())
 }
 
-fn pretty_headers(headers: &::http::HeaderMap) {
+fn pretty_header_value<'a>(headers: &'a ::http::HeaderMap, key: &str, no_cookie: bool) -> Cow<'a, str> {
+    if no_cookie && crate::cli::output::is_cookie_header(key) {
+        return Cow::Borrowed("stripped");
+    }
+    Cow::Owned(headers.get_all(key).iter()
+        .map(|value| value.as_bytes().to_str_lossy())
+        .collect::<Vec<Cow<str>>>()
+        .join("; "))
+}
+
+fn pretty_headers(headers: &::http::HeaderMap, no_cookie: bool) {
     let mut keys: Vec<&str> = headers.keys().map(|key| key.as_str()).collect();
     keys.sort();
 
     for key in keys {
-        let values = headers
-            .get_all(key)
-            .iter()
-            .map(|value| value.as_bytes().to_str_lossy())
-            .collect::<Vec<Cow<str>>>()
-            .join("; ");
+        let values = pretty_header_value(headers, key, no_cookie);
         println!("{}{} {}", key.bright_blue(), ":".bright_black(), values);
     }
 }
@@ -293,6 +305,7 @@ fn pretty_status(status: &str) -> ColoredString {
 fn print_pretty_request(
     request: &crate::cruster_proxy::request_response::HyperRequestWrapper,
     no_body: bool,
+    no_cookie: bool,
 ) {
     let path = request
         .get_request_path_without_query()
@@ -304,7 +317,7 @@ fn print_pretty_request(
         print!("{}{}", "?".bright_black(), pretty_query(&query));
     }
     println!(" {}", request.version.bright_black());
-    pretty_headers(&request.headers);
+    pretty_headers(&request.headers, no_cookie);
 
     if !no_body && !request.body.is_empty() {
         println!("\n{}", pretty_body(&request.body));
@@ -314,29 +327,30 @@ fn print_pretty_request(
 fn print_pretty_response(
     response: &crate::cruster_proxy::request_response::HyperResponseWrapper,
     no_body: bool,
+    no_cookie: bool,
 ) {
     println!("{} {}", response.version.bright_black(), pretty_status(&response.status));
-    pretty_headers(&response.headers);
+    pretty_headers(&response.headers, no_cookie);
 
     if !no_body && !response.body.is_empty() {
         println!("\n{}", pretty_body(&response.body));
     }
 }
 
-fn print_pretty(pair: &http_storage::RequestResponsePair, no_body: bool) {
+fn print_pretty(pair: &http_storage::RequestResponsePair, no_body: bool, no_cookie: bool) {
     println!("\n{}", format!(" HTTP exchange #{} ", pair.index).bold().on_bright_black());
 
     match (pair.request.as_ref(), pair.response.as_ref()) {
         (Some(request), Some(response)) => {
             println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
-            print_pretty_request(request, no_body);
+            print_pretty_request(request, no_body, no_cookie);
             println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
-            print_pretty_response(response, no_body);
+            print_pretty_response(response, no_body, no_cookie);
             println!("{}", "──────────────────────────────────────────────────────────".bright_black());
         },
         (Some(request), None) => {
             println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
-            print_pretty_request(request, no_body);
+            print_pretty_request(request, no_body, no_cookie);
             println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
             println!("{}", "<EMPTY RESPONSE>".bright_black());
             println!("{}", "──────────────────────────────────────────────────────────".bright_black());
@@ -345,7 +359,7 @@ fn print_pretty(pair: &http_storage::RequestResponsePair, no_body: bool) {
             println!("{}", "── REQUEST ──────────────────────────────────────────────".bright_blue());
             println!("{}", "<EMPTY REQUEST>".bright_black());
             println!("\n{}", "── RESPONSE ─────────────────────────────────────────────".bright_magenta());
-            print_pretty_response(response, no_body);
+            print_pretty_response(response, no_body, no_cookie);
             println!("{}", "──────────────────────────────────────────────────────────".bright_black());
         }
         _ => unreachable!()
@@ -357,7 +371,7 @@ fn print_pair(pair: &http_storage::RequestResponsePair, settings: &ShowSettings,
         super::print_urls(pair);
     }
     else if settings.pretty {
-        print_pretty(pair, settings.no_body);
+        print_pretty(pair, settings.no_body, settings.no_cookie);
     }
     else {
         super::print_briefly(pair, header_if_any);
@@ -504,7 +518,43 @@ pub(crate) fn query(
 
 #[cfg(test)]
 mod range_tests {
-    use super::{parse_range, HTTPTableSelection, ShowSettings};
+    use super::{parse_range, parse_settings, pretty_header_value, HTTPTableSelection, ShowSettings};
+
+    #[test]
+    fn parses_no_cookie_and_rejects_raw_output() {
+        fn command() -> clap::Command {
+            let mut command = clap::Command::new("show");
+            for flag in ["urls", "pretty", "no-body", "no-cookie", "raw"] {
+                command = command.arg(clap::Arg::new(flag).long(flag).action(clap::ArgAction::SetTrue));
+            }
+            for option in ["filter", "extract", "index"] {
+                command = command.arg(clap::Arg::new(option).long(option));
+            }
+            command
+        }
+        let args = command().try_get_matches_from(["show", "--no-cookie", "--no-body", "--index", "2"]).unwrap();
+        let mut settings = parse_settings(&args).unwrap();
+        settings.apply_selection_defaults(&parse_range("a").unwrap());
+        assert!(settings.no_cookie && settings.no_body && settings.pretty);
+        let args = command().try_get_matches_from(["show", "--no-cookie", "--raw"]).unwrap();
+        assert!(parse_settings(&args).is_err());
+        assert!(!parse_settings(&command().try_get_matches_from(["show"]).unwrap()).unwrap().no_cookie);
+    }
+
+    #[test]
+    fn no_cookie_redacts_only_cookie_header_values_without_mutating_headers() {
+        let mut headers = ::http::HeaderMap::new();
+        headers.insert("cookie", "session=secret".parse().unwrap());
+        headers.append("set-cookie", "token=secret; HttpOnly".parse().unwrap());
+        headers.append("set-cookie", "other=secret".parse().unwrap());
+        headers.insert("host", "example.com".parse().unwrap());
+        assert_eq!(pretty_header_value(&headers, "cookie", true), "stripped");
+        assert_eq!(pretty_header_value(&headers, "set-cookie", true), "stripped");
+        assert_eq!(pretty_header_value(&headers, "host", true), "example.com");
+        assert_eq!(pretty_header_value(&headers, "cookie", false), "session=secret");
+        assert_eq!(headers.get_all("set-cookie").iter().count(), 2);
+        assert_eq!(headers["cookie"], "session=secret");
+    }
 
     fn selection(value: &str) -> HTTPTableSelection {
         parse_range(value).unwrap().selection
@@ -540,12 +590,13 @@ mod range_tests {
                 (false, false, true),
             ] {
                 let mut settings = ShowSettings {
-                    raw, print_urls, pretty, index,
+                    raw, print_urls, pretty, index, no_cookie: !raw,
                     ..Default::default()
                 };
                 settings.apply_selection_defaults(&range);
                 assert_eq!((settings.raw, settings.print_urls, settings.pretty),
                     (raw, print_urls, pretty), "{range:?}, index={index:?}");
+                assert_eq!(settings.no_cookie, !raw);
             }
 
             let mut settings = ShowSettings { index, no_body: true, ..Default::default() };

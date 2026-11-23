@@ -126,3 +126,25 @@ pub(crate) fn trim_body(req_or_res: &str) -> String {
 
     return result_wout_body;
 }
+
+fn format_output(message: &str, no_body: bool, no_cookie: bool) -> String {
+    let message = if no_body { trim_body(message) } else { message.to_owned() };
+    if no_cookie { super::output::strip_cookies(&message) } else { message }
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::format_output;
+
+    #[test]
+    fn no_cookie_combines_with_no_body_without_changing_source() {
+        let message = "GET / HTTP/1.1\r\nCookie: session=secret\r\nHost: example.com\r\n\r\nbody secret";
+        assert_eq!(format_output(message, false, false), message);
+        let headers_only = format_output(message, true, true);
+        assert!(headers_only.contains("Cookie: stripped\r\n"));
+        assert!(!headers_only.contains("session=secret"));
+        assert!(!headers_only.contains("body secret"));
+        assert!(format_output(message, false, true).ends_with("body secret"));
+        assert!(message.contains("Cookie: session=secret"));
+    }
+}

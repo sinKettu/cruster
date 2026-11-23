@@ -288,6 +288,12 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .help("Do not print request and response bodies in pretty mode")
                                 )
                                 .arg(
+                                    clap::Arg::new("no-cookie")
+                                        .long("no-cookie")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Replace Cookie and Set-Cookie header values with 'stripped' in pretty output")
+                                )
+                                .arg(
                                     clap::Arg::new("raw")
                                         .short('r')
                                         .long("raw")
@@ -360,6 +366,12 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Print request/response without body")
                                 )
+                                .arg(
+                                    clap::Arg::new("no-cookie")
+                                        .long("no-cookie")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Replace Cookie and Set-Cookie header values with 'stripped' in output")
+                                )
                         )
                         .subcommand(
                             clap::Command::new("exec")
@@ -384,6 +396,12 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .long("no-body")
                                         .action(clap::ArgAction::SetTrue)
                                         .help("Print request/response without body")
+                                )
+                                .arg(
+                                    clap::Arg::new("no-cookie")
+                                        .long("no-cookie")
+                                        .action(clap::ArgAction::SetTrue)
+                                        .help("Replace Cookie and Set-Cookie header values with 'stripped' in output")
                                 )
                         )
                         .subcommand(
