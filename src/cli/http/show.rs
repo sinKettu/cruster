@@ -136,6 +136,15 @@ impl Default for ShowSettings {
     }
 }
 
+impl ShowSettings {
+    fn apply_selection_defaults(&mut self, range: &HTTPTableRange) {
+        // Exact IDs default to details, but never override an explicit format.
+        if range.selects_id(self.index) && !self.raw && !self.print_urls {
+            self.pretty = true;
+        }
+    }
+}
+
 pub(crate) fn parse_settings(args: &ArgMatches) -> Result<ShowSettings, CrusterCLIError> {
     let mut settings = ShowSettings::default();
 
@@ -421,15 +430,7 @@ fn has_appropriate_attribute(pair: &http_storage::RequestResponsePair, attribute
 }
 
 pub(crate) fn execute(range: HTTPTableRange, http_storage: &str, mut settings: ShowSettings) -> Result<(), CrusterCLIError> {
-    let selects_single_id = range.selects_id(settings.index);
-
-    // Selecting an exact pair is a detail-oriented operation, so it always
-    // uses the full pretty representation regardless of presentation flags.
-    if selects_single_id {
-        settings.pretty = true;
-        settings.raw = false;
-        settings.print_urls = false;
-    }
+    settings.apply_selection_defaults(&range);
 
     let mut first = true;
     query(&range, http_storage, &settings, |raw, pair| {
@@ -475,9 +476,8 @@ pub(crate) fn query(
     }
 
     let mut found = false;
-    let raw_mode = settings.raw && !range.selects_id(settings.index);
     for line in selected_lines {
-        if raw_mode {
+        if settings.raw {
             if filter_re.as_ref().map_or(true, |re| re.is_match(line)) {
                 visit(line, None)?;
                 found = true;
@@ -504,7 +504,7 @@ pub(crate) fn query(
 
 #[cfg(test)]
 mod range_tests {
-    use super::{parse_range, HTTPTableSelection};
+    use super::{parse_range, HTTPTableSelection, ShowSettings};
 
     fn selection(value: &str) -> HTTPTableSelection {
         parse_range(value).unwrap().selection
@@ -525,5 +525,33 @@ mod range_tests {
         assert!(parse_range("20-10").is_err());
         assert!(parse_range("0-10").is_err());
         assert!(parse_range("something").is_err());
+    }
+
+    #[test]
+    fn selection_defaults_preserve_explicit_output_formats() {
+        for (range, index) in [
+            ("a", None), ("2", None), ("1-2", None), ("-2", None),
+            ("i2", None), ("2i", None), ("0", Some(2)),
+        ] {
+            let range = parse_range(range).unwrap();
+            for (raw, print_urls, pretty) in [
+                (true, false, false),
+                (false, true, false),
+                (false, false, true),
+            ] {
+                let mut settings = ShowSettings {
+                    raw, print_urls, pretty, index,
+                    ..Default::default()
+                };
+                settings.apply_selection_defaults(&range);
+                assert_eq!((settings.raw, settings.print_urls, settings.pretty),
+                    (raw, print_urls, pretty), "{range:?}, index={index:?}");
+            }
+
+            let mut settings = ShowSettings { index, no_body: true, ..Default::default() };
+            settings.apply_selection_defaults(&range);
+            assert_eq!(settings.pretty, range.selects_id(index));
+            assert!(settings.no_body);
+        }
     }
 }

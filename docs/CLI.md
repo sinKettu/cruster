@@ -26,7 +26,7 @@ Available arguments and options:
     Usage: cruster http show [OPTIONS] [INDEX]
 
     Arguments:
-    [INDEX]  Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N in pretty mode [default: 100]
+    [INDEX]  Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N (pretty by default) [default: 100]
 
     Options:
     -u, --urls                 Print only indexes and full URLs
@@ -35,7 +35,7 @@ Available arguments and options:
     -r, --raw                  Print raw data as it was dumped in project (JSONLines)
     -f, --filter <filter>      Filter pairs in specifyied bounds with regular expression in format of 're2'
     -e, --extract <ATTRIBUTE>  Extract pairs from range by attribute. parameter syntax: method=<name>|status=<value>|host=<prefix>|path=<prefix>
-    -i, --index <NUMBER>       Get pair with specific ID in pretty mode
+    -i, --index <NUMBER>       Get pair with specific ID (pretty by default; supports --raw and --urls)
     -h, --help                 Print help
     ```
 
@@ -59,7 +59,15 @@ $ cruster cli http show -e status=404 -u 3-5
      4 http://google.com/some/interesting/path
 ```
 
-`INDEX` is optional and defaults to the first 100 records. An explicit pair ID passed as `iN`, `Ni`, or with `-i <NUMBER>` is searched across the complete HTTP history and always printed in pretty mode. For `-i`, the positional range is ignored.
+`INDEX` is optional and defaults to the first 100 records. An explicit pair ID passed as `iN`, `Ni`, or with `-i <NUMBER>` is searched across the complete HTTP history and printed in pretty mode by default. Explicit output options (`--raw`, `--urls`, or `--pretty`) work with every selection syntax and take precedence over the default. For `-i`, the positional range is ignored, but output options are preserved.
+
+```shell
+cruster cli http show 2i --raw
+cruster cli http show i2 --urls
+cruster cli http show --index 2 --pretty --no-body
+```
+
+Raw output returns the original JSONL records; `--filter` searches those records directly, including when selecting an exact ID.
 
 Use `-b` or `--no-body` with pretty output, including automatic pretty output for an exact ID, to print request/response lines and headers without their bodies.
 

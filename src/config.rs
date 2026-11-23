@@ -264,7 +264,7 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                     clap::Arg::new("INDEX")
                                         .default_value("100")
                                         .allow_hyphen_values(true)
-                                        .help("Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N in pretty mode")
+                                        .help("Records to print: omitted or n -- first n, a -- all, n-m -- inclusive range, -n -- last n, iN/Ni -- pair with ID N (pretty by default)")
                                 )
                                 .arg(
                                     clap::Arg::new("urls")
@@ -312,7 +312,7 @@ pub(crate) fn parse_cmd_from(args: Vec<std::ffi::OsString>) -> clap::ArgMatches 
                                         .short('i')
                                         .long("index")
                                         .value_name("NUMBER")
-                                        .help("Get pair with specific ID in pretty mode")
+                                        .help("Get pair with specific ID (pretty by default; supports --raw and --urls)")
                                 )
                         )
                         .subcommand(

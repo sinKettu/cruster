@@ -593,13 +593,53 @@ mod tests {
         }).unwrap();
         assert_eq!(raw, vec!["not-json"]);
         let settings = show::ShowSettings { raw: true, index: Some(7), ..Default::default() };
-        show::query(&show::parse_range("0").unwrap(), &path, &settings, |_, pair| {
-            assert_eq!(pair.unwrap().index, 7); // ID overrides raw and positional range.
+        show::query(&show::parse_range("0").unwrap(), &path, &settings, |line, pair| {
+            assert!(pair.is_none()); // ID overrides the range, not the output format.
+            assert_eq!(serde_json::from_str::<Value>(line).unwrap()["index"], 7);
             Ok(())
         }).unwrap();
         // A malformed row outside the selected CLI range is not decoded by MCP.
         assert_eq!(ids(&f.query(json!({"range":"1"})).unwrap()), vec![7]);
         assert!(f.query(json!({"range":"a"})).is_err());
+    }
+
+    #[test]
+    fn cli_raw_query_supports_every_selection_and_filters_original_json() {
+        let f = Fixture::new(100000);
+        let records = [record(40), record(2), record(91)];
+        f.write(&records);
+        for (range, index) in [
+            ("a", None), ("3", None), ("2-3", None), ("-2", None),
+            ("i2", None), ("2i", None), ("0", Some(2)),
+        ] {
+            let settings = show::ShowSettings {
+                raw: true,
+                index,
+                filter: Some(r#""index":2,"#.to_owned()),
+                ..Default::default()
+            };
+            let mut delivered = Vec::new();
+            show::query(&show::parse_range(range).unwrap(), f.server.history_path(), &settings, |raw, pair| {
+                assert!(pair.is_none(), "{range}, index={index:?}");
+                delivered.push(raw.to_owned());
+                Ok(())
+            }).unwrap();
+            assert_eq!(delivered, vec![records[1].to_string()], "{range}, index={index:?}");
+        }
+
+        // Looking up an ID needs JSON metadata, but raw output must not decode
+        // the HTTP payload (which may be invalid for the domain representation).
+        let mut invalid_payload = record(2);
+        invalid_payload["request"]["body"] = json!("not valid base64!");
+        f.write(&[invalid_payload.clone()]);
+        let settings = show::ShowSettings { raw: true, ..Default::default() };
+        let mut delivered = Vec::new();
+        show::query(&show::parse_range("2i").unwrap(), f.server.history_path(), &settings, |raw, pair| {
+            assert!(pair.is_none());
+            delivered.push(raw.to_owned());
+            Ok(())
+        }).unwrap();
+        assert_eq!(delivered, vec![invalid_payload.to_string()]);
     }
 
     #[test]
