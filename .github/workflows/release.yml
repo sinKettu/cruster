@@ -12,70 +12,212 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: 2
+  RELEASE_TAG: ${{ github.ref_name }}
+
 jobs:
-  release:
+  prepare:
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
-
-    permissions:
-      contents: write
-
-    defaults:
-      run:
-        shell: bash
-
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_BUILD_JOBS: 2
+    timeout-minutes: 15
 
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Install system dependencies
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check tag matches package version
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("Cargo.toml").read_text())["package"]["version"]
+          tag = os.environ["RELEASE_TAG"]
+          if tag != f"v{version}":
+              raise SystemExit(f"Tag {tag} does not match package version v{version}")
+          PY
+
+      - name: Package standalone rules
+        run: |
+          python - <<'PY'
+          import os
+          import zipfile
+          from pathlib import Path
+
+          dist = Path("dist")
+          dist.mkdir()
+          archive = dist / f"cruster-{os.environ['RELEASE_TAG']}-rules.zip"
+          with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+              for path in sorted(Path("rules").rglob("*")):
+                  if path.is_file():
+                      output.write(path, path.as_posix())
+          PY
+
+      - name: Upload rules archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-rules
+          path: dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+
+  build:
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            features: crossterm,rcgen-ca
+          - name: linux-x86_64-openssl
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            features: crossterm,openssl-ca
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: crossterm,rcgen-ca
+
+    env:
+      BUILD_NAME: ${{ matrix.name }}
+      BUILD_TARGET: ${{ matrix.target }}
+      BUILD_FEATURES: ${{ matrix.features }}
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential pkg-config cmake \
-            libssl-dev zlib1g-dev libxcb1-dev libx11-dev
+            zlib1g-dev libxcb1-dev libx11-dev
+
+      - name: Install OpenSSL development libraries
+        if: matrix.name == 'linux-x86_64-openssl'
+        run: sudo apt-get install -y libssl-dev
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
 
-      - name: Check tag matches package version
+      - name: Run tests
+        run: cargo test --locked --target "$BUILD_TARGET" --no-default-features --features "$BUILD_FEATURES"
+
+      - name: Build release binary
+        run: cargo build --release --locked --target "$BUILD_TARGET" --no-default-features --features "$BUILD_FEATURES"
+
+      - name: Verify Linux TLS linkage
+        if: runner.os == 'Linux'
         run: |
-          version=$(cargo metadata --locked --no-deps --format-version 1 \
-            | python3 -c 'import json, sys; print(json.load(sys.stdin)["packages"][0]["version"])')
-          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match package version v$version"
+          linkage=$(ldd "target/$BUILD_TARGET/release/cruster")
+          printf '%s\n' "$linkage"
+          if [[ "$BUILD_NAME" == "linux-x86_64-openssl" ]]; then
+            grep -q 'libssl\.so\.3' <<< "$linkage"
+            grep -q 'libcrypto\.so\.3' <<< "$linkage"
+          elif grep -Eq 'lib(ssl|crypto)\.so' <<< "$linkage"; then
+            echo "::error::The rcgen build unexpectedly links to OpenSSL"
             exit 1
           fi
 
-      - name: Run tests
-        run: cargo test --locked
-
-      - name: Build release binary
-        run: cargo build --release --locked
-
       - name: Package binary
         run: |
-          name="cruster-${GITHUB_REF_NAME}-linux-x86_64"
-          mkdir -p "dist/$name"
-          cp target/release/cruster README.md LICENSE "dist/$name/"
-          cp -r rules docs static "dist/$name/"
-          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          python - <<'PY'
+          import os
+          import shutil
+          from pathlib import Path
+
+          name = f"cruster-{os.environ['RELEASE_TAG']}-{os.environ['BUILD_NAME']}"
+          dist = Path("dist")
+          package = dist / name
+          package.mkdir(parents=True)
+          windows = os.environ["RUNNER_OS"] == "Windows"
+          binary = "cruster.exe" if windows else "cruster"
+          shutil.copy2(Path("target") / os.environ["BUILD_TARGET"] / "release" / binary, package)
+          for filename in ("README.md", "LICENSE"):
+              shutil.copy2(filename, package)
+          for directory in ("rules", "docs", "static"):
+              shutil.copytree(directory, package / directory)
+          if os.environ["BUILD_NAME"].endswith("-openssl"):
+              (package / "OPENSSL.txt").write_text(
+                  "This Linux x86_64 build uses OpenSSL 3 for the proxy TLS client and CA.\n"
+                  "Install libssl3 on Ubuntu 22.04 or the equivalent OpenSSL 3 runtime package.\n",
+                  encoding="utf-8",
+              )
+          shutil.make_archive(str(dist / name), "zip" if windows else "gztar", root_dir=dist, base_dir=name)
+          PY
+
+      - name: Upload binary archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    needs: [prepare, build]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all release archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
           cd dist
-          sha256sum *.tar.gz > SHA256SUMS
+          sha256sum *.tar.gz *.zip > SHA256SUMS
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            dist/*.tar.gz dist/SHA256SUMS \
+          gh release create "$RELEASE_TAG" \
+            dist/*.tar.gz dist/*.zip dist/SHA256SUMS \
             --verify-tag \
-            --title "Cruster $GITHUB_REF_NAME" \
+            --title "Cruster $RELEASE_TAG" \
             --generate-notes
