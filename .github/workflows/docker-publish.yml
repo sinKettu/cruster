@@ -1,73 +1,157 @@
 name: Docker build and push
 
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 env:
-  # Use docker.io for Docker Hub if empty
   REGISTRY: docker.io
-  # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.event.repository.name  }}
+  RELEASE_TAG: ${{ github.ref_name }}
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      # This is used to complete the identity challenge
-      # with sigstore/fulcio when running outside of PRs.
-      id-token: write
+  prepare:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      - name: set current version
-        run: echo "CURRENT_VERSION=$(echo v$(grep -E '^version = "[0-9].[0-9].[0-9]' Cargo.toml | grep -o '[0-9].[0-9].[0-9]'))" >> $GITHUB_ENV
-        
-      - name: check current version
-        run: echo $CURRENT_VERSION
-      # Workaround: https://github.com/docker/build-push-action/issues/461
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v2.2.1 
-
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2.1.0
+      - name: Checkout sources
+        uses: actions/checkout@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKER_HUB_USER  }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN}}
+          persist-credentials: false
 
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check tag matches package version
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("Cargo.toml").read_text())["package"]["version"]
+          tag = os.environ["RELEASE_TAG"]
+          if tag != f"v{version}":
+              raise SystemExit(f"Tag {tag} does not match package version v{version}")
+          PY
+
+  build:
+    name: Build and publish (${{ matrix.variant }})
+    needs: prepare
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: default
+            dockerfile: docker/Dockerfile
+            tag_suffix: ''
+          - variant: openssl-ncurses
+            dockerfile: docker/Dockerfile-openssl-ncurses
+            tag_suffix: '-openssl-ncurses'
+
+    env:
+      IMAGE_NAME: ${{ vars.DOCKER_HUB_REPOSITORY || format('{0}/{1}', secrets.DOCKER_HUB_USER, github.event.repository.name) }}
+      TAG_SUFFIX: ${{ matrix.tag_suffix }}
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check Docker Hub configuration
+        env:
+          DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
+          DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+        run: |
+          if [[ -z "$DOCKER_HUB_USER" || -z "$DOCKER_HUB_TOKEN" ]]; then
+            echo "::error::Set the DOCKER_HUB_USER and DOCKER_HUB_TOKEN repository secrets"
+            exit 1
+          fi
+          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*$ ]]; then
+            echo "::error::Docker Hub repository must be a lowercase namespace/repository name; set the DOCKER_HUB_REPOSITORY variable"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v4.3.0
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ github.ref_name }}${{ matrix.tag_suffix }}
+            type=raw,value=latest${{ matrix.tag_suffix }},enable=${{ !contains(github.ref_name, '-') }}
 
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-      
-      - name: Build and push Docker image
-        id: build-and-push
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v3
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          repository: ${{ secrets.DOCKER_HUB_USER }}/${{env.IMAGE_NAME}}
-          tags:  ${{ secrets.DOCKER_HUB_USER }}/${{env.IMAGE_NAME}}:latest, ${{ secrets.DOCKER_HUB_USER }}/${{env.IMAGE_NAME}}:${{env.CURRENT_VERSION}}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=cruster-${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=cruster-${{ matrix.variant }}
+
+      - name: Verify Docker image starts
+        run: |
+          image="$REGISTRY/$IMAGE_NAME:$RELEASE_TAG$TAG_SUFFIX"
+          version=$(docker run --rm --network none "$image" --version)
+          printf '%s\n' "$version"
+          [[ "$version" == "cruster ${RELEASE_TAG#v}" ]]
+          docker run --rm --network none "$image" --help
+          docker run --rm --network none --env "TAG_SUFFIX=$TAG_SUFFIX" --entrypoint /bin/sh "$image" -ec '
+            test "$(id -u)" = 4242
+            test -w /opt/cruster
+            test -r rules/audit.yaml
+            test -r rules/example/http/passive/security_headers.py
+            linkage=$(ldd /opt/cruster/cruster)
+            printf "%s\n" "$linkage"
+            if printf "%s\n" "$linkage" | grep -q "not found"; then
+              exit 1
+            fi
+            if [ "$TAG_SUFFIX" = "-openssl-ncurses" ]; then
+              printf "%s\n" "$linkage" | grep -q "libssl\.so\.3"
+              printf "%s\n" "$linkage" | grep -q "libcrypto\.so\.3"
+              printf "%s\n" "$linkage" | grep -q "libncursesw\?\.so"
+            elif printf "%s\n" "$linkage" | grep -Eq "lib(ssl|crypto|ncursesw?)\.so"; then
+              echo "The default build unexpectedly links to OpenSSL or ncurses"
+              exit 1
+            fi
+          '
+
+      - name: Log into Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_HUB_USER }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Publish verified Docker image
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            docker push "$tag"
+          done <<< "$IMAGE_TAGS"

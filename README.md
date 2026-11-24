@@ -308,8 +308,10 @@ $ cd cruster && sudo docker build . -f docker/Dockerfile -t local/cruster
 Also you can build a version with use of `openssl` and `ncurses`:
 
 ``` shell
-$ cd cruster && sudo docker build . -f docker/Dockerfile-openssl-ncurses -t local/cruster
+$ cd cruster && sudo docker build . -f docker/Dockerfile-openssl-ncurses -t local/cruster:openssl-ncurses
 ```
+
+Both images can be found at sinfox/cruster in DockerHub.
 
 ## RoadMap
 

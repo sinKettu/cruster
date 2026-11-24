@@ -1,0 +1,7 @@
+.git
+.vscode
+target
+tools
+.release-check-*
+**/__pycache__
+**/*.pyc
