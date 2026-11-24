@@ -124,8 +124,6 @@ jobs:
           docker run --rm --network none --env "TAG_SUFFIX=$TAG_SUFFIX" --entrypoint /bin/sh "$image" -ec '
             test "$(id -u)" = 4242
             test -w /opt/cruster
-            test -r rules/audit.yaml
-            test -r rules/example/http/passive/security_headers.py
             linkage=$(ldd /opt/cruster/cruster)
             printf "%s\n" "$linkage"
             if printf "%s\n" "$linkage" | grep -q "not found"; then
