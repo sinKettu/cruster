@@ -1,0 +1,155 @@
+name: Docker build and push
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  REGISTRY: docker.io
+  RELEASE_TAG: ${{ github.ref_name }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check tag matches package version
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("Cargo.toml").read_text())["package"]["version"]
+          tag = os.environ["RELEASE_TAG"]
+          if tag != f"v{version}":
+              raise SystemExit(f"Tag {tag} does not match package version v{version}")
+          PY
+
+  build:
+    name: Build and publish (${{ matrix.variant }})
+    needs: prepare
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: default
+            dockerfile: docker/Dockerfile
+            tag_suffix: ''
+          - variant: openssl-ncurses
+            dockerfile: docker/Dockerfile-openssl-ncurses
+            tag_suffix: '-openssl-ncurses'
+
+    env:
+      IMAGE_NAME: ${{ vars.DOCKER_HUB_REPOSITORY || format('{0}/{1}', secrets.DOCKER_HUB_USER, github.event.repository.name) }}
+      TAG_SUFFIX: ${{ matrix.tag_suffix }}
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check Docker Hub configuration
+        env:
+          DOCKER_HUB_USER: ${{ secrets.DOCKER_HUB_USER }}
+          DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+        run: |
+          if [[ -z "$DOCKER_HUB_USER" || -z "$DOCKER_HUB_TOKEN" ]]; then
+            echo "::error::Set the DOCKER_HUB_USER and DOCKER_HUB_TOKEN repository secrets"
+            exit 1
+          fi
+          if [[ ! "$IMAGE_NAME" =~ ^[a-z0-9][a-z0-9_-]*/[a-z0-9][a-z0-9._-]*$ ]]; then
+            echo "::error::Docker Hub repository must be a lowercase namespace/repository name; set the DOCKER_HUB_REPOSITORY variable"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ github.ref_name }}${{ matrix.tag_suffix }}
+            type=raw,value=latest${{ matrix.tag_suffix }},enable=${{ !contains(github.ref_name, '-') }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=cruster-${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=cruster-${{ matrix.variant }}
+
+      - name: Verify Docker image starts
+        run: |
+          image="$REGISTRY/$IMAGE_NAME:$RELEASE_TAG$TAG_SUFFIX"
+          version=$(docker run --rm --network none "$image" --version)
+          printf '%s\n' "$version"
+          [[ "$version" == "cruster ${RELEASE_TAG#v}" ]]
+          docker run --rm --network none "$image" --help
+          docker run --rm --network none --env "TAG_SUFFIX=$TAG_SUFFIX" --entrypoint /bin/sh "$image" -ec '
+            test "$(id -u)" = 4242
+            test -w /opt/cruster
+            linkage=$(ldd /opt/cruster/cruster)
+            printf "%s\n" "$linkage"
+            if printf "%s\n" "$linkage" | grep -q "not found"; then
+              exit 1
+            fi
+            if [ "$TAG_SUFFIX" = "-openssl-ncurses" ]; then
+              printf "%s\n" "$linkage" | grep -q "libssl\.so\.3"
+              printf "%s\n" "$linkage" | grep -q "libcrypto\.so\.3"
+              printf "%s\n" "$linkage" | grep -q "libncursesw\?\.so"
+            elif printf "%s\n" "$linkage" | grep -Eq "lib(ssl|crypto|ncursesw?)\.so"; then
+              echo "The default build unexpectedly links to OpenSSL or ncurses"
+              exit 1
+            fi
+          '
+
+      - name: Log into Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_HUB_USER }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Publish verified Docker image
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            docker push "$tag"
+          done <<< "$IMAGE_TAGS"
