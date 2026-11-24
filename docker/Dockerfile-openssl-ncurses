@@ -37,7 +37,12 @@ COPY Cargo.toml cruster-src/
 COPY Cargo.lock cruster-src/
 
 RUN cd cruster-src \
-    && cargo build --release \
+    && CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
+       CARGO_PROFILE_RELEASE_LTO=fat \
+       CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+       CARGO_PROFILE_RELEASE_PANIC=abort \
+       CARGO_PROFILE_RELEASE_STRIP=symbols \
+       cargo build --release --no-default-features --features openssl-ca,ncurses \
     && cp target/release/cruster /cruster
 
 

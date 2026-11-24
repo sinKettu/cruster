@@ -311,7 +311,7 @@ Also you can build a version with use of `openssl` and `ncurses`:
 $ cd cruster && sudo docker build . -f docker/Dockerfile-openssl-ncurses -t local/cruster:openssl-ncurses
 ```
 
-Both images can be found at sinfox/cruster in DockerHub.
+Both images can be found at [sinfox/cruster](https://hub.docker.com/repository/docker/sinfox/cruster/general) in DockerHub.
 
 ## RoadMap
 

@@ -26,7 +26,12 @@ RUN curl --proto '=https' --tlsv1.2 -sSf -o rustup.sh https://sh.rustup.rs \
     && sh rustup.sh -y
 
 RUN cd cruster-src \
-    && cargo build --release \
+    && CARGO_PROFILE_RELEASE_OPT_LEVEL=z \
+       CARGO_PROFILE_RELEASE_LTO=fat \
+       CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
+       CARGO_PROFILE_RELEASE_PANIC=abort \
+       CARGO_PROFILE_RELEASE_STRIP=symbols \
+       cargo build --release \
     && cp target/release/cruster /cruster
 
 
